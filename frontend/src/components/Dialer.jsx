@@ -34,9 +34,8 @@ function Dialer() {
 }, []);
 
   const makeCall = async () => {
-  if (!device || !phoneNumber) {
-    return alert("Please enter a number and wait for device ready");
-  }
+  if (!device) return alert("Device not ready yet. Please wait.");
+  if (!phoneNumber) return alert("Enter a phone number");
 
   setIsCalling(true);
   setCallStatus('Calling...');
@@ -44,18 +43,17 @@ function Dialer() {
   try {
     const conn = await device.connect({
       params: { 
-        To: phoneNumber,
-        callerId: process.env.VITE_TWILIO_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER // optional
+        To: phoneNumber 
       }
     });
 
     setConnection(conn);
 
+    conn.on('accept', () => setCallStatus('Connected'));
     conn.on('disconnect', () => {
       setCallStatus('Call Ended');
       setIsCalling(false);
     });
-
     conn.on('error', (err) => {
       console.error("Call Error:", err);
       setCallStatus('Call Failed');
@@ -63,10 +61,9 @@ function Dialer() {
     });
 
   } catch (err) {
-    console.error("Connect failed:", err);
-    alert("Failed to start call. Check console.");
+    console.error(err);
+    setCallStatus('Failed to Connect');
     setIsCalling(false);
-    setCallStatus('Ready');
   }
 };
 

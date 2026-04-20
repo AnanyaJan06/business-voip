@@ -6,25 +6,16 @@ dotenv.config();
 const AccessToken = twilio.jwt.AccessToken;
 const VoiceGrant = AccessToken.VoiceGrant;
 
-// ====================== GET TOKEN FOR BROWSER ======================
+// getToken
 export const getToken = async (req, res) => {
   try {
-    const userId = req.user?.id || `user-${Date.now()}`;
-
-    // Debug logs (remove later)
-    console.log("TWILIO_ACCOUNT_SID:", process.env.TWILIO_ACCOUNT_SID ? "✅ Present" : "❌ Missing");
-    console.log("TWILIO_API_KEY_SID:", process.env.TWILIO_API_KEY_SID ? "✅ Present" : "❌ Missing");
-    console.log("TWILIO_API_KEY_SECRET:", process.env.TWILIO_API_KEY_SECRET ? "✅ Present" : "❌ Missing");
-
-    if (!process.env.TWILIO_API_KEY_SECRET) {
-      return res.status(500).json({ message: "TWILIO_API_KEY_SECRET is missing in .env" });
-    }
+    const identity = `browser-${req.user?.id || Date.now()}`;
 
     const token = new AccessToken(
       process.env.TWILIO_ACCOUNT_SID,
       process.env.TWILIO_API_KEY_SID,
       process.env.TWILIO_API_KEY_SECRET,
-      { identity: userId }
+      { identity: identity }
     );
 
     const voiceGrant = new VoiceGrant({
@@ -34,9 +25,12 @@ export const getToken = async (req, res) => {
 
     token.addGrant(voiceGrant);
 
-    res.json({ token: token.toJwt() });
+    res.json({ 
+      token: token.toJwt(),
+      identity: identity 
+    });
   } catch (error) {
-    console.error('Token Generation Error:', error);
+    console.error('Token Error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -60,18 +54,18 @@ export const makeCall = async (req, res) => {
   }
 };
 
-// ====================== TwiML VOICE RESPONSE ======================
+// voiceResponse (TwiML)
 export const voiceResponse = (req, res) => {
   const twiml = new twilio.twiml.VoiceResponse();
 
-  twiml.say("Hello! Connecting your call...");
+  twiml.say("Connecting your call... Please wait.");
 
   const dial = twiml.dial({
     callerId: process.env.TWILIO_PHONE_NUMBER,
     answerOnBridge: true,
   });
 
-  dial.client("browser");   // Must match token identity
+  dial.client("browser");     // Must match identity pattern
 
   res.type('text/xml');
   res.send(twiml.toString());
