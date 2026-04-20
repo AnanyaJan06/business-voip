@@ -10,22 +10,28 @@ function Dialer() {
 
   // Initialize Twilio Device
   useEffect(() => {
-    const initDevice = async () => {
-      try {
-        const res = await fetch('http://localhost:5000/api/twilio/token', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        const data = await res.json();
-        const twilioDevice = new Device(data.token);
-        twilioDevice.register();
-        setDevice(twilioDevice);
-      } catch (err) {
-        console.error("Token error", err);
-      }
-    };
+  const initDevice = async () => {
+    try {
+      const res = await fetch('https://business-voip.onrender.com/api/twilio/token', {   // ← Use deployed backend
+        headers: { 
+          Authorization: `Bearer ${localStorage.getItem('token')}` 
+        }
+      });
+      
+      const data = await res.json();
+      const twilioDevice = new Device(data.token);
+      
+      twilioDevice.register();
+      setDevice(twilioDevice);
+      
+      console.log("✅ Twilio Device Registered");
+    } catch (err) {
+      console.error("Token error", err);
+    }
+  };
 
-    initDevice();
-  }, []);
+  initDevice();
+}, []);
 
   const makeCall = async () => {
   if (!device || !phoneNumber) {

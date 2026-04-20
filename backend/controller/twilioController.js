@@ -64,14 +64,14 @@ export const makeCall = async (req, res) => {
 export const voiceResponse = (req, res) => {
   const twiml = new twilio.twiml.VoiceResponse();
 
-  twiml.say("Hello, connecting your call. Please wait...");
+  twiml.say("Hello! Connecting your call...");
 
   const dial = twiml.dial({
     callerId: process.env.TWILIO_PHONE_NUMBER,
     answerOnBridge: true,
   });
 
-  dial.client("browser");
+  dial.client("browser");   // Must match token identity
 
   res.type('text/xml');
   res.send(twiml.toString());
