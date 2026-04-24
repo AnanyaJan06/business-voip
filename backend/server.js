@@ -22,8 +22,11 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
+// app.use(cors());
+// app.use(express.json());
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 
 app.use('/api/auth', authRoutes);
