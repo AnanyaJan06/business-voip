@@ -18,10 +18,10 @@ export const getToken = async (req, res) => {
       { identity: identity }
     );
 
-    const voiceGrant = new VoiceGrant({
-      incomingAllow: true,
-      outgoingAllow: true,
-    });
+  const voiceGrant = new VoiceGrant({
+  outgoingApplicationSid: process.env.TWIML_APP_SID,
+  incomingAllow: true
+});
 
     token.addGrant(voiceGrant);
 
@@ -56,17 +56,33 @@ export const makeCall = async (req, res) => {
 
 // voiceResponse (TwiML)
 export const voiceResponse = (req, res) => {
-  const twiml = new twilio.twiml.VoiceResponse();
+  try {
+    console.log("Twilio webhook body:", req.body); // <-- Added log
 
-  twiml.say("Connecting your call... Please wait.");
+    const twiml = new twilio.twiml.VoiceResponse();
 
-  const dial = twiml.dial({
-    callerId: process.env.TWILIO_PHONE_NUMBER,
-    answerOnBridge: true,
-  });
+    const to = req.body.To;
 
-  dial.client("browser");     // Must match identity pattern
+    if (!to) {
+      console.log("No destination number received");
+      return res.status(400).send("Missing destination number");
+    }
 
-  res.type('text/xml');
-  res.send(twiml.toString());
+    const dial = twiml.dial({
+      callerId: process.env.TWILIO_PHONE_NUMBER,
+      answerOnBridge: true
+    });
+
+    dial.number(to);
+
+    console.log("Calling number:", to);
+    console.log("Generated TwiML:", twiml.toString());
+
+    res.type("text/xml");
+    res.send(twiml.toString());
+
+  } catch (error) {
+    console.error("Voice Response Error:", error);
+    res.status(500).send("Internal Server Error");
+  }
 };

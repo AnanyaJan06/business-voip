@@ -19,7 +19,11 @@ function Dialer() {
       });
       
       const data = await res.json();
-      const twilioDevice = new Device(data.token);
+      // const twilioDevice = new Device(data.token);
+      const twilioDevice = new Device(data.token, {
+      edge: "singapore",
+      logLevel: 1
+      });
       
       twilioDevice.register();
       setDevice(twilioDevice);
