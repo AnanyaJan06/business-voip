@@ -2,21 +2,26 @@ import CallLog from '../model/CallLog.js';
 
 export const saveCallLog = async (req, res) => {
   try {
-    const { phoneNumber, callType, duration, recordingUrl, status } = req.body;
-    const userId = req.user.id;   // from auth middleware
+    const { phoneNumber, callType, duration, status, recordingUrl, callSid } = req.body;
+    const userId = req.user.id;
 
     const callLog = await CallLog.create({
       user: userId,
       phoneNumber,
-      callType,
-      duration,
+      callType: callType || 'outbound',
+      duration: duration || 0,
+      status: status || 'completed',
       recordingUrl,
-      status,
+      callSid,
       endedAt: new Date()
     });
 
-    res.status(201).json({ message: 'Call log saved', callLog });
+    res.status(201).json({ 
+      message: 'Call logged successfully', 
+      callLog 
+    });
   } catch (error) {
+    console.error('Save Call Log Error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -26,10 +31,11 @@ export const getCallLogs = async (req, res) => {
     const userId = req.user.id;
     const logs = await CallLog.find({ user: userId })
       .sort({ startedAt: -1 })
-      .populate('contact', 'name phone');
-    
+      .limit(100);
+
     res.json(logs);
   } catch (error) {
+    console.error('Get Call Logs Error:', error);
     res.status(500).json({ message: error.message });
   }
 };

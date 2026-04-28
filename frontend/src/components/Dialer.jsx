@@ -1,81 +1,110 @@
 import { useState, useEffect } from 'react';
 import { Device } from '@twilio/voice-sdk';
 
+const BACKEND_URL = 'https://business-voip.onrender.com';   // ← Change this when deploying
+
 function Dialer() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [device, setDevice] = useState(null);
   const [connection, setConnection] = useState(null);
   const [callStatus, setCallStatus] = useState('Ready');
   const [isCalling, setIsCalling] = useState(false);
+  const [callStartTime, setCallStartTime] = useState(null);
 
   // Initialize Twilio Device
   useEffect(() => {
-  const initDevice = async () => {
+    const initDevice = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/twilio/token`, {
+          headers: { 
+            Authorization: `Bearer ${localStorage.getItem('token')}` 
+          }
+        });
+        
+        if (!res.ok) throw new Error('Failed to get token');
+        
+        const data = await res.json();
+        const twilioDevice = new Device(data.token, {
+          edge: ['singapore', 'tokyo', 'sydney'], // Better for India/Asia
+          logLevel: 'warn'
+        });
+        
+        twilioDevice.register();
+        setDevice(twilioDevice);
+        
+        console.log("✅ Twilio Device Registered");
+      } catch (err) {
+        console.error("Token error:", err);
+      }
+    };
+
+    initDevice();
+  }, []);
+
+  const makeCall = async () => {
+    if (!device) return alert("Device not ready yet. Please wait.");
+    if (!phoneNumber) return alert("Please enter a phone number");
+
+    setIsCalling(true);
+    setCallStatus('Calling...');
+    setCallStartTime(Date.now());
+
     try {
-      const res = await fetch('https://business-voip.onrender.com/api/twilio/token', {   // ← Use deployed backend
-        headers: { 
-          Authorization: `Bearer ${localStorage.getItem('token')}` 
+      const conn = await device.connect({
+        params: { To: phoneNumber.trim() }
+      });
+
+      setConnection(conn);
+
+      conn.on('accept', () => {
+        setCallStatus('Connected');
+      });
+
+      conn.on('disconnect', async () => {
+        const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
+
+        // Save call log
+        try {
+          await fetch(`${BACKEND_URL}/api/calls/log`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+              phoneNumber: phoneNumber.trim(),
+              callType: 'outbound',
+              duration,
+              status: 'completed',
+              callSid: conn.parameters?.CallSid || ''
+            })
+          });
+        } catch (err) {
+          console.error('Failed to save call log:', err);
         }
+
+        setCallStatus('Call Ended');
+        setIsCalling(false);
+        setConnection(null);
       });
-      
-      const data = await res.json();
-      // const twilioDevice = new Device(data.token);
-      const twilioDevice = new Device(data.token, {
-      edge: "singapore",
-      logLevel: 1
+
+      conn.on('error', (err) => {
+        console.error("Call Error:", err);
+        setCallStatus('Call Failed');
+        setIsCalling(false);
       });
-      
-      twilioDevice.register();
-      setDevice(twilioDevice);
-      
-      console.log("✅ Twilio Device Registered");
+
     } catch (err) {
-      console.error("Token error", err);
+      console.error("Connect failed:", err);
+      setCallStatus('Failed to Connect');
+      setIsCalling(false);
     }
   };
 
-  initDevice();
-}, []);
-
-  const makeCall = async () => {
-  if (!device) return alert("Device not ready yet. Please wait.");
-  if (!phoneNumber) return alert("Enter a phone number");
-
-  setIsCalling(true);
-  setCallStatus('Calling...');
-
-  try {
-    const conn = await device.connect({
-      params: { 
-        To: phoneNumber 
-      }
-    });
-
-    setConnection(conn);
-
-    conn.on('accept', () => setCallStatus('Connected'));
-    conn.on('disconnect', () => {
-      setCallStatus('Call Ended');
-      setIsCalling(false);
-    });
-    conn.on('error', (err) => {
-      console.error("Call Error:", err);
-      setCallStatus('Call Failed');
-      setIsCalling(false);
-    });
-
-  } catch (err) {
-    console.error(err);
-    setCallStatus('Failed to Connect');
-    setIsCalling(false);
-  }
-};
-
   const endCall = () => {
-    if (connection) connection.disconnect();
-    setConnection(null);
-    setIsCalling(false);
-    setCallStatus('Ready');
+    if (connection) {
+      connection.disconnect();
+    }
   };
 
   return (
