@@ -13,6 +13,15 @@ function Contacts() {
     email: '',
     company: ''
   });
+  const [toast, setToast] = useState({ show: false, message: '', type: '' });
+
+  // Show toast notification
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: '' });
+    }, 3000);
+  };
 
   // Fetch contacts
   const fetchContacts = async () => {
@@ -26,6 +35,7 @@ function Contacts() {
       setContacts(data);
     } catch (err) {
       console.error('Error fetching contacts:', err);
+      showToast('Failed to load contacts', 'error');
     } finally {
       setLoading(false);
     }
@@ -38,7 +48,7 @@ function Contacts() {
   const handleAddContact = async (e) => {
     e.preventDefault();
     if (!newContact.name || !newContact.phone) {
-      return alert("Name and Phone number are required");
+      return showToast("Name and Phone number are required", "error");
     }
 
     try {
@@ -52,27 +62,26 @@ function Contacts() {
       });
 
       if (res.ok) {
-        alert("Contact added successfully!");
+        showToast("Contact added successfully!", "success");
         setNewContact({ name: '', phone: '', email: '', company: '' });
         setShowAddForm(false);
         fetchContacts();
+      } else {
+        showToast("Failed to add contact", "error");
       }
     } catch (err) {
       console.error(err);
-      alert("Failed to add contact");
+      showToast("Failed to add contact", "error");
     }
   };
 
-  // ====================== CLICK TO CALL ======================
   const handleCall = (phoneNumber) => {
-    // Dispatch custom event so App.jsx can switch to Dialer and fill the number
     const event = new CustomEvent('callContact', { 
       detail: { phoneNumber } 
     });
     window.dispatchEvent(event);
-
-    // Optional: Show feedback
-    alert(`Calling ${phoneNumber}...`);
+    
+    showToast(`Calling ${phoneNumber}...`, "success");
   };
 
   const deleteContact = async (id) => {
@@ -85,10 +94,11 @@ function Contacts() {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
+      showToast("Contact deleted successfully", "success");
       fetchContacts();
     } catch (err) {
       console.error(err);
-      alert("Failed to delete contact");
+      showToast("Failed to delete contact", "error");
     }
   };
 
@@ -99,6 +109,16 @@ function Contacts() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-6 right-6 px-6 py-4 rounded-2xl shadow-2xl z-50 flex items-center gap-3 ${
+          toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+        } text-white`}>
+          <span className="text-xl">{toast.type === 'success' ? '✅' : '❌'}</span>
+          <span>{toast.message}</span>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold text-white">Contacts</h2>
         <button
