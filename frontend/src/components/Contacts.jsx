@@ -81,7 +81,7 @@ function Contacts() {
     });
     window.dispatchEvent(event);
     
-    showToast(`Calling ${phoneNumber}...`, "success");   // ← This was missing
+    showToast(`Calling ${phoneNumber}...`, "success");
   };
 
   const deleteContact = async (id) => {
@@ -94,7 +94,7 @@ function Contacts() {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      showToast("Contact deleted successfully", "success");   // ← This was missing
+      showToast("Contact deleted successfully", "success");
       fetchContacts();
     } catch (err) {
       console.error(err);
