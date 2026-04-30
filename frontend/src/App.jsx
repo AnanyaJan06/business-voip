@@ -7,17 +7,32 @@ import './App.css';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
-  const [activeTab, setActiveTab] = useState('dialer'); // 'dialer', 'history', 'contacts'
+  const [activeTab, setActiveTab] = useState('dialer');
+  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState(''); // For click-to-call
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     setToken(storedToken);
   }, []);
 
+  // Handle Click-to-Call from Contacts
+  useEffect(() => {
+    const handleCallContact = (event) => {
+      const { phoneNumber } = event.detail;
+      setSelectedPhoneNumber(phoneNumber);
+      setActiveTab('dialer');
+    };
+
+    window.addEventListener('callContact', handleCallContact);
+
+    return () => window.removeEventListener('callContact', handleCallContact);
+  }, []);
+
   const logout = () => {
     localStorage.removeItem('token');
     setToken(null);
     setActiveTab('dialer');
+    setSelectedPhoneNumber('');
   };
 
   if (!token) {
@@ -94,7 +109,7 @@ function App() {
         </header>
 
         <main className="flex-1 overflow-auto p-10 bg-gray-950">
-          {activeTab === 'dialer' && <Dialer />}
+          {activeTab === 'dialer' && <Dialer selectedPhoneNumber={selectedPhoneNumber} />}
           {activeTab === 'history' && <CallHistory />}
           {activeTab === 'contacts' && <Contacts />}
         </main>

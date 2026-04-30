@@ -63,14 +63,15 @@ function Contacts() {
     }
   };
 
-  // Click to Call Function
+  // ====================== CLICK TO CALL ======================
   const handleCall = (phoneNumber) => {
-    // This will switch to Dialer tab and fill the number
-    const dialerEvent = new CustomEvent('callContact', { 
+    // Dispatch custom event so App.jsx can switch to Dialer and fill the number
+    const event = new CustomEvent('callContact', { 
       detail: { phoneNumber } 
     });
-    window.dispatchEvent(dialerEvent);
-    
+    window.dispatchEvent(event);
+
+    // Optional: Show feedback
     alert(`Calling ${phoneNumber}...`);
   };
 
@@ -108,10 +109,9 @@ function Contacts() {
         </button>
       </div>
 
-      {/* Search Bar */}
       <input
         type="text"
-        placeholder="Search by name or phone..."
+        placeholder="Search contacts by name or phone..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         className="w-full bg-gray-900 border border-gray-700 text-white rounded-2xl px-5 py-4 mb-8 focus:border-blue-500"
@@ -140,7 +140,7 @@ function Contacts() {
             />
             <input
               type="email"
-              placeholder="Email Address"
+              placeholder="Email"
               value={newContact.email}
               onChange={(e) => setNewContact({...newContact, email: e.target.value})}
               className="bg-gray-800 border border-gray-700 text-white rounded-2xl px-5 py-4 col-span-2"
