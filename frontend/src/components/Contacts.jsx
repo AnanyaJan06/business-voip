@@ -15,7 +15,7 @@ function Contacts() {
   });
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
-  // Show toast notification
+  // Show Toast Notification
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => {
@@ -108,14 +108,16 @@ function Contacts() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto relative">
       {/* Toast Notification */}
       {toast.show && (
-        <div className={`fixed top-6 right-6 px-6 py-4 rounded-2xl shadow-2xl z-50 flex items-center gap-3 ${
+        <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 text-white ${
           toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
-        } text-white`}>
-          <span className="text-xl">{toast.type === 'success' ? '✅' : '❌'}</span>
-          <span>{toast.message}</span>
+        }`}>
+          <span className="text-2xl">
+            {toast.type === 'success' ? '✅' : '❌'}
+          </span>
+          <span className="font-medium">{toast.message}</span>
         </div>
       )}
 
