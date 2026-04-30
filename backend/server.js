@@ -7,6 +7,7 @@ import connectDB from './config/db.js';
 import callRoutes from './routes/callRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import twilioRoutes from './routes/twilioRoutes.js';
+import contactRoutes from './routes/contactRoutes.js'
 import dns from 'dns';
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
@@ -32,6 +33,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use('/api/auth', authRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/twilio', twilioRoutes);
+app.use('/api/contacts', contactRoutes);
 
 app.get('/', (req, res) => {
   res.send('✅ VoIP Backend is Running with ES Modules');

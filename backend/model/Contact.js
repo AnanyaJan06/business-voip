@@ -6,12 +6,28 @@ const contactSchema = new mongoose.Schema({
     ref: 'User', 
     required: true 
   },
-  name: { type: String, required: true },
-  phone: { type: String, required: true },
-  email: { type: String },
-  company: { type: String },
-  isFavorite: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  name: { 
+    type: String, 
+    required: true 
+  },
+  phone: { 
+    type: String, 
+    required: true 
+  },
+  email: { 
+    type: String 
+  },
+  company: { 
+    type: String 
+  },
+  isFavorite: { 
+    type: Boolean, 
+    default: false 
+  },
+  createdAt: { 
+    type: Date, 
+    default: Date.now 
+  }
 });
 
 export default mongoose.model('Contact', contactSchema);

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import Dialer from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
+import Contacts from './components/Contacts.jsx';
 import Login from './pages/Login.jsx';
 import './App.css';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
-  const [activeTab, setActiveTab] = useState('dialer');
+  const [activeTab, setActiveTab] = useState('dialer'); // 'dialer', 'history', 'contacts'
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -18,19 +19,6 @@ function App() {
     setToken(null);
     setActiveTab('dialer');
   };
-
-  // Auto refresh call history when switching back to history tab
-  useEffect(() => {
-    if (activeTab === 'history') {
-      // Small delay to ensure CallHistory component is mounted
-      const timer = setTimeout(() => {
-        const refreshEvent = new Event('refreshCallHistory');
-        window.dispatchEvent(refreshEvent);
-      }, 300);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [activeTab]);
 
   if (!token) {
     return <Login />;
@@ -69,6 +57,17 @@ function App() {
           >
             📜 Call History
           </div>
+
+          <div 
+            onClick={() => setActiveTab('contacts')}
+            className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
+              activeTab === 'contacts' 
+                ? 'bg-blue-600 text-white' 
+                : 'hover:bg-gray-800 text-gray-300'
+            }`}
+          >
+            👥 Contacts
+          </div>
         </nav>
 
         <div className="mt-auto pt-8 border-t border-gray-800">
@@ -85,7 +84,9 @@ function App() {
       <div className="flex-1 flex flex-col">
         <header className="h-16 border-b border-gray-800 bg-gray-900 flex items-center px-10 justify-between">
           <h2 className="text-2xl font-semibold">
-            {activeTab === 'dialer' ? 'Dialer' : 'Call History'}
+            {activeTab === 'dialer' && 'Dialer'}
+            {activeTab === 'history' && 'Call History'}
+            {activeTab === 'contacts' && 'Contacts'}
           </h2>
           <div className="flex items-center gap-3">
             <div className="text-sm text-green-500 font-medium">● Online</div>
@@ -93,7 +94,9 @@ function App() {
         </header>
 
         <main className="flex-1 overflow-auto p-10 bg-gray-950">
-          {activeTab === 'dialer' ? <Dialer /> : <CallHistory />}
+          {activeTab === 'dialer' && <Dialer />}
+          {activeTab === 'history' && <CallHistory />}
+          {activeTab === 'contacts' && <Contacts />}
         </main>
       </div>
     </div>
