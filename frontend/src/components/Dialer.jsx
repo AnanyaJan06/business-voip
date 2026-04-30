@@ -3,8 +3,8 @@ import { Device } from '@twilio/voice-sdk';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
-function Dialer() {
-  const [phoneNumber, setPhoneNumber] = useState('');
+function Dialer({ selectedPhoneNumber = '' }) {
+  const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
   const [connection, setConnection] = useState(null);
   const [callStatus, setCallStatus] = useState('Ready');
@@ -14,6 +14,13 @@ function Dialer() {
   const [isOnHold, setIsOnHold] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
   const [callerName, setCallerName] = useState('');
+
+  // Auto-fill number when coming from Contacts
+  useEffect(() => {
+    if (selectedPhoneNumber) {
+      setPhoneNumber(selectedPhoneNumber);
+    }
+  }, [selectedPhoneNumber]);
 
   // Timer for active call
   useEffect(() => {
@@ -66,11 +73,10 @@ function Dialer() {
 
       conn.on('accept', () => setCallStatus('Connected'));
 
-      // FIXED: Save call log when call ends
+      // Save call log when call ends
       conn.on('disconnect', async () => {
         const callDuration = duration;
 
-        // Save to database
         try {
           await fetch(`${BACKEND_URL}/api/calls/log`, {
             method: 'POST',
@@ -91,7 +97,9 @@ function Dialer() {
           console.error('Failed to save call log:', err);
         }
 
-        handleCallEnd();
+        setCallStatus('Call Ended');
+        setIsCalling(false);
+        setConnection(null);
       });
 
       conn.on('error', (err) => {
@@ -105,15 +113,6 @@ function Dialer() {
       setCallStatus('Failed to Connect');
       setIsCalling(false);
     }
-  };
-
-  const handleCallEnd = () => {
-    setCallStatus('Call Ended');
-    setIsCalling(false);
-    setConnection(null);
-    setIsMuted(false);
-    setIsOnHold(false);
-    setShowKeypad(false);
   };
 
   const endCall = () => {
