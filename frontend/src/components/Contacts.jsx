@@ -13,14 +13,18 @@ function Contacts() {
     email: '',
     company: ''
   });
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState(''); // 'add', 'call', 'delete'
+  const [modalData, setModalData] = useState({});
+
+  // Toast for success messages
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
-  // Show Toast Notification
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => {
-      setToast({ show: false, message: '', type: '' });
-    }, 3000);
+    setTimeout(() => setToast({ show: false, message: '', type: '' }), 3000);
   };
 
   // Fetch contacts
@@ -45,61 +49,75 @@ function Contacts() {
     fetchContacts();
   }, []);
 
-  const handleAddContact = async (e) => {
+  // Open Confirmation Modal
+  const openModal = (type, data = {}) => {
+    setModalType(type);
+    setModalData(data);
+    setShowModal(true);
+  };
+
+  const handleModalConfirm = async () => {
+    if (modalType === 'add') {
+      // Handle add contact
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/contacts`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify(newContact)
+        });
+
+        if (res.ok) {
+          showToast("✅ Contact added successfully!", "success");
+          setNewContact({ name: '', phone: '', email: '', company: '' });
+          setShowAddForm(false);
+          fetchContacts();
+        }
+      } catch (err) {
+        showToast("Failed to add contact", "error");
+      }
+    } 
+    else if (modalType === 'call') {
+      const event = new CustomEvent('callContact', { 
+        detail: { phoneNumber: modalData.phone } 
+      });
+      window.dispatchEvent(event);
+      showToast(`📞 Calling ${modalData.phone}...`, "success");
+    } 
+    else if (modalType === 'delete') {
+      try {
+        await fetch(`${BACKEND_URL}/api/contacts/${modalData.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        showToast("🗑️ Contact deleted successfully", "success");
+        fetchContacts();
+      } catch (err) {
+        showToast("Failed to delete contact", "error");
+      }
+    }
+
+    setShowModal(false);
+  };
+
+  const handleAddClick = (e) => {
     e.preventDefault();
     if (!newContact.name || !newContact.phone) {
       return showToast("Name and Phone number are required", "error");
     }
-
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/contacts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify(newContact)
-      });
-
-      if (res.ok) {
-        showToast("Contact added successfully!", "success");
-        setNewContact({ name: '', phone: '', email: '', company: '' });
-        setShowAddForm(false);
-        fetchContacts();
-      } else {
-        showToast("Failed to add contact", "error");
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to add contact", "error");
-    }
+    openModal('add');
   };
 
-  const handleCall = (phoneNumber) => {
-    const event = new CustomEvent('callContact', { 
-      detail: { phoneNumber } 
-    });
-    window.dispatchEvent(event);
-    
-    showToast(`Calling ${phoneNumber}...`, "success");
+  const handleCallClick = (phone) => {
+    openModal('call', { phone });
   };
 
-  const deleteContact = async (id) => {
-    if (!window.confirm("Delete this contact?")) return;
-
-    try {
-      await fetch(`${BACKEND_URL}/api/contacts/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      showToast("Contact deleted successfully", "success");
-      fetchContacts();
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to delete contact", "error");
-    }
+  const handleDeleteClick = (id) => {
+    openModal('delete', { id });
   };
 
   const filteredContacts = contacts.filter(contact =>
@@ -109,7 +127,7 @@ function Contacts() {
 
   return (
     <div className="max-w-4xl mx-auto relative">
-      {/* Toast Notification */}
+      {/* Toast */}
       {toast.show && (
         <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 text-white ${
           toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
@@ -117,14 +135,14 @@ function Contacts() {
           <span className="text-2xl">
             {toast.type === 'success' ? '✅' : '❌'}
           </span>
-          <span className="font-medium">{toast.message}</span>
+          <span>{toast.message}</span>
         </div>
       )}
 
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-bold text-white">Contacts</h2>
         <button
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => setShowAddForm(true)}
           className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-2xl text-white font-medium transition"
         >
           + Add Contact
@@ -143,7 +161,7 @@ function Contacts() {
       {showAddForm && (
         <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 mb-8">
           <h3 className="text-xl font-semibold mb-6 text-white">Add New Contact</h3>
-          <form onSubmit={handleAddContact} className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleAddClick} className="grid grid-cols-2 gap-4">
             <input
               type="text"
               placeholder="Full Name *"
@@ -204,13 +222,13 @@ function Contacts() {
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => handleCall(contact.phone)}
+                  onClick={() => handleCallClick(contact.phone)}
                   className="bg-green-600 hover:bg-green-700 px-8 py-3 rounded-2xl text-white font-medium transition"
                 >
                   📞 Call
                 </button>
                 <button
-                  onClick={() => deleteContact(contact._id)}
+                  onClick={() => handleDeleteClick(contact._id)}
                   className="bg-red-600/80 hover:bg-red-700 px-5 py-3 rounded-2xl text-white transition"
                 >
                   Delete
@@ -218,6 +236,42 @@ function Contacts() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 max-w-sm w-full mx-4">
+            <h3 className="text-xl font-semibold mb-4 text-white">
+              {modalType === 'call' ? 'Make a Call?' : 
+               modalType === 'delete' ? 'Delete Contact?' : 'Save Contact?'}
+            </h3>
+            
+            <p className="text-gray-400 mb-8">
+              {modalType === 'call' && `Do you want to call ${modalData.phone}?`}
+              {modalType === 'delete' && 'Are you sure you want to delete this contact? This action cannot be undone.'}
+              {modalType === 'add' && 'Do you want to save this new contact?'}
+            </p>
+
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowModal(false)}
+                className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-2xl text-white font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleModalConfirm}
+                className={`flex-1 py-3 rounded-2xl text-white font-medium transition ${
+                  modalType === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {modalType === 'call' ? 'Call Now' : 
+                 modalType === 'delete' ? 'Delete' : 'Save'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
