@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 
-const BACKEND_URL = 'https://business-voip.onrender.com';   // Change this when needed
+const BACKEND_URL = 'https://business-voip.onrender.com';
 
 function CallHistory() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch call logs
   const fetchCallLogs = async () => {
     try {
       setLoading(true);
@@ -35,9 +34,20 @@ function CallHistory() {
     }
   };
 
-  // Load data when component mounts
+  // Initial load
   useEffect(() => {
     fetchCallLogs();
+  }, []);
+
+  // Listen for refresh event from App.jsx or Dialer
+  useEffect(() => {
+    const handleRefresh = () => {
+      fetchCallLogs();
+    };
+
+    window.addEventListener('refreshCallHistory', handleRefresh);
+
+    return () => window.removeEventListener('refreshCallHistory', handleRefresh);
   }, []);
 
   const formatDuration = (seconds) => {
@@ -67,18 +77,14 @@ function CallHistory() {
         </button>
       </div>
 
-      {loading && (
-        <p className="text-gray-400 text-center py-20">Loading call history...</p>
-      )}
+      {loading && <p className="text-gray-400 text-center py-10">Loading call history...</p>}
 
-      {error && (
-        <p className="text-red-500 text-center py-10">{error}</p>
-      )}
+      {error && <p className="text-red-500 text-center py-10">{error}</p>}
 
       {!loading && !error && logs.length === 0 && (
         <div className="text-center py-20">
           <p className="text-gray-400 text-xl">No calls recorded yet.</p>
-          <p className="text-gray-500 mt-2">Make some calls to see history here.</p>
+          <p className="text-gray-500 mt-2">Make some calls to see them here.</p>
         </div>
       )}
 

@@ -15,6 +15,18 @@ function App() {
     setToken(storedToken);
   }, []);
 
+// Auto-refresh Call History after a call ends
+useEffect(() => {
+  const handleRefreshCallHistory = () => {
+    const refreshEvent = new Event('refreshCallHistory');
+    window.dispatchEvent(refreshEvent);
+  };
+
+  window.addEventListener('refreshCallHistory', handleRefreshCallHistory);
+
+  return () => window.removeEventListener('refreshCallHistory', handleRefreshCallHistory);
+}, []);
+
   // Handle Click-to-Call from Contacts
   useEffect(() => {
     const handleCallContact = (event) => {
