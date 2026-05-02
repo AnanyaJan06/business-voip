@@ -10,6 +10,7 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [activeTab, setActiveTab] = useState('dialer');
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState(''); // For click-to-call
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -41,11 +42,16 @@ function App() {
     return () => window.removeEventListener('callContact', handleCallContact);
   }, []);
 
-  const logout = () => {
+  const openLogoutModal = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
     localStorage.removeItem('token');
     setToken(null);
     setActiveTab('dialer');
     setSelectedPhoneNumber('');
+    setShowLogoutModal(false);
   };
 
   if (!token) {
@@ -103,7 +109,7 @@ function App() {
 
         <div className="mt-auto pt-8 border-t border-gray-800">
           <button 
-            onClick={logout}
+            onClick={openLogoutModal}
             className="w-full text-red-400 hover:text-red-500 py-3 rounded-2xl hover:bg-red-950/50 transition"
           >
             Logout
@@ -132,6 +138,32 @@ function App() {
           {activeTab === 'settings' && <Settings />}
         </main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 max-w-sm w-full mx-4 text-center">
+            <h3 className="text-2xl font-semibold mb-4 text-white">Logout?</h3>
+            <p className="text-gray-400 mb-8">
+              Are you sure you want to logout?
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="flex-1 py-4 bg-gray-700 hover:bg-gray-600 rounded-2xl text-white font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                className="flex-1 py-4 bg-red-600 hover:bg-red-700 rounded-2xl text-white font-medium transition"
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
