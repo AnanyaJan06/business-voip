@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Dialer from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
 import Contacts from './components/Contacts.jsx';
+import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import './App.css';
 
@@ -15,17 +16,17 @@ function App() {
     setToken(storedToken);
   }, []);
 
-// Auto-refresh Call History after a call ends
-useEffect(() => {
-  const handleRefreshCallHistory = () => {
-    const refreshEvent = new Event('refreshCallHistory');
-    window.dispatchEvent(refreshEvent);
-  };
+  // Auto-refresh Call History after a call ends
+  useEffect(() => {
+    const handleRefreshCallHistory = () => {
+      const refreshEvent = new Event('refreshCallHistory');
+      window.dispatchEvent(refreshEvent);
+    };
 
-  window.addEventListener('refreshCallHistory', handleRefreshCallHistory);
+    window.addEventListener('refreshCallHistory', handleRefreshCallHistory);
 
-  return () => window.removeEventListener('refreshCallHistory', handleRefreshCallHistory);
-}, []);
+    return () => window.removeEventListener('refreshCallHistory', handleRefreshCallHistory);
+  }, []);
 
   // Handle Click-to-Call from Contacts
   useEffect(() => {
@@ -66,9 +67,7 @@ useEffect(() => {
           <div 
             onClick={() => setActiveTab('dialer')}
             className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
-              activeTab === 'dialer' 
-                ? 'bg-blue-600 text-white' 
-                : 'hover:bg-gray-800 text-gray-300'
+              activeTab === 'dialer' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
             }`}
           >
             📞 Dialer
@@ -77,9 +76,7 @@ useEffect(() => {
           <div 
             onClick={() => setActiveTab('history')}
             className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
-              activeTab === 'history' 
-                ? 'bg-blue-600 text-white' 
-                : 'hover:bg-gray-800 text-gray-300'
+              activeTab === 'history' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
             }`}
           >
             📜 Call History
@@ -88,12 +85,19 @@ useEffect(() => {
           <div 
             onClick={() => setActiveTab('contacts')}
             className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
-              activeTab === 'contacts' 
-                ? 'bg-blue-600 text-white' 
-                : 'hover:bg-gray-800 text-gray-300'
+              activeTab === 'contacts' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
             }`}
           >
             👥 Contacts
+          </div>
+
+          <div 
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
+              activeTab === 'settings' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
+            }`}
+          >
+            ⚙️ Settings
           </div>
         </nav>
 
@@ -114,6 +118,7 @@ useEffect(() => {
             {activeTab === 'dialer' && 'Dialer'}
             {activeTab === 'history' && 'Call History'}
             {activeTab === 'contacts' && 'Contacts'}
+            {activeTab === 'settings' && 'Settings'}
           </h2>
           <div className="flex items-center gap-3">
             <div className="text-sm text-green-500 font-medium">● Online</div>
@@ -124,6 +129,7 @@ useEffect(() => {
           {activeTab === 'dialer' && <Dialer selectedPhoneNumber={selectedPhoneNumber} />}
           {activeTab === 'history' && <CallHistory />}
           {activeTab === 'contacts' && <Contacts />}
+          {activeTab === 'settings' && <Settings />}
         </main>
       </div>
     </div>
