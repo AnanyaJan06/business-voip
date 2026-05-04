@@ -15,6 +15,8 @@ export const saveCallLog = async (req, res) => {
       callSid,
       endedAt: new Date()
     });
+    console.log("callLog",callLog);
+    
 
     res.status(201).json({ 
       message: 'Call logged successfully', 
