@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import axios from 'axios';
+
+const BACKEND_URL = 'https://business-voip.onrender.com';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -13,15 +14,25 @@ function Login() {
     setError('');
 
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/login', {
-        email,
-        password
+      const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password })
       });
 
-      localStorage.setItem('token', res.data.token);
-      window.location.reload();
+      const data = await res.json();
+
+      if (res.ok) {
+        localStorage.setItem('token', data.token);
+        window.location.reload(); // Refresh to show main app
+      } else {
+        setError(data.message || 'Invalid credentials');
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid credentials');
+      setError('Network error. Please check your connection.');
+      console.error(err);
     } finally {
       setLoading(false);
     }

@@ -1,19 +1,57 @@
 import { useState, useEffect } from 'react';
 import Dialer from './components/Dialer.jsx';
+import CallHistory from './components/CallHistory.jsx';
+import Contacts from './components/Contacts.jsx';
+import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import './App.css';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [activeTab, setActiveTab] = useState('dialer');
+  const [selectedPhoneNumber, setSelectedPhoneNumber] = useState(''); // For click-to-call
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     setToken(storedToken);
   }, []);
 
-  const logout = () => {
+  // Auto-refresh Call History after a call ends
+  useEffect(() => {
+    const handleRefreshCallHistory = () => {
+      const refreshEvent = new Event('refreshCallHistory');
+      window.dispatchEvent(refreshEvent);
+    };
+
+    window.addEventListener('refreshCallHistory', handleRefreshCallHistory);
+
+    return () => window.removeEventListener('refreshCallHistory', handleRefreshCallHistory);
+  }, []);
+
+  // Handle Click-to-Call from Contacts
+  useEffect(() => {
+    const handleCallContact = (event) => {
+      const { phoneNumber } = event.detail;
+      setSelectedPhoneNumber(phoneNumber);
+      setActiveTab('dialer');
+    };
+
+    window.addEventListener('callContact', handleCallContact);
+
+    return () => window.removeEventListener('callContact', handleCallContact);
+  }, []);
+
+  const openLogoutModal = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
     localStorage.removeItem('token');
     setToken(null);
+    setActiveTab('dialer');
+    setSelectedPhoneNumber('');
+    setShowLogoutModal(false);
   };
 
   if (!token) {
@@ -21,47 +59,111 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-950 text-white">
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 p-4 flex flex-col">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-9 h-9 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-bold text-xl">📞</div>
-          <h1 className="text-2xl font-bold text-gray-900">VoIP Pro</h1>
+      <div className="w-72 bg-gray-900 border-r border-gray-800 p-6 flex flex-col">
+        <div className="flex items-center gap-3 mb-12">
+          <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-3xl">
+            📞
+          </div>
+          <h1 className="text-3xl font-bold">VoIP Pro</h1>
         </div>
 
         <nav className="flex-1 space-y-2">
-          <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-700 rounded-2xl font-medium">
+          <div 
+            onClick={() => setActiveTab('dialer')}
+            className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
+              activeTab === 'dialer' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
+            }`}
+          >
             📞 Dialer
           </div>
-          <div className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-2xl cursor-pointer">
+
+          <div 
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
+              activeTab === 'history' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
+            }`}
+          >
             📜 Call History
           </div>
-          <div className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-2xl cursor-pointer">
+
+          <div 
+            onClick={() => setActiveTab('contacts')}
+            className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
+              activeTab === 'contacts' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
+            }`}
+          >
             👥 Contacts
+          </div>
+
+          <div 
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-3 px-5 py-4 rounded-2xl cursor-pointer transition-all ${
+              activeTab === 'settings' ? 'bg-blue-600 text-white' : 'hover:bg-gray-800 text-gray-300'
+            }`}
+          >
+            ⚙️ Settings
           </div>
         </nav>
 
-        <div className="mt-auto pt-6 border-t">
+        <div className="mt-auto pt-8 border-t border-gray-800">
           <button 
-            onClick={logout}
-            className="w-full text-red-600 text-sm py-2 hover:bg-red-50 rounded-xl"
+            onClick={openLogoutModal}
+            className="w-full text-red-400 hover:text-red-500 py-3 rounded-2xl hover:bg-red-950/50 transition"
           >
             Logout
           </button>
         </div>
       </div>
 
-      {/* Main Area */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        <header className="h-14 border-b bg-white flex items-center px-8 justify-between">
-          <h2 className="text-xl font-semibold text-gray-800">Dialer</h2>
-          <div className="text-sm text-green-600 font-medium">● Online</div>
+        <header className="h-16 border-b border-gray-800 bg-gray-900 flex items-center px-10 justify-between">
+          <h2 className="text-2xl font-semibold">
+            {activeTab === 'dialer' && 'Dialer'}
+            {activeTab === 'history' && 'Call History'}
+            {activeTab === 'contacts' && 'Contacts'}
+            {activeTab === 'settings' && 'Settings'}
+          </h2>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-green-500 font-medium">● Online</div>
+          </div>
         </header>
 
-        <main className="flex-1 p-8 overflow-auto">
-          <Dialer />
+        <main className="flex-1 overflow-auto p-10 bg-gray-950">
+          {activeTab === 'dialer' && <Dialer selectedPhoneNumber={selectedPhoneNumber} />}
+          {activeTab === 'history' && <CallHistory />}
+          {activeTab === 'contacts' && <Contacts />}
+          {activeTab === 'settings' && <Settings />}
         </main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 max-w-sm w-full mx-4 text-center">
+            <h3 className="text-2xl font-semibold mb-4 text-white">Logout?</h3>
+            <p className="text-gray-400 mb-8">
+              Are you sure you want to logout?
+            </p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="flex-1 py-4 bg-gray-700 hover:bg-gray-600 rounded-2xl text-white font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLogout}
+                className="flex-1 py-4 bg-red-600 hover:bg-red-700 rounded-2xl text-white font-medium transition"
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

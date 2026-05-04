@@ -10,21 +10,33 @@ const callLogSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Contact' 
   },
-  phoneNumber: { type: String, required: true },
-  callType: { 
+  phoneNumber: { 
     type: String, 
-    enum: ['inbound', 'outbound', 'missed'], 
     required: true 
   },
-  duration: { type: Number, default: 0 }, // in seconds
-  recordingUrl: { type: String },
+  callType: { 
+    type: String, 
+    enum: ['outbound', 'inbound', 'missed'], 
+    required: true 
+  },
   status: { 
     type: String, 
-    enum: ['completed', 'missed', 'failed'], 
+    enum: ['completed', 'missed', 'failed', 'busy', 'no-answer'], 
     default: 'completed' 
   },
-  startedAt: { type: Date, default: Date.now },
+  duration: { 
+    type: Number, 
+    default: 0 
+  },
+  recordingUrl: { type: String },
+  callSid: { type: String },           // Important for Twilio
+  startedAt: { 
+    type: Date, 
+    default: Date.now 
+  },
   endedAt: { type: Date }
+}, {
+  timestamps: true   // Automatically adds createdAt & updatedAt
 });
 
 export default mongoose.model('CallLog', callLogSchema);
