@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Device } from '@twilio/voice-sdk';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -10,10 +10,10 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [callStatus, setCallStatus] = useState('Ready');
   const [isCalling, setIsCalling] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [timer, setTimer] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [isOnHold, setIsOnHold] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
+
+  const startTimeRef = useRef(null);   // ← More reliable way
 
   // Auto-fill from Contacts
   useEffect(() => {
@@ -22,22 +22,19 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
   // Duration Timer
   useEffect(() => {
-    let interval = null;
+    let interval;
     if (isCalling && connection) {
+      startTimeRef.current = Date.now();
       interval = setInterval(() => {
-        setDuration(prev => prev + 1);
+        setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
       }, 1000);
-      setTimer(interval);
     } else {
       setDuration(0);
     }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [isCalling, connection]);
 
-  // Initialize Twilio Device
+  // Initialize Twilio
   useEffect(() => {
     const initDevice = async () => {
       try {
@@ -45,7 +42,6 @@ function Dialer({ selectedPhoneNumber = '' }) {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         const data = await res.json();
-
         const twilioDevice = new Device(data.token, { 
           edge: ['singapore', 'tokyo'],
           logLevel: 'warn' 
@@ -60,30 +56,22 @@ function Dialer({ selectedPhoneNumber = '' }) {
   }, []);
 
   const makeCall = async () => {
-    if (!device || !phoneNumber.trim()) {
-      return alert("Please enter a valid number");
-    }
+    if (!device || !phoneNumber.trim()) return alert("Please enter a valid number");
 
     setIsCalling(true);
     setCallStatus('Calling...');
     setDuration(0);
 
     try {
-      const conn = await device.connect({
-        params: { To: phoneNumber.trim() }
-      });
-
+      const conn = await device.connect({ params: { To: phoneNumber.trim() } });
       setConnection(conn);
 
       conn.on('accept', () => setCallStatus('Connected'));
-
       conn.on('disconnect', () => handleCallEnd(conn));
-
       conn.on('error', (err) => {
         console.error(err);
         handleCallEnd(conn);
       });
-
     } catch (err) {
       console.error(err);
       setIsCalling(false);
@@ -92,9 +80,12 @@ function Dialer({ selectedPhoneNumber = '' }) {
   };
 
   const handleCallEnd = async (conn) => {
-    const finalDuration = duration;   // Capture duration at end
+    const finalDuration = duration > 0 ? duration : 
+                         startTimeRef.current ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0;
 
-    // Save to database
+    console.log("Final Duration Calculated:", finalDuration, "seconds");
+
+    // Save Call Log
     try {
       await fetch(`${BACKEND_URL}/api/calls/log`, {
         method: 'POST',
@@ -110,19 +101,18 @@ function Dialer({ selectedPhoneNumber = '' }) {
           callSid: conn?.parameters?.CallSid || ''
         })
       });
-      console.log(`✅ Call logged with duration: ${finalDuration} seconds`);
+      console.log("✅ Call logged with duration:", finalDuration);
     } catch (err) {
-      console.error('Failed to save call log:', err);
+      console.error("Failed to save call log", err);
     }
 
-    // Reset UI
+    // Reset
     setIsCalling(false);
     setCallStatus('Call Ended');
     setDuration(0);
     setConnection(null);
-    if (timer) clearInterval(timer);
+    startTimeRef.current = null;
 
-    // Refresh Call History
     window.dispatchEvent(new Event('refreshCallHistory'));
   };
 
@@ -148,38 +138,30 @@ function Dialer({ selectedPhoneNumber = '' }) {
         <h1 className="text-4xl font-bold text-white">Business VoIP</h1>
       </div>
 
-      {/* In-Call Screen */}
       {isCalling && (
         <div className="bg-gray-900 border border-gray-700 rounded-3xl p-10 text-center">
-          <div className="mb-6">
-            <p className="text-2xl font-semibold text-white">{phoneNumber}</p>
-            <p className="text-green-400 text-xl mt-2">{callStatus}</p>
-            <p className="text-5xl font-mono mt-6 text-white">
-              {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
-            </p>
-          </div>
+          <p className="text-2xl font-semibold text-white">{phoneNumber}</p>
+          <p className="text-green-400 text-xl mt-2">{callStatus}</p>
+          <p className="text-5xl font-mono mt-6 text-white">
+            {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
+          </p>
 
-          {/* Controls */}
           <div className="grid grid-cols-3 gap-4 mt-10">
             <button onClick={toggleMute} className={`p-6 rounded-2xl ${isMuted ? 'bg-red-600' : 'bg-gray-700'}`}>
-              {isMuted ? '🎤 Unmute' : '🎤 Mute'}
+              {isMuted ? 'Unmute' : 'Mute'}
             </button>
             <button onClick={() => setShowKeypad(!showKeypad)} className="p-6 rounded-2xl bg-gray-700">
-              ⌨️ Keypad
+              Keypad
             </button>
             <button onClick={endCall} className="p-6 rounded-2xl bg-red-600 hover:bg-red-700">
-              End
+              End Call
             </button>
           </div>
 
           {showKeypad && (
             <div className="grid grid-cols-3 gap-3 mt-8">
               {['1','2','3','4','5','6','7','8','9','*','0','#'].map(digit => (
-                <button 
-                  key={digit} 
-                  onClick={() => sendDTMF(digit)} 
-                  className="py-6 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl font-mono"
-                >
+                <button key={digit} onClick={() => sendDTMF(digit)} className="py-6 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl">
                   {digit}
                 </button>
               ))}
@@ -188,7 +170,6 @@ function Dialer({ selectedPhoneNumber = '' }) {
         </div>
       )}
 
-      {/* Normal Dialer */}
       {!isCalling && (
         <div className="bg-gray-900 border border-gray-700 rounded-3xl p-10">
           <input
