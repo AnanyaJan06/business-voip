@@ -13,28 +13,29 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [isMuted, setIsMuted] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
 
-  const startTimeRef = useRef(null);
   const timerRef = useRef(null);
+  const isAnsweredRef = useRef(false);   // Track if call was answered
 
   // Auto-fill from Contacts
   useEffect(() => {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Duration Timer - Only runs when startTimeRef is set
+  // Duration Timer - Only runs after call is answered
   useEffect(() => {
-    if (startTimeRef.current) {
+    if (isAnsweredRef.current && isCalling) {
       timerRef.current = setInterval(() => {
-        setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
+        setDuration(prev => prev + 1);
       }, 1000);
     }
 
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
-  }, [startTimeRef.current]);   // This will re-run when startTime is set
+  }, [isCalling]);
 
   // Initialize Twilio Device
   useEffect(() => {
@@ -63,7 +64,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
     setIsCalling(true);
     setCallStatus('Ringing...');
     setDuration(0);
-    startTimeRef.current = null;   // Reset timer
+    isAnsweredRef.current = false;
 
     try {
       const conn = await device.connect({
@@ -74,7 +75,8 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
       conn.on('accept', () => {
         setCallStatus('Connected');
-        startTimeRef.current = Date.now();   // ← Start timer ONLY when answered
+        isAnsweredRef.current = true;        // ← Mark as answered
+        setDuration(0);                      // Reset timer
       });
 
       conn.on('disconnect', () => handleCallEnd(conn));
@@ -85,18 +87,15 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
     } catch (err) {
       console.error(err);
-      resetCallState();
+      resetCall();
     }
   };
 
   const handleCallEnd = async (conn) => {
-    const finalDuration = startTimeRef.current 
-      ? Math.floor((Date.now() - startTimeRef.current) / 1000) 
-      : 0;
+    const finalDuration = duration;
 
-    console.log("✅ Final Duration:", finalDuration, "seconds");
+    console.log("Final Duration Saved:", finalDuration, "seconds");
 
-    // Save Call Log
     try {
       await fetch(`${BACKEND_URL}/api/calls/log`, {
         method: 'POST',
@@ -116,17 +115,20 @@ function Dialer({ selectedPhoneNumber = '' }) {
       console.error("Failed to save call log", err);
     }
 
-    resetCallState();
+    resetCall();
     window.dispatchEvent(new Event('refreshCallHistory'));
   };
 
-  const resetCallState = () => {
+  const resetCall = () => {
     setIsCalling(false);
     setCallStatus('Call Ended');
     setDuration(0);
     setConnection(null);
-    startTimeRef.current = null;
-    if (timerRef.current) clearInterval(timerRef.current);
+    isAnsweredRef.current = false;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   };
 
   const endCall = () => {
@@ -151,14 +153,13 @@ function Dialer({ selectedPhoneNumber = '' }) {
         <h1 className="text-4xl font-bold text-white">Business VoIP</h1>
       </div>
 
-      {/* In-Call Screen */}
       {isCalling && (
         <div className="bg-gray-900 border border-gray-700 rounded-3xl p-10 text-center">
           <p className="text-2xl font-semibold text-white">{phoneNumber}</p>
           <p className="text-green-400 text-xl mt-2">{callStatus}</p>
 
-          {/* Timer shows only after call is answered */}
-          {startTimeRef.current && (
+          {/* Timer visible only after answered */}
+          {isAnsweredRef.current && (
             <p className="text-5xl font-mono mt-6 text-white">
               {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
             </p>
@@ -179,11 +180,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           {showKeypad && (
             <div className="grid grid-cols-3 gap-3 mt-8">
               {['1','2','3','4','5','6','7','8','9','*','0','#'].map(digit => (
-                <button 
-                  key={digit} 
-                  onClick={() => sendDTMF(digit)} 
-                  className="py-6 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl"
-                >
+                <button key={digit} onClick={() => sendDTMF(digit)} className="py-6 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl">
                   {digit}
                 </button>
               ))}
@@ -192,7 +189,6 @@ function Dialer({ selectedPhoneNumber = '' }) {
         </div>
       )}
 
-      {/* Normal Dialer */}
       {!isCalling && (
         <div className="bg-gray-900 border border-gray-700 rounded-3xl p-10">
           <input
