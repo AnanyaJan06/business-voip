@@ -10,29 +10,31 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [callStatus, setCallStatus] = useState('Ready');
   const [isCalling, setIsCalling] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [timer, setTimer] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isOnHold, setIsOnHold] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
-  const [callerName, setCallerName] = useState('');
 
-  // Auto-fill number when coming from Contacts
+  // Auto-fill from Contacts
   useEffect(() => {
-    if (selectedPhoneNumber) {
-      setPhoneNumber(selectedPhoneNumber);
-    }
+    if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Timer for active call
+  // Duration Timer
   useEffect(() => {
-    let timer;
+    let interval = null;
     if (isCalling && connection) {
-      timer = setInterval(() => {
+      interval = setInterval(() => {
         setDuration(prev => prev + 1);
       }, 1000);
+      setTimer(interval);
     } else {
       setDuration(0);
     }
-    return () => clearInterval(timer);
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isCalling, connection]);
 
   // Initialize Twilio Device
@@ -43,6 +45,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         const data = await res.json();
+
         const twilioDevice = new Device(data.token, { 
           edge: ['singapore', 'tokyo'],
           logLevel: 'warn' 
@@ -57,12 +60,13 @@ function Dialer({ selectedPhoneNumber = '' }) {
   }, []);
 
   const makeCall = async () => {
-    if (!device || !phoneNumber) return alert("Enter a valid number");
+    if (!device || !phoneNumber.trim()) {
+      return alert("Please enter a valid number");
+    }
 
     setIsCalling(true);
     setCallStatus('Calling...');
     setDuration(0);
-    setCallerName(phoneNumber);
 
     try {
       const conn = await device.connect({
@@ -73,46 +77,53 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
       conn.on('accept', () => setCallStatus('Connected'));
 
-      // Save call log when call ends
-      conn.on('disconnect', async () => {
-        const callDuration = duration;
-
-        try {
-          await fetch(`${BACKEND_URL}/api/calls/log`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify({
-              phoneNumber: phoneNumber.trim(),
-              callType: 'outbound',
-              duration: callDuration,
-              status: 'completed',
-              callSid: conn.parameters?.CallSid || ''
-            })
-          });
-          console.log("✅ Call logged successfully");
-        } catch (err) {
-          console.error('Failed to save call log:', err);
-        }
-
-        setCallStatus('Call Ended');
-        setIsCalling(false);
-        setConnection(null);
-      });
+      conn.on('disconnect', () => handleCallEnd(conn));
 
       conn.on('error', (err) => {
         console.error(err);
-        setCallStatus('Call Failed');
-        setIsCalling(false);
+        handleCallEnd(conn);
       });
 
     } catch (err) {
       console.error(err);
-      setCallStatus('Failed to Connect');
       setIsCalling(false);
+      setCallStatus('Failed');
     }
+  };
+
+  const handleCallEnd = async (conn) => {
+    const finalDuration = duration;   // Capture duration at end
+
+    // Save to database
+    try {
+      await fetch(`${BACKEND_URL}/api/calls/log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber.trim(),
+          callType: 'outbound',
+          duration: finalDuration,
+          status: 'completed',
+          callSid: conn?.parameters?.CallSid || ''
+        })
+      });
+      console.log(`✅ Call logged with duration: ${finalDuration} seconds`);
+    } catch (err) {
+      console.error('Failed to save call log:', err);
+    }
+
+    // Reset UI
+    setIsCalling(false);
+    setCallStatus('Call Ended');
+    setDuration(0);
+    setConnection(null);
+    if (timer) clearInterval(timer);
+
+    // Refresh Call History
+    window.dispatchEvent(new Event('refreshCallHistory'));
   };
 
   const endCall = () => {
@@ -127,17 +138,8 @@ function Dialer({ selectedPhoneNumber = '' }) {
     }
   };
 
-  const toggleHold = () => {
-    if (connection) {
-      setIsOnHold(!isOnHold);
-      setCallStatus(isOnHold ? 'Connected' : 'On Hold');
-    }
-  };
-
   const sendDTMF = (digit) => {
-    if (connection) {
-      connection.sendDigits(digit);
-    }
+    if (connection) connection.sendDigits(digit);
   };
 
   return (
@@ -150,31 +152,23 @@ function Dialer({ selectedPhoneNumber = '' }) {
       {isCalling && (
         <div className="bg-gray-900 border border-gray-700 rounded-3xl p-10 text-center">
           <div className="mb-6">
-            <p className="text-2xl font-semibold text-white">{callerName || phoneNumber}</p>
+            <p className="text-2xl font-semibold text-white">{phoneNumber}</p>
             <p className="text-green-400 text-xl mt-2">{callStatus}</p>
-            <p className="text-4xl font-mono mt-4 text-white">
-              {Math.floor(duration/60)}:{(duration%60).toString().padStart(2, '0')}
+            <p className="text-5xl font-mono mt-6 text-white">
+              {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
             </p>
           </div>
 
+          {/* Controls */}
           <div className="grid grid-cols-3 gap-4 mt-10">
-            <button 
-              onClick={toggleMute} 
-              className={`p-6 rounded-2xl ${isMuted ? 'bg-red-600' : 'bg-gray-700'}`}
-            >
+            <button onClick={toggleMute} className={`p-6 rounded-2xl ${isMuted ? 'bg-red-600' : 'bg-gray-700'}`}>
               {isMuted ? '🎤 Unmute' : '🎤 Mute'}
             </button>
-            <button 
-              onClick={toggleHold} 
-              className={`p-6 rounded-2xl ${isOnHold ? 'bg-yellow-600' : 'bg-gray-700'}`}
-            >
-              {isOnHold ? '▶ Resume' : '⏸ Hold'}
-            </button>
-            <button 
-              onClick={() => setShowKeypad(!showKeypad)} 
-              className="p-6 rounded-2xl bg-gray-700"
-            >
+            <button onClick={() => setShowKeypad(!showKeypad)} className="p-6 rounded-2xl bg-gray-700">
               ⌨️ Keypad
+            </button>
+            <button onClick={endCall} className="p-6 rounded-2xl bg-red-600 hover:bg-red-700">
+              End
             </button>
           </div>
 
@@ -191,13 +185,6 @@ function Dialer({ selectedPhoneNumber = '' }) {
               ))}
             </div>
           )}
-
-          <button 
-            onClick={endCall} 
-            className="mt-10 w-full bg-red-600 hover:bg-red-700 py-6 rounded-2xl text-xl font-semibold"
-          >
-            End Call
-          </button>
         </div>
       )}
 
@@ -214,7 +201,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
           <button
             onClick={makeCall}
-            disabled={!phoneNumber}
+            disabled={!phoneNumber.trim()}
             className="mt-8 w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white py-8 rounded-2xl text-2xl font-semibold transition"
           >
             📞 Call
