@@ -2,26 +2,20 @@ import CallLog from '../model/CallLog.js';
 
 export const saveCallLog = async (req, res) => {
   try {
-    const { phoneNumber, callType, duration, status, recordingUrl, callSid } = req.body;
-    const userId = req.user.id;
+    const { phoneNumber, callType, duration = 0, status, callSid } = req.body;
 
     const callLog = await CallLog.create({
-      user: userId,
+      user: req.user.id,
       phoneNumber,
       callType: callType || 'outbound',
-      duration: duration || 0,
+      duration: Number(duration) || 0,        // Ensure it's a number
       status: status || 'completed',
-      recordingUrl,
       callSid,
+      startedAt: new Date(),
       endedAt: new Date()
     });
-    console.log("callLog",callLog);
-    
 
-    res.status(201).json({ 
-      message: 'Call logged successfully', 
-      callLog 
-    });
+    res.status(201).json({ message: 'Call logged successfully', callLog });
   } catch (error) {
     console.error('Save Call Log Error:', error);
     res.status(500).json({ message: error.message });
