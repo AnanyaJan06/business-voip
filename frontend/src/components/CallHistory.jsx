@@ -10,113 +10,114 @@ function CallHistory() {
   const fetchCallLogs = async () => {
     try {
       setLoading(true);
-      setError(null);
-
       const res = await fetch(`${BACKEND_URL}/api/calls/logs`, {
-        method: 'GET',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
         }
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to fetch call history');
-      }
-
+      if (!res.ok) throw new Error('Failed to load');
       const data = await res.json();
       setLogs(data);
     } catch (err) {
-      console.error('Error fetching call logs:', err);
-      setError(err.message || 'Failed to load call history');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Initial load
   useEffect(() => {
     fetchCallLogs();
   }, []);
 
-  // Listen for refresh event from App.jsx or Dialer
+  // Refresh listener
   useEffect(() => {
-    const handleRefresh = () => {
-      fetchCallLogs();
-    };
-
-    window.addEventListener('refreshCallHistory', handleRefresh);
-
-    return () => window.removeEventListener('refreshCallHistory', handleRefresh);
+    const handler = () => fetchCallLogs();
+    window.addEventListener('refreshCallHistory', handler);
+    return () => window.removeEventListener('refreshCallHistory', handler);
   }, []);
 
-  const formatDuration = (seconds) => {
-    if (!seconds || seconds === 0) return '0s';
-    const min = Math.floor(seconds / 60);
-    const sec = seconds % 60;
-    return min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+  // Format US Phone Number
+  const formatPhoneNumber = (phone) => {
+    if (!phone) return 'Unknown';
+
+    let cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('1') && cleaned.length === 11) {
+      cleaned = cleaned.slice(1);
+    }
+
+    if (cleaned.length === 10) {
+      return `+1 (${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+    }
+    return phone;
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
+  // Updated formatDuration - Show 0s instead of —
+  const formatDuration = (seconds) => {
+    if (seconds === null || seconds === undefined) return '0s';
+    const secs = parseInt(seconds);
+    if (secs === 0) return '0s';
+    
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
+
+  const getStatusStyle = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'completed': return 'bg-green-500/10 text-green-400';
+      case 'missed': return 'bg-red-500/10 text-red-400';
+      case 'no-answer': return 'bg-yellow-500/10 text-yellow-400';
+      default: return 'bg-gray-500/10 text-gray-400';
+    }
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-bold text-white">Call History</h2>
-        <button 
-          onClick={fetchCallLogs}
-          disabled={loading}
-          className="px-5 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-600 text-white rounded-xl text-sm transition flex items-center gap-2"
-        >
-          {loading ? 'Refreshing...' : '🔄 Refresh'}
-        </button>
-      </div>
+    <div className="flex-1 overflow-auto thin-scrollbar">
+      {loading && <p className="text-gray-400 text-center py-12">Loading call history...</p>}
+      {error && <p className="text-red-400 text-center py-12">{error}</p>}
 
-      {loading && <p className="text-gray-400 text-center py-10">Loading call history...</p>}
-
-      {error && <p className="text-red-500 text-center py-10">{error}</p>}
-
-      {!loading && !error && logs.length === 0 && (
-        <div className="text-center py-20">
-          <p className="text-gray-400 text-xl">No calls recorded yet.</p>
-          <p className="text-gray-500 mt-2">Make some calls to see them here.</p>
+      {!loading && logs.length === 0 && (
+        <div className="text-center py-20 text-gray-400">
+          No calls yet. Start making calls!
         </div>
       )}
 
-      {!loading && logs.length > 0 && (
-        <div className="bg-gray-900 border border-gray-700 rounded-3xl overflow-hidden">
-          {logs.map((log, index) => (
-            <div 
-              key={index} 
-              className="border-b border-gray-700 p-6 hover:bg-gray-800 transition flex justify-between items-center"
-            >
-              <div>
-                <p className="text-lg font-medium text-white">{log.phoneNumber}</p>
+      <div className="divide-y divide-gray-800">
+        {logs.map((log, i) => (
+          <div
+            key={i}
+            className="px-6 py-6 hover:bg-[#1F2533] transition-all cursor-pointer group"
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <p className="font-medium text-lg text-white">
+                  {formatPhoneNumber(log.phoneNumber)}
+                </p>
                 <p className="text-sm text-gray-400 mt-1">
-                  {formatDate(log.startedAt)}
+                  {new Date(log.startedAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })} • {new Date(log.startedAt).toLocaleTimeString([], { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
                 </p>
               </div>
 
-              <div className="text-right">
-                <p className={`font-medium capitalize ${
-                  log.status === 'completed' ? 'text-green-400' : 
-                  log.status === 'missed' || log.status === 'no-answer' ? 'text-yellow-400' : 'text-red-400'
-                }`}>
-                  {log.status}
-                </p>
-                <p className="text-sm text-gray-400 mt-1">
+              <div className="text-right ml-4">
+                <span className={`inline-block px-4 py-1 rounded-full text-xs font-medium capitalize ${getStatusStyle(log.status)}`}>
+                  {log.status || 'Unknown'}
+                </span>
+                <p className="text-sm text-gray-400 mt-3 font-mono tracking-wide">
                   {formatDuration(log.duration)}
                 </p>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

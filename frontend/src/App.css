@@ -10,3 +10,12 @@ input:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
 }
+/* Completely Hide Scrollbar but keep scrolling */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;             /* Chrome, Safari, Edge */
+}
