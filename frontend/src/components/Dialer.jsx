@@ -1,3 +1,8 @@
+import { useState, useEffect } from 'react';
+import { Device } from '@twilio/voice-sdk';
+
+const BACKEND_URL = 'https://business-voip.onrender.com';
+
 function Dialer({ selectedPhoneNumber = '' }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
