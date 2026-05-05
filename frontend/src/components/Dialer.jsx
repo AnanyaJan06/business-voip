@@ -13,7 +13,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [timer, setTimer] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isOnHold, setIsOnHold] = useState(false);
-  const [showKeypad, setShowKeypad] = useState(false); 
+  const [showKeypad, setShowKeypad] = useState(false);   
 
   // Auto-fill from Contacts
   useEffect(() => {
