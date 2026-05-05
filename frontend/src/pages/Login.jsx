@@ -91,9 +91,9 @@ function Login() {
           </form>
         </div>
 
-        <p className="text-center text-gray-500 text-sm mt-6">
+        {/* <p className="text-center text-gray-500 text-sm mt-6">
           First time? Register using Postman for now.
-        </p>
+        </p> */}
       </div>
     </div>
   );
