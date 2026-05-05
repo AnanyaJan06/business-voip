@@ -21,17 +21,20 @@ function Dialer({ selectedPhoneNumber = '' }) {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Duration Timer - Starts only after call is answered
+  // Duration Timer - Only runs when startTimeRef is set
   useEffect(() => {
     if (startTimeRef.current) {
       timerRef.current = setInterval(() => {
         setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
       }, 1000);
     }
+
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
-  }, [startTimeRef.current]);
+  }, [startTimeRef.current]);   // This will re-run when startTime is set
 
   // Initialize Twilio Device
   useEffect(() => {
@@ -71,7 +74,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
       conn.on('accept', () => {
         setCallStatus('Connected');
-        startTimeRef.current = Date.now();   // ← Start timer only when answered
+        startTimeRef.current = Date.now();   // ← Start timer ONLY when answered
       });
 
       conn.on('disconnect', () => handleCallEnd(conn));
@@ -82,8 +85,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
     } catch (err) {
       console.error(err);
-      setIsCalling(false);
-      setCallStatus('Failed');
+      resetCallState();
     }
   };
 
@@ -92,9 +94,9 @@ function Dialer({ selectedPhoneNumber = '' }) {
       ? Math.floor((Date.now() - startTimeRef.current) / 1000) 
       : 0;
 
-    console.log("Final Call Duration:", finalDuration, "seconds");
+    console.log("✅ Final Duration:", finalDuration, "seconds");
 
-    // Save to database
+    // Save Call Log
     try {
       await fetch(`${BACKEND_URL}/api/calls/log`, {
         method: 'POST',
@@ -114,15 +116,17 @@ function Dialer({ selectedPhoneNumber = '' }) {
       console.error("Failed to save call log", err);
     }
 
-    // Reset everything
+    resetCallState();
+    window.dispatchEvent(new Event('refreshCallHistory'));
+  };
+
+  const resetCallState = () => {
     setIsCalling(false);
     setCallStatus('Call Ended');
     setDuration(0);
     setConnection(null);
     startTimeRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
-
-    window.dispatchEvent(new Event('refreshCallHistory'));
   };
 
   const endCall = () => {
@@ -153,7 +157,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           <p className="text-2xl font-semibold text-white">{phoneNumber}</p>
           <p className="text-green-400 text-xl mt-2">{callStatus}</p>
 
-          {/* Show timer only when connected */}
+          {/* Timer shows only after call is answered */}
           {startTimeRef.current && (
             <p className="text-5xl font-mono mt-6 text-white">
               {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
