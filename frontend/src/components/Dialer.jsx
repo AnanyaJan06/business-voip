@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Device } from '@twilio/voice-sdk';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -10,32 +10,28 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [callStatus, setCallStatus] = useState('Ready');
   const [isCalling, setIsCalling] = useState(false);
   const [duration, setDuration] = useState(0);
-  const [timer, setTimer] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [isOnHold, setIsOnHold] = useState(false);
-  const [showKeypad, setShowKeypad] = useState(false);   
+  const [showKeypad, setShowKeypad] = useState(false);
+
+  const timerRef = useRef(null);
+  const startTimeRef = useRef(null);
 
   // Auto-fill from Contacts
   useEffect(() => {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Duration Timer
+  // Duration Timer - Starts ONLY when call is answered
   useEffect(() => {
-    let interval = null;
-    if (isCalling && connection) {
-      interval = setInterval(() => {
-        setDuration(prev => prev + 1);
+    if (startTimeRef.current) {
+      timerRef.current = setInterval(() => {
+        setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
       }, 1000);
-      setTimer(interval);
-    } else {
-      setDuration(0);
     }
-
     return () => {
-      if (interval) clearInterval(interval);
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isCalling, connection]);
+  }, [isCalling]);
 
   // Initialize Twilio Device
   useEffect(() => {
@@ -65,8 +61,9 @@ function Dialer({ selectedPhoneNumber = '' }) {
     }
 
     setIsCalling(true);
-    setCallStatus('Calling...');
+    setCallStatus('Ringing...');
     setDuration(0);
+    startTimeRef.current = null;
 
     try {
       const conn = await device.connect({
@@ -75,10 +72,12 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
       setConnection(conn);
 
-      conn.on('accept', () => setCallStatus('Connected'));
+      conn.on('accept', () => {
+        setCallStatus('Connected');
+        startTimeRef.current = Date.now();   // ← Start real duration timer
+      });
 
       conn.on('disconnect', () => handleCallEnd(conn));
-
       conn.on('error', (err) => {
         console.error(err);
         handleCallEnd(conn);
@@ -92,7 +91,9 @@ function Dialer({ selectedPhoneNumber = '' }) {
   };
 
   const handleCallEnd = async (conn) => {
-    const finalDuration = duration;   // Capture duration at end
+    const finalDuration = startTimeRef.current 
+      ? Math.floor((Date.now() - startTimeRef.current) / 1000) 
+      : 0;
 
     // Save to database
     try {
@@ -115,14 +116,15 @@ function Dialer({ selectedPhoneNumber = '' }) {
       console.error('Failed to save call log:', err);
     }
 
-    // Reset UI
+    // Reset everything
     setIsCalling(false);
     setCallStatus('Call Ended');
     setDuration(0);
     setConnection(null);
-    if (timer) clearInterval(timer);
+    setIsMuted(false);
+    startTimeRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
 
-    // Refresh Call History
     window.dispatchEvent(new Event('refreshCallHistory'));
   };
 
@@ -154,20 +156,32 @@ function Dialer({ selectedPhoneNumber = '' }) {
           <div className="mb-6">
             <p className="text-2xl font-semibold text-white">{phoneNumber}</p>
             <p className="text-green-400 text-xl mt-2">{callStatus}</p>
-            <p className="text-5xl font-mono mt-6 text-white">
-              {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
-            </p>
+            
+            {/* Show timer only after call is accepted */}
+            {startTimeRef.current && (
+              <p className="text-5xl font-mono mt-6 text-white">
+                {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
+              </p>
+            )}
           </div>
 
-          {/* Controls */}
           <div className="grid grid-cols-3 gap-4 mt-10">
-            <button onClick={toggleMute} className={`p-6 rounded-2xl ${isMuted ? 'bg-red-600' : 'bg-gray-700'}`}>
+            <button 
+              onClick={toggleMute} 
+              className={`p-6 rounded-2xl ${isMuted ? 'bg-red-600' : 'bg-gray-700'}`}
+            >
               {isMuted ? '🎤 Unmute' : '🎤 Mute'}
             </button>
-            <button onClick={() => setShowKeypad(!showKeypad)} className="p-6 rounded-2xl bg-gray-700">
+            <button 
+              onClick={() => setShowKeypad(!showKeypad)} 
+              className="p-6 rounded-2xl bg-gray-700"
+            >
               ⌨️ Keypad
             </button>
-            <button onClick={endCall} className="p-6 rounded-2xl bg-red-600 hover:bg-red-700">
+            <button 
+              onClick={endCall} 
+              className="p-6 rounded-2xl bg-red-600 hover:bg-red-700"
+            >
               End
             </button>
           </div>
