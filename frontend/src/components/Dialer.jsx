@@ -13,22 +13,25 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [isMuted, setIsMuted] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
 
-  const callStartTimeRef = useRef(null);   // This will store exact answer time
+  const callStartTimeRef = useRef(null);
+  const timerRef = useRef(null);
 
   // Auto-fill from Contacts
   useEffect(() => {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Live Timer (UI only)
+  // Timer - Runs ONLY after call is answered
   useEffect(() => {
-    let interval;
     if (callStartTimeRef.current) {
-      interval = setInterval(() => {
+      timerRef.current = setInterval(() => {
         setDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000));
       }, 1000);
     }
-    return () => clearInterval(interval);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [callStartTimeRef.current]);
 
   // Initialize Twilio
@@ -58,7 +61,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
     setIsCalling(true);
     setCallStatus('Ringing...');
     setDuration(0);
-    callStartTimeRef.current = null;
+    callStartTimeRef.current = null;   // Reset
 
     try {
       const conn = await device.connect({
@@ -67,13 +70,17 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
       setConnection(conn);
 
+      // Start timer ONLY when call is answered
       conn.on('accept', () => {
         setCallStatus('Connected');
-        callStartTimeRef.current = Date.now();   // ← Start counting only when answered
+        callStartTimeRef.current = Date.now();
       });
 
       conn.on('disconnect', () => handleCallEnd(conn));
-      conn.on('error', (err) => handleCallEnd(conn));
+      conn.on('error', (err) => {
+        console.error(err);
+        handleCallEnd(conn);
+      });
 
     } catch (err) {
       console.error(err);
@@ -82,14 +89,12 @@ function Dialer({ selectedPhoneNumber = '' }) {
   };
 
   const handleCallEnd = async (conn) => {
-    // Calculate final duration from timestamp
     const finalDuration = callStartTimeRef.current 
       ? Math.floor((Date.now() - callStartTimeRef.current) / 1000) 
       : 0;
 
-    console.log("✅ Final Duration Calculated:", finalDuration, "seconds");
+    console.log("Final Duration Saved:", finalDuration, "seconds");
 
-    // Save to Database
     try {
       await fetch(`${BACKEND_URL}/api/calls/log`, {
         method: 'POST',
@@ -119,6 +124,10 @@ function Dialer({ selectedPhoneNumber = '' }) {
     setDuration(0);
     setConnection(null);
     callStartTimeRef.current = null;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   };
 
   const endCall = () => {
@@ -127,8 +136,9 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
   const toggleMute = () => {
     if (connection) {
-      connection.mute(!isMuted);
-      setIsMuted(!isMuted);
+      const newMuted = !isMuted;
+      connection.mute(newMuted);
+      setIsMuted(newMuted);
     }
   };
 
@@ -147,6 +157,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           <p className="text-2xl font-semibold text-white">{phoneNumber}</p>
           <p className="text-green-400 text-xl mt-2">{callStatus}</p>
 
+          {/* Timer appears ONLY after answered */}
           {callStartTimeRef.current && (
             <p className="text-5xl font-mono mt-6 text-white">
               {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
