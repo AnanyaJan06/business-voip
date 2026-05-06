@@ -174,7 +174,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
       <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-8 mb-8 text-center">
         <p className="text-emerald-400 text-xs font-medium tracking-widest mb-3">UNITED STATES • +1</p>
         <div className="text-4xl font-light font-mono text-white min-h-[56px] flex items-center justify-center tracking-widest">
-          {phoneNumber || 'Enter number'}
+          {phoneNumber}
         </div>
       </div>
 
