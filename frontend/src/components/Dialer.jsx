@@ -121,8 +121,18 @@ function Dialer({ selectedPhoneNumber = '' }) {
   };
 
   const endCall = () => connection && connection.disconnect();
-  const toggleMute = () => connection && connection.mute(!isMuted) && setIsMuted(!isMuted);
+
+  // Fixed Mute Function
+  const toggleMute = () => {
+    if (connection) {
+      const newMutedState = !isMuted;
+      connection.mute(newMutedState);
+      setIsMuted(newMutedState);
+    }
+  };
+
   const toggleSpeaker = () => setIsSpeakerOn(!isSpeakerOn);
+
   const toggleHold = () => {
     if (connection) {
       const newHold = !isOnHold;
@@ -131,11 +141,11 @@ function Dialer({ selectedPhoneNumber = '' }) {
       setCallStatus(newHold ? 'On Hold' : 'Connected');
     }
   };
+
   const sendDTMF = (digit) => connection && connection.sendDigits(digit);
 
   return (
-    <div className="w-full max-w-[300px] mx-auto">   {/* Smaller & Better Fit */}
-
+    <div className="w-full max-w-[300px] mx-auto">
       {/* Number Display */}
       <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-6 mb-8 text-center">
         <p className="text-emerald-400 text-xs font-medium tracking-widest mb-2">UNITED STATES • +1</p>
@@ -156,14 +166,14 @@ function Dialer({ selectedPhoneNumber = '' }) {
             </p>
           )}
 
-          {/* Control Buttons with Hover Labels */}
+          {/* Control Buttons */}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <button
               onClick={toggleMute}
               className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all duration-200 hover:scale-105 active:scale-95 relative"
             >
               <div className="text-3xl">{isMuted ? '🔊' : '🔇'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap">
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 {isMuted ? 'Unmute' : 'Mute'}
               </span>
             </button>
@@ -173,7 +183,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
               className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all duration-200 hover:scale-105 active:scale-95 relative"
             >
               <div className="text-3xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap">
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 Speaker
               </span>
             </button>
@@ -183,7 +193,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
               className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all duration-200 hover:scale-105 active:scale-95 relative"
             >
               <div className="text-3xl">{isOnHold ? '▶' : '⏸'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap">
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 {isOnHold ? 'Resume' : 'Hold'}
               </span>
             </button>
@@ -205,7 +215,6 @@ function Dialer({ selectedPhoneNumber = '' }) {
             End Call
           </button>
 
-          {/* DTMF Keypad */}
           {showKeypad && (
             <div className="grid grid-cols-3 gap-3 mt-8">
               {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
