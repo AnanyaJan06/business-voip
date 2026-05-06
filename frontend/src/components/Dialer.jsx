@@ -18,12 +18,12 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
 
-  // Auto-fill from Contacts
+  // Auto-fill
   useEffect(() => {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Timer - Starts only after answered
+  // Timer
   useEffect(() => {
     if (startTimeRef.current) {
       timerRef.current = setInterval(() => {
@@ -31,7 +31,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
-  }, [startTimeRef.current]);
+  }, [isCalling]);
 
   // Initialize Twilio
   useEffect(() => {
@@ -72,7 +72,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
       });
 
       conn.on('disconnect', () => handleCallEnd(conn));
-      conn.on('error', (err) => handleCallEnd(conn));
+      conn.on('error', () => handleCallEnd(conn));
     } catch (err) {
       console.error(err);
       resetCall();
@@ -115,55 +115,32 @@ function Dialer({ selectedPhoneNumber = '' }) {
     setIsMuted(false);
     setIsOnHold(false);
     setIsSpeakerOn(false);
+    setShowKeypad(false);
     startTimeRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
   const endCall = () => connection && connection.disconnect();
-
-  const toggleMute = () => {
-    if (connection) {
-      const newMuted = !isMuted;
-      connection.mute(newMuted);
-      setIsMuted(newMuted);
-    }
-  };
-
-  const toggleSpeaker = () => {
-    if (connection) {
-      const newSpeaker = !isSpeakerOn;
-      // Twilio Voice SDK speaker control
-      connection.setSpeaker ? connection.setSpeaker(newSpeaker) : console.log("Speaker toggle not fully supported");
-      setIsSpeakerOn(newSpeaker);
-    }
-  };
-
+  const toggleMute = () => connection && connection.mute(!isMuted) && setIsMuted(!isMuted);
+  const toggleSpeaker = () => setIsSpeakerOn(!isSpeakerOn);
   const toggleHold = () => {
     if (connection) {
       const newHold = !isOnHold;
-      // Hold functionality (Twilio supports this via audio pause or custom logic)
-      if (newHold) {
-        connection.mute(true); // Simple hold simulation
-        setCallStatus('On Hold');
-      } else {
-        connection.mute(false);
-        setCallStatus('Connected');
-      }
+      connection.mute(newHold);
       setIsOnHold(newHold);
+      setCallStatus(newHold ? 'On Hold' : 'Connected');
     }
   };
-
-  const sendDTMF = (digit) => {
-    if (connection) connection.sendDigits(digit);
-  };
+  const sendDTMF = (digit) => connection && connection.sendDigits(digit);
 
   return (
-    <div className="w-full max-w-[320px] mx-auto">
+    <div className="w-full max-w-[300px] mx-auto">   {/* Smaller & Better Fit */}
+
       {/* Number Display */}
-      <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-8 mb-8 text-center">
-        <p className="text-emerald-400 text-xs font-medium tracking-widest mb-3">UNITED STATES • +1</p>
-        <div className="text-4xl font-light font-mono text-white min-h-[56px] flex items-center justify-center tracking-widest">
-          {phoneNumber}
+      <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-6 mb-8 text-center">
+        <p className="text-emerald-400 text-xs font-medium tracking-widest mb-2">UNITED STATES • +1</p>
+        <div className="text-4xl font-light font-mono text-white min-h-[52px] flex items-center justify-center tracking-widest">
+          {phoneNumber }
         </div>
       </div>
 
@@ -171,7 +148,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
       {isCalling ? (
         <div className="bg-gradient-to-br from-[#1A2333] to-[#121A2A] border border-gray-700 rounded-3xl p-8 text-center">
           <p className="text-xl font-medium text-white mb-1">{phoneNumber}</p>
-          <p className="text-emerald-400 mb-6">{callStatus}</p>
+          <p className="text-emerald-400 mb-6 font-medium">{callStatus}</p>
 
           {startTimeRef.current && (
             <p className="text-5xl font-mono font-light text-white mb-10">
@@ -179,41 +156,64 @@ function Dialer({ selectedPhoneNumber = '' }) {
             </p>
           )}
 
-          {/* Control Buttons */}
-          <div className="grid grid-cols-3 gap-4 mt-8">
+          {/* Control Buttons with Hover Labels */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
             <button
               onClick={toggleMute}
-              className={`p-5 rounded-2xl text-2xl ${isMuted ? 'bg-red-600' : 'bg-gray-800 hover:bg-gray-700'}`}
+              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all duration-200 hover:scale-105 active:scale-95 relative"
             >
-              {isMuted ? '🔊' : '🔇'}
+              <div className="text-3xl">{isMuted ? '🔊' : '🔇'}</div>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap">
+                {isMuted ? 'Unmute' : 'Mute'}
+              </span>
             </button>
 
             <button
               onClick={toggleSpeaker}
-              className={`p-5 rounded-2xl text-2xl ${isSpeakerOn ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'}`}
+              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all duration-200 hover:scale-105 active:scale-95 relative"
             >
-              {isSpeakerOn ? '🔊' : '🎧'}
+              <div className="text-3xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap">
+                Speaker
+              </span>
             </button>
 
             <button
               onClick={toggleHold}
-              className={`p-5 rounded-2xl text-2xl ${isOnHold ? 'bg-yellow-600' : 'bg-gray-800 hover:bg-gray-700'}`}
+              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all duration-200 hover:scale-105 active:scale-95 relative"
             >
-              {isOnHold ? '▶' : '⏸'}
+              <div className="text-3xl">{isOnHold ? '▶' : '⏸'}</div>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-all whitespace-nowrap">
+                {isOnHold ? 'Resume' : 'Hold'}
+              </span>
             </button>
           </div>
 
+          {/* Keypad Toggle */}
+          <button
+            onClick={() => setShowKeypad(!showKeypad)}
+            className="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium transition-all mb-6"
+          >
+            {showKeypad ? 'Hide Keypad' : 'Show Keypad'}
+          </button>
+
+          {/* End Call */}
           <button
             onClick={endCall}
-            className="mt-8 w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-xl font-semibold"
+            className="w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-lg font-semibold transition-all hover:scale-[1.02]"
           >
             End Call
           </button>
 
+          {/* DTMF Keypad */}
           {showKeypad && (
-            <div className="grid grid-cols-3 gap-3 mt-6">
+            <div className="grid grid-cols-3 gap-3 mt-8">
               {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
-                <button key={d} onClick={() => sendDTMF(d)} className="py-4 bg-gray-800 hover:bg-gray-700 rounded-2xl text-xl">
+                <button
+                  key={d}
+                  onClick={() => sendDTMF(d)}
+                  className="py-5 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl transition-all hover:scale-105 active:scale-95"
+                >
                   {d}
                 </button>
               ))}
@@ -221,7 +221,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           )}
         </div>
       ) : (
-        /* Dialer Keypad */
+        /* Normal Dialer */
         <>
           <div className="grid grid-cols-3 gap-3 mb-8">
             {['1','2','3','4','5','6','7','8','9','*','0','#'].map((key) => (
@@ -236,9 +236,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           </div>
 
           <div className="flex justify-center gap-6">
-            <button onClick={() => setPhoneNumber('')} className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition">
-              ✕
-            </button>
+            <button onClick={() => setPhoneNumber('')} className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition">✕</button>
 
             <button
               onClick={makeCall}
