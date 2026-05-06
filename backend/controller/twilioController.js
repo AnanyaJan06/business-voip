@@ -87,19 +87,27 @@ export const voiceResponse = (req, res) => {
   }
 };
 
-// Handle Incoming Calls from Twilio
+// Handle Incoming Calls
 export const incomingVoice = (req, res) => {
-  const twiml = new twilio.twiml.VoiceResponse();
+  try {
+    const twiml = new twilio.twiml.VoiceResponse();
 
-  twiml.say("Incoming call. Connecting to browser...");
+    twiml.say("You have an incoming call. Connecting to your browser now...");
 
-  twiml.dial({
-    answerOnBridge: true,
-    callerId: process.env.TWILIO_PHONE_NUMBER
-  }, (dial) => {
-    dial.client("browser");   // This will ring the browser
-  });
+    twiml.dial({
+      answerOnBridge: true,
+      callerId: process.env.TWILIO_PHONE_NUMBER
+    }, (dial) => {
+      dial.client("browser");   // This tells Twilio to ring the browser
+    });
 
-  res.type('text/xml');
-  res.send(twiml.toString());
+    res.type('text/xml');
+    res.send(twiml.toString());
+  } catch (error) {
+    console.error("Incoming Voice Error:", error);
+    const twiml = new twilio.twiml.VoiceResponse();
+    twiml.say("Sorry, we are having technical issues. Please try again later.");
+    res.type('text/xml');
+    res.send(twiml.toString());
+  }
 };
