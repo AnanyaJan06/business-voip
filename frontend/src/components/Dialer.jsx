@@ -11,17 +11,19 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [isCalling, setIsCalling] = useState(false);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const [isOnHold, setIsOnHold] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
 
-  const timerRef = useRef(null);
   const startTimeRef = useRef(null);
+  const timerRef = useRef(null);
 
-  // Auto-fill
+  // Auto-fill from Contacts
   useEffect(() => {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Timer
+  // Timer - Starts only after answered
   useEffect(() => {
     if (startTimeRef.current) {
       timerRef.current = setInterval(() => {
@@ -29,7 +31,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
-  }, [isCalling]);
+  }, [startTimeRef.current]);
 
   // Initialize Twilio
   useEffect(() => {
@@ -39,7 +41,6 @@ function Dialer({ selectedPhoneNumber = '' }) {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         const data = await res.json();
-
         const twilioDevice = new Device(data.token, { 
           edge: ['singapore', 'tokyo'],
           logLevel: 'warn' 
@@ -71,11 +72,10 @@ function Dialer({ selectedPhoneNumber = '' }) {
       });
 
       conn.on('disconnect', () => handleCallEnd(conn));
-      conn.on('error', () => handleCallEnd(conn));
+      conn.on('error', (err) => handleCallEnd(conn));
     } catch (err) {
       console.error(err);
-      setIsCalling(false);
-      setCallStatus('Failed');
+      resetCall();
     }
   };
 
@@ -103,30 +103,63 @@ function Dialer({ selectedPhoneNumber = '' }) {
       console.error(err);
     }
 
+    resetCall();
+    window.dispatchEvent(new Event('refreshCallHistory'));
+  };
+
+  const resetCall = () => {
     setIsCalling(false);
     setCallStatus('Call Ended');
     setDuration(0);
     setConnection(null);
     setIsMuted(false);
+    setIsOnHold(false);
+    setIsSpeakerOn(false);
     startTimeRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
-
-    window.dispatchEvent(new Event('refreshCallHistory'));
   };
 
   const endCall = () => connection && connection.disconnect();
+
   const toggleMute = () => {
     if (connection) {
-      connection.mute(!isMuted);
-      setIsMuted(!isMuted);
+      const newMuted = !isMuted;
+      connection.mute(newMuted);
+      setIsMuted(newMuted);
     }
   };
-  const sendDTMF = (digit) => connection && connection.sendDigits(digit);
+
+  const toggleSpeaker = () => {
+    if (connection) {
+      const newSpeaker = !isSpeakerOn;
+      // Twilio Voice SDK speaker control
+      connection.setSpeaker ? connection.setSpeaker(newSpeaker) : console.log("Speaker toggle not fully supported");
+      setIsSpeakerOn(newSpeaker);
+    }
+  };
+
+  const toggleHold = () => {
+    if (connection) {
+      const newHold = !isOnHold;
+      // Hold functionality (Twilio supports this via audio pause or custom logic)
+      if (newHold) {
+        connection.mute(true); // Simple hold simulation
+        setCallStatus('On Hold');
+      } else {
+        connection.mute(false);
+        setCallStatus('Connected');
+      }
+      setIsOnHold(newHold);
+    }
+  };
+
+  const sendDTMF = (digit) => {
+    if (connection) connection.sendDigits(digit);
+  };
 
   return (
-    <div className="w-full max-w-[320px] mx-auto">   {/* Smaller width */}
-
-      {/* Number Display - Clean */}
+    <div className="w-full max-w-[320px] mx-auto">
+      {/* Number Display */}
       <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-8 mb-8 text-center">
         <p className="text-emerald-400 text-xs font-medium tracking-widest mb-3">UNITED STATES • +1</p>
         <div className="text-4xl font-light font-mono text-white min-h-[56px] flex items-center justify-center tracking-widest">
@@ -146,26 +179,36 @@ function Dialer({ selectedPhoneNumber = '' }) {
             </p>
           )}
 
-          <div className="grid grid-cols-3 gap-4">
+          {/* Control Buttons */}
+          <div className="grid grid-cols-3 gap-4 mt-8">
             <button
               onClick={toggleMute}
               className={`p-5 rounded-2xl text-2xl ${isMuted ? 'bg-red-600' : 'bg-gray-800 hover:bg-gray-700'}`}
             >
               {isMuted ? '🔊' : '🔇'}
             </button>
+
             <button
-              onClick={() => setShowKeypad(!showKeypad)}
-              className="p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 text-2xl"
+              onClick={toggleSpeaker}
+              className={`p-5 rounded-2xl text-2xl ${isSpeakerOn ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'}`}
             >
-              ⌨️
+              {isSpeakerOn ? '🔊' : '🎧'}
             </button>
+
             <button
-              onClick={endCall}
-              className="p-5 rounded-2xl bg-red-600 hover:bg-red-700 text-2xl"
+              onClick={toggleHold}
+              className={`p-5 rounded-2xl text-2xl ${isOnHold ? 'bg-yellow-600' : 'bg-gray-800 hover:bg-gray-700'}`}
             >
-              📴
+              {isOnHold ? '▶' : '⏸'}
             </button>
           </div>
+
+          <button
+            onClick={endCall}
+            className="mt-8 w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-xl font-semibold"
+          >
+            End Call
+          </button>
 
           {showKeypad && (
             <div className="grid grid-cols-3 gap-3 mt-6">
@@ -178,7 +221,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           )}
         </div>
       ) : (
-        /* Keypad */
+        /* Dialer Keypad */
         <>
           <div className="grid grid-cols-3 gap-3 mb-8">
             {['1','2','3','4','5','6','7','8','9','*','0','#'].map((key) => (
@@ -193,10 +236,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           </div>
 
           <div className="flex justify-center gap-6">
-            <button
-              onClick={() => setPhoneNumber('')}
-              className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition"
-            >
+            <button onClick={() => setPhoneNumber('')} className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition">
               ✕
             </button>
 
