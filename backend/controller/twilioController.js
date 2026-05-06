@@ -86,3 +86,20 @@ export const voiceResponse = (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 };
+
+// Handle Incoming Calls from Twilio
+export const incomingVoice = (req, res) => {
+  const twiml = new twilio.twiml.VoiceResponse();
+
+  twiml.say("Incoming call. Connecting to browser...");
+
+  twiml.dial({
+    answerOnBridge: true,
+    callerId: process.env.TWILIO_PHONE_NUMBER
+  }, (dial) => {
+    dial.client("browser");   // This will ring the browser
+  });
+
+  res.type('text/xml');
+  res.send(twiml.toString());
+};
