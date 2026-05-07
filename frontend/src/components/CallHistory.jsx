@@ -104,6 +104,9 @@ function CallHistory() {
                     minute: '2-digit' 
                   })}
                 </p>
+                <p className="font-thin text-sm text-white">
+                  {log.callType}
+                </p>
               </div>
 
               <div className="text-right ml-4">
