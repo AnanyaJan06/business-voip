@@ -3,7 +3,7 @@ import { Device } from '@twilio/voice-sdk';
 import io from 'socket.io-client';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
-const socket = io(BACKEND_URL);   // ← Socket defined here
+const socket = io(BACKEND_URL);
 
 function Dialer({ selectedPhoneNumber = '' }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
@@ -19,22 +19,22 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [incomingCall, setIncomingCall] = useState(null);
 
   const startTimeRef = useRef(null);
+  const timerRef = useRef(null);
 
-  // Auto-fill from Contacts
+  // Auto-fill
   useEffect(() => {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Duration Timer
+  // Timer
   useEffect(() => {
-    let interval;
     if (startTimeRef.current) {
-      interval = setInterval(() => {
+      timerRef.current = setInterval(() => {
         setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
       }, 1000);
     }
-    return () => clearInterval(interval);
-  }, [startTimeRef.current]);
+    return () => clearInterval(timerRef.current);
+  }, [isCalling]);
 
   // Initialize Twilio
   useEffect(() => {
@@ -57,16 +57,14 @@ function Dialer({ selectedPhoneNumber = '' }) {
     initDevice();
   }, []);
 
-  // Listen for Incoming Calls from Server
+  // Socket Incoming Call
   useEffect(() => {
     socket.on('incoming-call', (data) => {
       console.log("Incoming call received:", data);
       setIncomingCall(data);
     });
 
-    return () => {
-      socket.off('incoming-call');
-    };
+    return () => socket.off('incoming-call');
   }, []);
 
   const makeCall = async () => {
@@ -87,7 +85,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
       });
 
       conn.on('disconnect', () => handleCallEnd(conn));
-      conn.on('error', (err) => handleCallEnd(conn));
+      conn.on('error', () => handleCallEnd(conn));
     } catch (err) {
       console.error(err);
       resetCall();
@@ -132,6 +130,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
     setIsSpeakerOn(false);
     setShowKeypad(false);
     startTimeRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
   };
 
   const endCall = () => connection && connection.disconnect();
@@ -143,7 +142,9 @@ function Dialer({ selectedPhoneNumber = '' }) {
       setIsMuted(newMuted);
     }
   };
+
   const toggleSpeaker = () => setIsSpeakerOn(!isSpeakerOn);
+
   const toggleHold = () => {
     if (connection) {
       const newHold = !isOnHold;
@@ -153,9 +154,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
     }
   };
 
-  const sendDTMF = (digit) => {
-    if (connection) connection.sendDigits(digit);
-  };
+  const sendDTMF = (digit) => connection && connection.sendDigits(digit);
 
   const acceptIncomingCall = () => {
     if (incomingCall) {
@@ -167,33 +166,27 @@ function Dialer({ selectedPhoneNumber = '' }) {
   };
 
   return (
-    <div className="w-full max-w-[320px] mx-auto">
+    <div className="w-full max-w-[300px] mx-auto">
+
       {/* Number Display */}
-      <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-8 mb-8 text-center">
-        <p className="text-emerald-400 text-xs font-medium tracking-widest mb-3">UNITED STATES • +1</p>
-        <div className="text-4xl font-light font-mono text-white min-h-[56px] flex items-center justify-center tracking-widest">
+      <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-6 mb-8 text-center">
+        <p className="text-emerald-400 text-xs font-medium tracking-widest mb-2">UNITED STATES • +1</p>
+        <div className="text-4xl font-light font-mono text-white min-h-[52px] flex items-center justify-center tracking-widest">
           {phoneNumber}
         </div>
       </div>
 
-      {/* Incoming Call Modal */}
+      {/* Incoming Call Alert */}
       {incomingCall && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="bg-[#1A2333] border border-gray-700 rounded-3xl p-8 text-center w-80">
             <p className="text-red-400 text-2xl mb-2">📲 Incoming Call</p>
             <p className="text-white text-xl mb-6">{incomingCall.from || 'Unknown Number'}</p>
-            
             <div className="flex gap-4">
-              <button
-                onClick={() => setIncomingCall(null)}
-                className="flex-1 py-4 bg-gray-700 hover:bg-gray-600 rounded-2xl text-white"
-              >
+              <button onClick={() => setIncomingCall(null)} className="flex-1 py-4 bg-gray-700 hover:bg-gray-600 rounded-2xl">
                 Reject
               </button>
-              <button
-                onClick={acceptIncomingCall}
-                className="flex-1 py-4 bg-green-600 hover:bg-green-500 rounded-2xl text-white font-semibold"
-              >
+              <button onClick={acceptIncomingCall} className="flex-1 py-4 bg-green-600 hover:bg-green-500 rounded-2xl font-semibold">
                 Accept
               </button>
             </div>
@@ -202,42 +195,83 @@ function Dialer({ selectedPhoneNumber = '' }) {
       )}
 
       {/* In-Call Screen */}
-      {isCalling && (
+      {isCalling ? (
         <div className="bg-gradient-to-br from-[#1A2333] to-[#121A2A] border border-gray-700 rounded-3xl p-8 text-center">
           <p className="text-xl font-medium text-white mb-1">{phoneNumber}</p>
-          <p className="text-emerald-400 mb-6">{callStatus}</p>
+          <p className="text-emerald-400 mb-6 font-medium">{callStatus}</p>
 
-            {startTimeRef.current && (
-              <p className="text-5xl font-mono font-light text-white text-center mb-8">
-                {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
-              </p>
-            )}
+          {startTimeRef.current && (
+            <p className="text-5xl font-mono font-light text-white mb-10">
+              {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
+            </p>
+          )}
 
-          <div className="grid grid-cols-3 gap-4 mt-8">
-            <button onClick={toggleMute} className={`p-5 rounded-2xl text-3xl ${isMuted ? 'bg-red-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
-              {isMuted ? '🔊' : '🔇'}
+          {/* Control Buttons with Tooltips */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <button
+              onClick={toggleMute}
+              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative"
+            >
+              <div className="text-3xl">{isMuted ? '🔊' : '🔇'}</div>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-all">
+                {isMuted ? 'Unmute' : 'Mute'}
+              </span>
             </button>
 
-            <button onClick={toggleSpeaker} className={`p-5 rounded-2xl text-3xl ${isSpeakerOn ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
-              {isSpeakerOn ? '🔊' : '🎧'}
+            <button
+              onClick={toggleSpeaker}
+              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative"
+            >
+              <div className="text-3xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-all">
+                Speaker
+              </span>
             </button>
 
-            <button onClick={toggleHold} className={`p-5 rounded-2xl text-3xl ${isOnHold ? 'bg-yellow-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
-              {isOnHold ? '▶' : '⏸'}
+            <button
+              onClick={toggleHold}
+              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative"
+            >
+              <div className="text-3xl">{isOnHold ? '▶' : '⏸'}</div>
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-all">
+                {isOnHold ? 'Resume' : 'Hold'}
+              </span>
             </button>
           </div>
 
+          {/* Keypad Toggle Button */}
+          <button
+            onClick={() => setShowKeypad(!showKeypad)}
+            className="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium mb-6 transition-all"
+          >
+            {showKeypad ? 'Hide Keypad' : 'Show Keypad'} ⌨️
+          </button>
+
+          {/* End Call */}
           <button
             onClick={endCall}
-            className="mt-10 w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-xl font-semibold"
+            className="w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-lg font-semibold transition-all hover:scale-[1.02]"
           >
             End Call
           </button>
-        </div>
-      )}
 
-      {/* Normal Dialer */}
-      {!isCalling && (
+          {/* Keypad */}
+          {showKeypad && (
+            <div className="grid grid-cols-3 gap-3 mt-8">
+              {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
+                <button
+                  key={d}
+                  onClick={() => sendDTMF(d)}
+                  className="py-5 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl transition-all hover:scale-105 active:scale-95"
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Normal Dialer */
         <>
           <div className="grid grid-cols-3 gap-3 mb-8">
             {['1','2','3','4','5','6','7','8','9','*','0','#'].map((key) => (
@@ -251,28 +285,27 @@ function Dialer({ selectedPhoneNumber = '' }) {
             ))}
           </div>
 
-            <div className="flex justify-center gap-6 mt-auto">
-              <button onClick={() => setPhoneNumber('')} className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition">✕</button>
+          <div className="flex justify-center gap-6">
+            <button onClick={() => setPhoneNumber('')} className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition">✕</button>
 
-              <button
-                onClick={makeCall}
-                disabled={!phoneNumber.trim()}
-                className="w-20 h-20 flex items-center justify-center bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-600 rounded-full text-4xl shadow-xl shadow-emerald-500/30 transition-all active:scale-95"
-              >
-                📞
-              </button>
+            <button
+              onClick={makeCall}
+              disabled={!phoneNumber.trim()}
+              className="w-20 h-20 flex items-center justify-center bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-600 rounded-full text-4xl shadow-xl shadow-emerald-500/30 transition-all active:scale-95"
+            >
+              📞
+            </button>
 
-              <button
-                onClick={() => setPhoneNumber(prev => prev.slice(0, -1))}
-                disabled={!phoneNumber}
-                className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition disabled:opacity-40"
-              >
-                ⌫
-              </button>
-            </div>
+            <button
+              onClick={() => setPhoneNumber(prev => prev.slice(0, -1))}
+              disabled={!phoneNumber}
+              className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition disabled:opacity-40"
+            >
+              ⌫
+            </button>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
