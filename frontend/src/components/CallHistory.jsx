@@ -2,6 +2,80 @@ import { useState, useEffect } from 'react';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
+const callStyles = {
+  outbound: {
+    label: 'Outbound',
+    iconClass: 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20',
+    statusClass: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+  },
+  inbound: {
+    label: 'Inbound',
+    iconClass: 'bg-sky-500/10 text-sky-300 ring-sky-500/20',
+    statusClass: 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+  },
+  missed: {
+    label: 'Missed',
+    iconClass: 'bg-red-500/10 text-red-300 ring-red-500/20',
+    statusClass: 'bg-red-500/10 text-red-300 border-red-500/20'
+  },
+  rejected: {
+    label: 'Rejected',
+    iconClass: 'bg-amber-500/10 text-amber-300 ring-amber-500/20',
+    statusClass: 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+  },
+  failed: {
+    label: 'Failed',
+    iconClass: 'bg-rose-500/10 text-rose-300 ring-rose-500/20',
+    statusClass: 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+  },
+  default: {
+    label: 'Call',
+    iconClass: 'bg-gray-500/10 text-gray-300 ring-gray-500/20',
+    statusClass: 'bg-gray-500/10 text-gray-300 border-gray-500/20'
+  }
+};
+
+function DirectionIcon({ type }) {
+  const common = {
+    className: 'w-5 h-5',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: '2',
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': 'true'
+  };
+
+  if (type === 'outbound') {
+    return (
+      <svg {...common}>
+        <path d="M7 17L17 7" />
+        <path d="M8 7h9v9" />
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.77.62 2.61a2 2 0 0 1-.45 2.11L8 9.72" />
+      </svg>
+    );
+  }
+
+  if (type === 'missed' || type === 'rejected' || type === 'failed') {
+    return (
+      <svg {...common}>
+        <path d="M16 2v6h6" />
+        <path d="M22 2l-6 6" />
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.77.62 2.61a2 2 0 0 1-.45 2.11L8 9.72" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M17 7L7 17" />
+      <path d="M7 8v9h9" />
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.77.62 2.61a2 2 0 0 1-.45 2.11L8 9.72" />
+    </svg>
+  );
+}
+
 function CallHistory() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,13 +84,14 @@ function CallHistory() {
   const fetchCallLogs = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch(`${BACKEND_URL}/api/calls/logs`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         }
       });
 
-      if (!res.ok) throw new Error('Failed to load');
+      if (!res.ok) throw new Error('Failed to load call history');
       const data = await res.json();
       setLogs(data);
     } catch (err) {
@@ -30,14 +105,12 @@ function CallHistory() {
     fetchCallLogs();
   }, []);
 
-  // Refresh listener
   useEffect(() => {
     const handler = () => fetchCallLogs();
     window.addEventListener('refreshCallHistory', handler);
     return () => window.removeEventListener('refreshCallHistory', handler);
   }, []);
 
-  // Format US Phone Number
   const formatPhoneNumber = (phone) => {
     if (!phone) return 'Unknown';
 
@@ -52,24 +125,40 @@ function CallHistory() {
     return phone;
   };
 
-  // Updated formatDuration - Show 0s instead of —
   const formatDuration = (seconds) => {
-    if (seconds === null || seconds === undefined) return '0s';
-    const secs = parseInt(seconds);
+    const secs = Number(seconds) || 0;
     if (secs === 0) return '0s';
-    
+
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
 
-  const getStatusStyle = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'completed': return 'bg-green-500/10 text-green-400';
-      case 'missed': return 'bg-red-500/10 text-red-400';
-      case 'no-answer': return 'bg-yellow-500/10 text-yellow-400';
-      default: return 'bg-gray-500/10 text-gray-400';
-    }
+  const formatDateTime = (date) => {
+    const value = new Date(date);
+    return `${value.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })} at ${value.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+  };
+
+  const getCallMeta = (log) => {
+    const status = log.status?.toLowerCase();
+    const callType = log.callType?.toLowerCase();
+    const visualType = ['missed', 'rejected', 'failed'].includes(status)
+      ? status
+      : callType || 'default';
+
+    return {
+      ...(callStyles[visualType] || callStyles.default),
+      visualType,
+      statusLabel: (status || 'unknown').replace('-', ' '),
+      directionLabel: callStyles[callType]?.label || callStyles.default.label
+    };
   };
 
   return (
@@ -84,42 +173,42 @@ function CallHistory() {
       )}
 
       <div className="divide-y divide-gray-800">
-        {logs.map((log, i) => (
-          <div
-            key={i}
-            className="px-6 py-6 hover:bg-[#1F2533] transition-all cursor-pointer group"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <p className="font-medium text-lg text-white">
-                  {formatPhoneNumber(log.phoneNumber)}
-                </p>
-                <p className="text-sm text-gray-400 mt-1">
-                  {new Date(log.startedAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })} • {new Date(log.startedAt).toLocaleTimeString([], { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                  })}
-                </p>
-                <p className="font-thin text-sm text-white">
-                  {log.callType}
-                </p>
-              </div>
+        {logs.map((log) => {
+          const meta = getCallMeta(log);
 
-              <div className="text-right ml-4">
-                <span className={`inline-block px-4 py-1 rounded-full text-xs font-medium capitalize ${getStatusStyle(log.status)}`}>
-                  {log.status || 'Unknown'}
-                </span>
-                <p className="text-sm text-gray-400 mt-3 font-mono tracking-wide">
-                  {formatDuration(log.duration)}
-                </p>
+          return (
+            <div
+              key={log._id || log.callSid}
+              className="px-5 py-5 hover:bg-[#1F2533] transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ring-1 shrink-0 ${meta.iconClass}`}>
+                  <DirectionIcon type={meta.visualType} />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-base text-white truncate">
+                    {formatPhoneNumber(log.phoneNumber)}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
+                    <span>{meta.directionLabel}</span>
+                    <span className="text-gray-600">|</span>
+                    <span>{formatDateTime(log.startedAt || log.createdAt)}</span>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-semibold capitalize ${meta.statusClass}`}>
+                    {meta.statusLabel}
+                  </span>
+                  <p className="text-sm text-gray-400 mt-2 font-mono tracking-wide">
+                    {formatDuration(log.duration)}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

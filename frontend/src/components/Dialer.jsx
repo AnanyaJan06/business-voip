@@ -18,6 +18,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
+  const activeCallRef = useRef(null);
 
   // Auto-fill from Contacts
   useEffect(() => {
@@ -57,22 +58,55 @@ function Dialer({ selectedPhoneNumber = '' }) {
         // Listen for Incoming Calls
         twilioDevice.on('incoming', (conn) => {
           console.log("📲 Incoming call from:", conn.parameters.From);
+          const from = conn.parameters.From || 'Unknown Number';
+
+          activeCallRef.current = {
+            callType: 'inbound',
+            phoneNumber: from,
+            callSid: conn.parameters.CallSid || '',
+            accepted: false,
+            logged: false
+          };
+
           setIncomingCall({
-            from: conn.parameters.From || 'Unknown Number',
+            from,
             callSid: conn.parameters.CallSid
           });
           setConnection(conn);
 
-          const clearIncomingCall = () => {
+          const logMissedCall = () => {
+            if (!activeCallRef.current?.accepted) {
+              logCall({
+                phoneNumber: from,
+                callType: 'inbound',
+                status: 'missed',
+                duration: 0,
+                callSid: conn.parameters.CallSid || ''
+              });
+            }
             setIncomingCall(null);
             setConnection(null);
             resetCall();
           };
 
-          conn.on('cancel', clearIncomingCall);
-          conn.on('disconnect', clearIncomingCall);
-          conn.on('reject', clearIncomingCall);
-          conn.on('error', clearIncomingCall);
+          conn.on('cancel', logMissedCall);
+          conn.on('disconnect', () => {
+            if (activeCallRef.current?.accepted) {
+              handleCallEnd(conn, {
+                phoneNumber: from,
+                callType: 'inbound',
+                status: 'completed'
+              });
+            } else {
+              logMissedCall();
+            }
+          });
+          conn.on('reject', () => {
+            setIncomingCall(null);
+            setConnection(null);
+            resetCall();
+          });
+          conn.on('error', logMissedCall);
         });
 
         twilioDevice.on('registered', () => setCallStatus('Ready'));
@@ -98,7 +132,40 @@ function Dialer({ selectedPhoneNumber = '' }) {
         twilioDevice.destroy();
       }
     };
+    // The Twilio Device should be created once for this mounted dialer.
+    // Event handlers read current call data from refs to avoid re-registering.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const logCall = async ({ phoneNumber, callType, duration, status, callSid }) => {
+    const currentCall = activeCallRef.current;
+    if (currentCall?.callSid === callSid && currentCall.logged) return;
+
+    if (currentCall?.callSid === callSid) {
+      activeCallRef.current = { ...currentCall, logged: true };
+    }
+
+    try {
+      await fetch(`${BACKEND_URL}/api/calls/log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          phoneNumber,
+          callType,
+          duration,
+          status,
+          callSid
+        })
+      });
+
+      window.dispatchEvent(new Event('refreshCallHistory'));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const makeCall = async () => {
     if (!device || !phoneNumber.trim()) return alert("Please enter a valid number");
@@ -111,46 +178,46 @@ function Dialer({ selectedPhoneNumber = '' }) {
     try {
       const conn = await device.connect({ params: { To: phoneNumber.trim() } });
       setConnection(conn);
+      activeCallRef.current = {
+        callType: 'outbound',
+        phoneNumber: phoneNumber.trim(),
+        callSid: conn?.parameters?.CallSid || '',
+        accepted: false,
+        logged: false
+      };
 
       conn.on('accept', () => {
         setCallStatus('Connected');
         startTimeRef.current = Date.now();
+        activeCallRef.current = {
+          ...activeCallRef.current,
+          accepted: true,
+          callSid: conn?.parameters?.CallSid || activeCallRef.current?.callSid || ''
+        };
       });
 
       conn.on('disconnect', () => handleCallEnd(conn));
-      conn.on('error', () => handleCallEnd(conn));
+      conn.on('error', () => handleCallEnd(conn, { status: 'failed' }));
     } catch (err) {
       console.error(err);
       resetCall();
     }
   };
 
-  const handleCallEnd = async (conn) => {
+  const handleCallEnd = async (conn, overrides = {}) => {
     const finalDuration = startTimeRef.current 
       ? Math.floor((Date.now() - startTimeRef.current) / 1000) 
       : 0;
 
-    try {
-      await fetch(`${BACKEND_URL}/api/calls/log`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          phoneNumber: phoneNumber.trim(),
-          callType: 'outbound',
-          duration: finalDuration,
-          status: 'completed',
-          callSid: conn?.parameters?.CallSid || ''
-        })
-      });
-    } catch (err) {
-      console.error(err);
-    }
+    await logCall({
+      phoneNumber: overrides.phoneNumber || activeCallRef.current?.phoneNumber || phoneNumber.trim(),
+      callType: overrides.callType || activeCallRef.current?.callType || 'outbound',
+      duration: finalDuration,
+      status: overrides.status || 'completed',
+      callSid: conn?.parameters?.CallSid || activeCallRef.current?.callSid || ''
+    });
 
     resetCall();
-    window.dispatchEvent(new Event('refreshCallHistory'));
   };
 
   const resetCall = () => {
@@ -193,7 +260,12 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const acceptIncomingCall = () => {
     if (connection) {
       connection.accept();
+      activeCallRef.current = {
+        ...(activeCallRef.current || {}),
+        accepted: true
+      };
       setIncomingCall(null);
+      setPhoneNumber(activeCallRef.current?.phoneNumber || '');
       setIsCalling(true);
       setCallStatus('Connected');
       startTimeRef.current = Date.now();
@@ -202,7 +274,16 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
   // Reject Incoming Call
   const rejectIncomingCall = () => {
-    if (connection) connection.reject();
+    if (connection) {
+      logCall({
+        phoneNumber: activeCallRef.current?.phoneNumber || incomingCall?.from || 'Unknown Number',
+        callType: 'inbound',
+        status: 'rejected',
+        duration: 0,
+        callSid: activeCallRef.current?.callSid || connection?.parameters?.CallSid || ''
+      });
+      connection.reject();
+    }
     setIncomingCall(null);
     setConnection(null);
   };
@@ -214,7 +295,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
       <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-6 mb-8 text-center">
         <p className="text-emerald-400 text-xs font-medium tracking-widest mb-2">UNITED STATES • +1</p>
         <div className="text-4xl font-light font-mono text-white min-h-[52px] flex items-center justify-center tracking-widest">
-          {phoneNumber || 'Enter number'}
+          {phoneNumber}
         </div>
       </div>
 
