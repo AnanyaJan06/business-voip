@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Device } from '@twilio/voice-sdk';
-import io from 'socket.io-client';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
-const socket = io(BACKEND_URL);
 
 function Dialer({ selectedPhoneNumber = '' }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
@@ -38,6 +36,8 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
   // Initialize Twilio Device + Incoming Call Listener
   useEffect(() => {
+    let twilioDevice;
+
     const initDevice = async () => {
       try {
         const res = await fetch(`${BACKEND_URL}/api/twilio/token`, {
@@ -45,13 +45,14 @@ function Dialer({ selectedPhoneNumber = '' }) {
         });
         const data = await res.json();
 
-        const twilioDevice = new Device(data.token, {
+        if (!res.ok || !data.token) {
+          throw new Error(data.message || 'Unable to get Twilio token');
+        }
+
+        twilioDevice = new Device(data.token, {
           edge: ['singapore', 'tokyo'],
           logLevel: 'warn',
         });
-
-        await twilioDevice.register();
-        setDevice(twilioDevice);
 
         // Listen for Incoming Calls
         twilioDevice.on('incoming', (conn) => {
@@ -61,15 +62,42 @@ function Dialer({ selectedPhoneNumber = '' }) {
             callSid: conn.parameters.CallSid
           });
           setConnection(conn);
+
+          const clearIncomingCall = () => {
+            setIncomingCall(null);
+            setConnection(null);
+            resetCall();
+          };
+
+          conn.on('cancel', clearIncomingCall);
+          conn.on('disconnect', clearIncomingCall);
+          conn.on('reject', clearIncomingCall);
+          conn.on('error', clearIncomingCall);
         });
+
+        twilioDevice.on('registered', () => setCallStatus('Ready'));
+        twilioDevice.on('error', (err) => {
+          console.error('Twilio Device Error:', err);
+          setCallStatus('Device error');
+        });
+
+        await twilioDevice.register();
+        setDevice(twilioDevice);
 
         console.log("✅ Twilio Device Registered");
       } catch (err) {
         console.error("Device Initialization Error:", err);
+        setCallStatus('Device offline');
       }
     };
 
     initDevice();
+
+    return () => {
+      if (twilioDevice) {
+        twilioDevice.destroy();
+      }
+    };
   }, []);
 
   const makeCall = async () => {

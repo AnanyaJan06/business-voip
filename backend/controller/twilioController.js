@@ -5,17 +5,18 @@ dotenv.config();
 
 const AccessToken = twilio.jwt.AccessToken;
 const VoiceGrant = AccessToken.VoiceGrant;
+const BROWSER_CLIENT_IDENTITY = process.env.TWILIO_CLIENT_IDENTITY || 'browser-client';
 
 // getToken
 export const getToken = async (req, res) => {
   try {
-    const identity = `browser-${req.user?.id}`;   // Consistent identity
+    const identity = BROWSER_CLIENT_IDENTITY;
 
     const token = new AccessToken(
       process.env.TWILIO_ACCOUNT_SID,
       process.env.TWILIO_API_KEY_SID,
       process.env.TWILIO_API_KEY_SECRET,
-      { identity: identity }
+      { identity }
     );
 
     const voiceGrant = new VoiceGrant({
@@ -25,9 +26,9 @@ export const getToken = async (req, res) => {
 
     token.addGrant(voiceGrant);
 
-    res.json({ 
+    res.json({
       token: token.toJwt(),
-      identity: identity 
+      identity
     });
   } catch (error) {
     console.error('Token Error:', error);
@@ -105,11 +106,10 @@ export const incomingVoice = async (req, res) => {
 
     const twiml = new twilio.twiml.VoiceResponse();
 
-    // IMPORTANT: Use the same identity pattern
     twiml.dial({
       answerOnBridge: true,
       callerId: process.env.TWILIO_PHONE_NUMBER
-    }).client(`browser-${req.user?.id || 'default'}`);   // Match identity
+    }).client(BROWSER_CLIENT_IDENTITY);
 
     res.type('text/xml');
     res.send(twiml.toString());
