@@ -53,17 +53,17 @@ function Dialer({ selectedPhoneNumber = '' }) {
         await twilioDevice.register();
         setDevice(twilioDevice);
 
-        // Listen for Incoming Calls from Twilio
+        // Listen for Incoming Calls
         twilioDevice.on('incoming', (conn) => {
-          console.log("📲 Twilio Incoming Call:", conn.parameters.From);
+          console.log("📲 Incoming call from:", conn.parameters.From);
           setIncomingCall({
             from: conn.parameters.From || 'Unknown Number',
             callSid: conn.parameters.CallSid
           });
-          setConnection(conn); // Save for accept/reject
+          setConnection(conn);
         });
 
-        console.log("✅ Twilio Device Registered Successfully");
+        console.log("✅ Twilio Device Registered");
       } catch (err) {
         console.error("Device Initialization Error:", err);
       }

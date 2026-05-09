@@ -9,7 +9,7 @@ const VoiceGrant = AccessToken.VoiceGrant;
 // getToken
 export const getToken = async (req, res) => {
   try {
-    const identity = `browser-${req.user?.id || Date.now()}`;
+    const identity = `browser-${req.user?.id}`;   // Consistent identity
 
     const token = new AccessToken(
       process.env.TWILIO_ACCOUNT_SID,
@@ -18,10 +18,10 @@ export const getToken = async (req, res) => {
       { identity: identity }
     );
 
-  const voiceGrant = new VoiceGrant({
-  outgoingApplicationSid: process.env.TWIML_APP_SID,
-  incomingAllow: true
-});
+    const voiceGrant = new VoiceGrant({
+      outgoingApplicationSid: process.env.TWIML_APP_SID,
+      incomingAllow: true
+    });
 
     token.addGrant(voiceGrant);
 
@@ -34,7 +34,6 @@ export const getToken = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 // ====================== MAKE OUTGOING CALL ======================
 export const makeCall = async (req, res) => {
@@ -93,9 +92,8 @@ export const incomingVoice = async (req, res) => {
     const from = req.body.From || 'Unknown';
     const callSid = req.body.CallSid;
 
-    console.log(`📲 Incoming call from: ${from}`);
+    console.log(`📲 Incoming call from: ${from} | SID: ${callSid}`);
 
-    // Get io instance
     const io = req.app.get('io');
     if (io) {
       io.emit('incoming-call', {
@@ -105,13 +103,13 @@ export const incomingVoice = async (req, res) => {
       });
     }
 
-    // TwiML Response
     const twiml = new twilio.twiml.VoiceResponse();
 
+    // IMPORTANT: Use the same identity pattern
     twiml.dial({
       answerOnBridge: true,
       callerId: process.env.TWILIO_PHONE_NUMBER
-    }).client("browser");   // Must match token identity
+    }).client(`browser-${req.user?.id || 'default'}`);   // Match identity
 
     res.type('text/xml');
     res.send(twiml.toString());
