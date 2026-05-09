@@ -21,7 +21,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
 
-  // Auto-fill from contacts
+  // Auto-fill from Contacts
   useEffect(() => {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
@@ -36,7 +36,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
     return () => clearInterval(timerRef.current);
   }, [isCalling]);
 
-  // Initialize Twilio Device
+  // Initialize Twilio Device + Incoming Call Listener
   useEffect(() => {
     const initDevice = async () => {
       try {
@@ -47,26 +47,29 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
         const twilioDevice = new Device(data.token, {
           edge: ['singapore', 'tokyo'],
-          logLevel: 'warn'
+          logLevel: 'warn',
         });
 
-        twilioDevice.register();
+        await twilioDevice.register();
         setDevice(twilioDevice);
+
+        // Listen for Incoming Calls from Twilio
+        twilioDevice.on('incoming', (conn) => {
+          console.log("📲 Twilio Incoming Call:", conn.parameters.From);
+          setIncomingCall({
+            from: conn.parameters.From || 'Unknown Number',
+            callSid: conn.parameters.CallSid
+          });
+          setConnection(conn); // Save for accept/reject
+        });
+
+        console.log("✅ Twilio Device Registered Successfully");
       } catch (err) {
-        console.error("Token error", err);
+        console.error("Device Initialization Error:", err);
       }
     };
+
     initDevice();
-  }, []);
-
-  // Listen for Incoming Calls
-  useEffect(() => {
-    socket.on('incoming-call', (data) => {
-      console.log("📲 Incoming call received:", data);
-      setIncomingCall(data);
-    });
-
-    return () => socket.off('incoming-call');
   }, []);
 
   const makeCall = async () => {
@@ -160,18 +163,20 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
   // Accept Incoming Call
   const acceptIncomingCall = () => {
-    if (!incomingCall) return;
-
-    setIncomingCall(null);
-    setIsCalling(true);
-    setCallStatus('Connected');
-    startTimeRef.current = Date.now();
+    if (connection) {
+      connection.accept();
+      setIncomingCall(null);
+      setIsCalling(true);
+      setCallStatus('Connected');
+      startTimeRef.current = Date.now();
+    }
   };
 
   // Reject Incoming Call
   const rejectIncomingCall = () => {
+    if (connection) connection.reject();
     setIncomingCall(null);
-    socket.emit('reject-call', incomingCall); // Optional: notify backend
+    setConnection(null);
   };
 
   return (
@@ -189,7 +194,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
       {incomingCall && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]">
           <div className="bg-[#1C2333] border border-gray-600 rounded-3xl p-10 w-96 text-center shadow-2xl">
-            <div className="text-6xl mb-6">📲</div>
+            <div className="text-6xl mb-6 animate-pulse">📲</div>
             <p className="text-red-400 text-2xl font-semibold mb-2">Incoming Call</p>
             <p className="text-3xl font-medium text-white mb-8">
               {incomingCall.from || 'Unknown Number'}
@@ -248,18 +253,28 @@ function Dialer({ selectedPhoneNumber = '' }) {
             </button>
           </div>
 
-          <button onClick={() => setShowKeypad(!showKeypad)} className="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium mb-6">
+          <button
+            onClick={() => setShowKeypad(!showKeypad)}
+            className="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium mb-6"
+          >
             {showKeypad ? 'Hide Keypad' : 'Show Keypad'} ⌨️
           </button>
 
-          <button onClick={endCall} className="w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-lg font-semibold">
+          <button
+            onClick={endCall}
+            className="w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-lg font-semibold transition-all"
+          >
             End Call
           </button>
 
           {showKeypad && (
             <div className="grid grid-cols-3 gap-3 mt-8">
               {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
-                <button key={d} onClick={() => sendDTMF(d)} className="py-5 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl hover:scale-105 active:scale-95 transition-all">
+                <button
+                  key={d}
+                  onClick={() => sendDTMF(d)}
+                  className="py-5 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl transition-all hover:scale-105 active:scale-95"
+                >
                   {d}
                 </button>
               ))}
