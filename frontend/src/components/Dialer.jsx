@@ -21,12 +21,12 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
 
-  // Auto-fill
+  // Auto-fill from contacts
   useEffect(() => {
     if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
   }, [selectedPhoneNumber]);
 
-  // Timer
+  // Duration Timer
   useEffect(() => {
     if (startTimeRef.current) {
       timerRef.current = setInterval(() => {
@@ -36,7 +36,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
     return () => clearInterval(timerRef.current);
   }, [isCalling]);
 
-  // Initialize Twilio
+  // Initialize Twilio Device
   useEffect(() => {
     const initDevice = async () => {
       try {
@@ -44,10 +44,12 @@ function Dialer({ selectedPhoneNumber = '' }) {
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
         });
         const data = await res.json();
-        const twilioDevice = new Device(data.token, { 
+
+        const twilioDevice = new Device(data.token, {
           edge: ['singapore', 'tokyo'],
-          logLevel: 'warn' 
+          logLevel: 'warn'
         });
+
         twilioDevice.register();
         setDevice(twilioDevice);
       } catch (err) {
@@ -57,10 +59,10 @@ function Dialer({ selectedPhoneNumber = '' }) {
     initDevice();
   }, []);
 
-  // Socket Incoming Call
+  // Listen for Incoming Calls
   useEffect(() => {
     socket.on('incoming-call', (data) => {
-      console.log("Incoming call received:", data);
+      console.log("📲 Incoming call received:", data);
       setIncomingCall(data);
     });
 
@@ -156,13 +158,20 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
   const sendDTMF = (digit) => connection && connection.sendDigits(digit);
 
+  // Accept Incoming Call
   const acceptIncomingCall = () => {
-    if (incomingCall) {
-      setIncomingCall(null);
-      setIsCalling(true);
-      setCallStatus('Connected');
-      startTimeRef.current = Date.now();
-    }
+    if (!incomingCall) return;
+
+    setIncomingCall(null);
+    setIsCalling(true);
+    setCallStatus('Connected');
+    startTimeRef.current = Date.now();
+  };
+
+  // Reject Incoming Call
+  const rejectIncomingCall = () => {
+    setIncomingCall(null);
+    socket.emit('reject-call', incomingCall); // Optional: notify backend
   };
 
   return (
@@ -172,22 +181,32 @@ function Dialer({ selectedPhoneNumber = '' }) {
       <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-6 mb-8 text-center">
         <p className="text-emerald-400 text-xs font-medium tracking-widest mb-2">UNITED STATES • +1</p>
         <div className="text-4xl font-light font-mono text-white min-h-[52px] flex items-center justify-center tracking-widest">
-          {phoneNumber}
+          {phoneNumber || 'Enter number'}
         </div>
       </div>
 
-      {/* Incoming Call Alert */}
+      {/* Incoming Call Popup */}
       {incomingCall && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-[#1A2333] border border-gray-700 rounded-3xl p-8 text-center w-80">
-            <p className="text-red-400 text-2xl mb-2">📲 Incoming Call</p>
-            <p className="text-white text-xl mb-6">{incomingCall.from || 'Unknown Number'}</p>
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]">
+          <div className="bg-[#1C2333] border border-gray-600 rounded-3xl p-10 w-96 text-center shadow-2xl">
+            <div className="text-6xl mb-6">📲</div>
+            <p className="text-red-400 text-2xl font-semibold mb-2">Incoming Call</p>
+            <p className="text-3xl font-medium text-white mb-8">
+              {incomingCall.from || 'Unknown Number'}
+            </p>
+
             <div className="flex gap-4">
-              <button onClick={() => setIncomingCall(null)} className="flex-1 py-4 bg-gray-700 hover:bg-gray-600 rounded-2xl">
+              <button
+                onClick={rejectIncomingCall}
+                className="flex-1 py-5 bg-gray-700 hover:bg-gray-600 rounded-2xl text-lg font-medium transition-all"
+              >
                 Reject
               </button>
-              <button onClick={acceptIncomingCall} className="flex-1 py-4 bg-green-600 hover:bg-green-500 rounded-2xl font-semibold">
-                Accept
+              <button
+                onClick={acceptIncomingCall}
+                className="flex-1 py-5 bg-green-600 hover:bg-green-500 rounded-2xl text-lg font-semibold transition-all"
+              >
+                Accept Call
               </button>
             </div>
           </div>
@@ -206,64 +225,41 @@ function Dialer({ selectedPhoneNumber = '' }) {
             </p>
           )}
 
-          {/* Control Buttons with Tooltips */}
           <div className="grid grid-cols-3 gap-4 mb-6">
-            <button
-              onClick={toggleMute}
-              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative"
-            >
+            <button onClick={toggleMute} className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
               <div className="text-3xl">{isMuted ? '🔊' : '🔇'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-all">
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 {isMuted ? 'Unmute' : 'Mute'}
               </span>
             </button>
 
-            <button
-              onClick={toggleSpeaker}
-              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative"
-            >
+            <button onClick={toggleSpeaker} className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
               <div className="text-3xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-all">
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 Speaker
               </span>
             </button>
 
-            <button
-              onClick={toggleHold}
-              className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative"
-            >
+            <button onClick={toggleHold} className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
               <div className="text-3xl">{isOnHold ? '▶' : '⏸'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-all">
+              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 {isOnHold ? 'Resume' : 'Hold'}
               </span>
             </button>
           </div>
 
-          {/* Keypad Toggle Button */}
-          <button
-            onClick={() => setShowKeypad(!showKeypad)}
-            className="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium mb-6 transition-all"
-          >
+          <button onClick={() => setShowKeypad(!showKeypad)} className="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium mb-6">
             {showKeypad ? 'Hide Keypad' : 'Show Keypad'} ⌨️
           </button>
 
-          {/* End Call */}
-          <button
-            onClick={endCall}
-            className="w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-lg font-semibold transition-all hover:scale-[1.02]"
-          >
+          <button onClick={endCall} className="w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-lg font-semibold">
             End Call
           </button>
 
-          {/* Keypad */}
           {showKeypad && (
             <div className="grid grid-cols-3 gap-3 mt-8">
               {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
-                <button
-                  key={d}
-                  onClick={() => sendDTMF(d)}
-                  className="py-5 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl transition-all hover:scale-105 active:scale-95"
-                >
+                <button key={d} onClick={() => sendDTMF(d)} className="py-5 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl hover:scale-105 active:scale-95 transition-all">
                   {d}
                 </button>
               ))}
