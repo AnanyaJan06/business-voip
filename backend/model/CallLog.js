@@ -26,7 +26,7 @@ const callLogSchema = new mongoose.Schema({
   },
   duration: { 
     type: Number, 
-    default: 0 
+    default: 0  
   },
   recordingUrl: { type: String },
   callSid: { type: String },           // Important for Twilio
