@@ -8,7 +8,7 @@ const getIncomingCallerNumber = (conn) => {
   return customFrom || conn?.parameters?.originalFrom || conn?.parameters?.From || 'Unknown Number';
 };
 
-function Dialer({ selectedPhoneNumber = '' }) {
+function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
   const [connection, setConnection] = useState(null);
@@ -20,6 +20,8 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [showKeypad, setShowKeypad] = useState(false);
   const [incomingCall, setIncomingCall] = useState(null);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [isIncomingMinimized, setIsIncomingMinimized] = useState(false);
 
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
@@ -27,8 +29,8 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
   // Auto-fill from Contacts
   useEffect(() => {
-    if (selectedPhoneNumber) setPhoneNumber(selectedPhoneNumber);
-  }, [selectedPhoneNumber]);
+    if (isOpen) setPhoneNumber(selectedPhoneNumber || '');
+  }, [isOpen, selectedPhoneNumber]);
 
   // Duration Timer
   useEffect(() => {
@@ -77,6 +79,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
             from,
             callSid: conn.parameters.CallSid
           });
+          setIsIncomingMinimized(false);
           setConnection(conn);
 
           const logMissedCall = () => {
@@ -90,6 +93,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
               });
             }
             setIncomingCall(null);
+            setIsIncomingMinimized(false);
             setConnection(null);
             resetCall();
           };
@@ -108,6 +112,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
           });
           conn.on('reject', () => {
             setIncomingCall(null);
+            setIsIncomingMinimized(false);
             setConnection(null);
             resetCall();
           });
@@ -175,6 +180,7 @@ function Dialer({ selectedPhoneNumber = '' }) {
   const makeCall = async () => {
     if (!device || !phoneNumber.trim()) return alert("Please enter a valid number");
 
+    setIsMinimized(false);
     setIsCalling(true);
     setCallStatus('Ringing...');
     setDuration(0);
@@ -234,8 +240,23 @@ function Dialer({ selectedPhoneNumber = '' }) {
     setIsOnHold(false);
     setIsSpeakerOn(false);
     setShowKeypad(false);
+    setIsMinimized(false);
+    setIsIncomingMinimized(false);
     startTimeRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  const handleCloseDialer = () => {
+    if (isCalling) {
+      setIsMinimized(true);
+      return;
+    }
+
+    onClose?.();
+  };
+
+  const restoreDialer = () => {
+    setIsMinimized(false);
   };
 
   const endCall = () => connection && connection.disconnect();
@@ -270,6 +291,8 @@ function Dialer({ selectedPhoneNumber = '' }) {
         accepted: true
       };
       setIncomingCall(null);
+      setIsIncomingMinimized(false);
+      setIsMinimized(false);
       setPhoneNumber(activeCallRef.current?.phoneNumber || '');
       setIsCalling(true);
       setCallStatus('Connected');
@@ -290,24 +313,25 @@ function Dialer({ selectedPhoneNumber = '' }) {
       connection.reject();
     }
     setIncomingCall(null);
+    setIsIncomingMinimized(false);
     setConnection(null);
   };
 
   return (
-    <div className="w-full max-w-[300px] mx-auto">
-
-      {/* Number Display */}
-      <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-6 mb-8 text-center">
-        <p className="text-emerald-400 text-xs font-medium tracking-widest mb-2">UNITED STATES • +1</p>
-        <div className="text-4xl font-light font-mono text-white min-h-[52px] flex items-center justify-center tracking-widest">
-          {phoneNumber}
-        </div>
-      </div>
-
+    <>
       {/* Incoming Call Popup */}
-      {incomingCall && (
+      {incomingCall && !isIncomingMinimized && (
         <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]">
           <div className="bg-[#1C2333] border border-gray-600 rounded-3xl p-10 w-96 text-center shadow-2xl">
+            <div className="flex justify-end -mt-4 -mr-4 mb-2">
+              <button
+                onClick={() => setIsIncomingMinimized(true)}
+                className="text-gray-400 hover:text-white text-2xl"
+                title="Minimize incoming call"
+              >
+                −
+              </button>
+            </div>
             <div className="text-6xl mb-6 animate-pulse">📲</div>
             <p className="text-red-400 text-2xl font-semibold mb-2">Incoming Call</p>
             <p className="text-3xl font-medium text-white mb-8">
@@ -331,6 +355,71 @@ function Dialer({ selectedPhoneNumber = '' }) {
           </div>
         </div>
       )}
+
+      {incomingCall && isIncomingMinimized && (
+        <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 rounded-2xl border border-sky-500/30 bg-[#161B28] px-5 py-4 shadow-2xl">
+          <button
+            onClick={() => setIsIncomingMinimized(false)}
+            className="flex items-center gap-3 text-left"
+          >
+            <span className="flex h-3 w-3 rounded-full bg-sky-400 animate-pulse" />
+            <span>
+              <span className="block text-sm font-semibold text-white">{incomingCall.from || 'Incoming call'}</span>
+              <span className="block text-xs text-sky-300">Incoming call</span>
+            </span>
+          </button>
+          <button
+            onClick={rejectIncomingCall}
+            className="rounded-xl bg-gray-700 px-3 py-2 text-sm font-medium text-white hover:bg-gray-600"
+          >
+            Reject
+          </button>
+          <button
+            onClick={acceptIncomingCall}
+            className="rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-500"
+          >
+            Accept
+          </button>
+        </div>
+      )}
+
+      {isCalling && isMinimized && (
+        <button
+          onClick={restoreDialer}
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-[#161B28] px-5 py-4 text-left shadow-2xl hover:bg-[#1C2333] transition"
+        >
+          <span className="flex h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
+          <span>
+            <span className="block text-sm font-semibold text-white">{phoneNumber || 'Active call'}</span>
+            <span className="block text-xs text-emerald-300">{callStatus}</span>
+          </span>
+        </button>
+      )}
+
+      {(isOpen || isCalling) && !isMinimized && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-[#161B28] border border-gray-700 rounded-3xl w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-gray-700 px-6 py-4">
+              <h3 className="text-xl font-semibold">{isCalling ? 'Active Call' : 'New Call'}</h3>
+              <button
+                onClick={handleCloseDialer}
+                className="text-gray-400 hover:text-white text-2xl"
+                title={isCalling ? 'Minimize dialer' : 'Close dialer'}
+              >
+                {isCalling ? '−' : '✕'}
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="w-full max-w-[300px] mx-auto">
+
+      {/* Number Display */}
+      <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-6 mb-8 text-center">
+        <p className="text-emerald-400 text-xs font-medium tracking-widest mb-2">UNITED STATES • +1</p>
+        <div className="text-4xl font-light font-mono text-white min-h-[52px] flex items-center justify-center tracking-widest">
+          {phoneNumber}
+        </div>
+      </div>
 
       {/* In-Call Screen */}
       {isCalling ? (
@@ -431,7 +520,12 @@ function Dialer({ selectedPhoneNumber = '' }) {
           </div>
         </>
       )}
-    </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
