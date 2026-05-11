@@ -106,10 +106,15 @@ export const incomingVoice = async (req, res) => {
 
     const twiml = new twilio.twiml.VoiceResponse();
 
-    twiml.dial({
+    const client = twiml.dial({
       answerOnBridge: true,
       callerId: process.env.TWILIO_PHONE_NUMBER
     }).client(BROWSER_CLIENT_IDENTITY);
+
+    client.parameter({
+      name: 'originalFrom',
+      value: from
+    });
 
     res.type('text/xml');
     res.send(twiml.toString());

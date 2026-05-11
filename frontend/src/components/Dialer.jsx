@@ -3,6 +3,11 @@ import { Device } from '@twilio/voice-sdk';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
+const getIncomingCallerNumber = (conn) => {
+  const customFrom = conn?.customParameters?.get?.('originalFrom');
+  return customFrom || conn?.parameters?.originalFrom || conn?.parameters?.From || 'Unknown Number';
+};
+
 function Dialer({ selectedPhoneNumber = '' }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
@@ -57,8 +62,8 @@ function Dialer({ selectedPhoneNumber = '' }) {
 
         // Listen for Incoming Calls
         twilioDevice.on('incoming', (conn) => {
-          console.log("📲 Incoming call from:", conn.parameters.From);
-          const from = conn.parameters.From || 'Unknown Number';
+          const from = getIncomingCallerNumber(conn);
+          console.log("📲 Incoming call from:", from);
 
           activeCallRef.current = {
             callType: 'inbound',
