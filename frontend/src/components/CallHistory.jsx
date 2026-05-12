@@ -199,6 +199,25 @@ function CallHistory() {
     };
   };
 
+  const getUserName = (log) => {
+    if (log.userName) return log.userName;
+    if (typeof log.user === 'object' && log.user?.name) return log.user.name;
+    return 'Unknown User';
+  };
+  
+
+  const getUserActionLabel = (log) => {
+    const status = log.status?.toLowerCase();
+    const callType = log.callType?.toLowerCase();
+    const userName = getUserName(log);
+
+    if (callType === 'outbound') return `Made by ${userName}`;
+    if (status === 'missed') return `Missed by ${userName}`;
+    if (status === 'rejected') return `Rejected by ${userName}`;
+    if (callType === 'inbound') return `Answered by ${userName}`;
+    return `Handled by ${userName}`;
+  };
+
   const getFilteredLogs = () => {
     if (activeFilter === 'all') return logs;
 
@@ -280,6 +299,9 @@ function CallHistory() {
                     <span className="text-gray-600">|</span>
                     <span>{formatDateTime(log.startedAt || log.createdAt)}</span>
                   </div>
+                  <p className="mt-1 truncate text-sm font-medium text-sky-300">
+                    {getUserActionLabel(log)}
+                  </p>
                 </div>
 
                 <div className="grid w-[132px] shrink-0 grid-cols-[1fr_40px] items-center gap-3">

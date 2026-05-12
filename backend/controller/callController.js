@@ -1,4 +1,5 @@
 import CallLog from '../model/CallLog.js';
+import '../model/User.js';
 
 export const saveCallLog = async (req, res) => {
   try {
@@ -26,12 +27,23 @@ export const saveCallLog = async (req, res) => {
 
 export const getCallLogs = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const logs = await CallLog.find({ user: userId })
+    const query = req.user.role === 'admin' ? {} : { user: req.user.id };
+    const logs = await CallLog.find(query)
+      .populate('user', 'name email role')
       .sort({ startedAt: -1 })
       .limit(100);
 
-    res.json(logs);
+    const formattedLogs = logs.map((log) => {
+      const item = log.toObject();
+
+      return {
+        ...item,
+        userName: item.user?.name || 'Unknown User',
+        userEmail: item.user?.email || ''
+      };
+    });
+
+    res.json(formattedLogs);
   } catch (error) {
     console.error('Get Call Logs Error:', error);
     res.status(500).json({ message: error.message });
