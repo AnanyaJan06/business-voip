@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
+const callFilters = [
+  { key: 'all', label: 'All' },
+  { key: 'missed', label: 'Missed' },
+  { key: 'inbound', label: 'Inbound' },
+  { key: 'outbound', label: 'Outbound' }
+];
+
 const callStyles = {
   outbound: {
     label: 'Outbound',
@@ -76,8 +83,26 @@ function DirectionIcon({ type }) {
   );
 }
 
+function PhoneIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.77.62 2.61a2 2 0 0 1-.45 2.11L8 9.72" />
+    </svg>
+  );
+}
+
 function CallHistory() {
   const [logs, setLogs] = useState([]);
+  const [activeFilter, setActiveFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -125,6 +150,19 @@ function CallHistory() {
     return phone;
   };
 
+  const canCallNumber = (phone) => {
+    if (!phone) return false;
+    return phone.replace(/\D/g, '').length >= 7;
+  };
+
+  const handleMakeCall = (phoneNumber) => {
+    if (!canCallNumber(phoneNumber)) return;
+
+    window.dispatchEvent(new CustomEvent('callContact', {
+      detail: { phoneNumber }
+    }));
+  };
+
   const formatDuration = (seconds) => {
     const secs = Number(seconds) || 0;
     if (secs === 0) return '0s';
@@ -161,19 +199,66 @@ function CallHistory() {
     };
   };
 
+  const getFilteredLogs = () => {
+    if (activeFilter === 'all') return logs;
+
+    return logs.filter((log) => {
+      const status = log.status?.toLowerCase();
+      const callType = log.callType?.toLowerCase();
+
+      if (activeFilter === 'missed') return status === 'missed';
+      return callType === activeFilter;
+    });
+  };
+
+  const filteredLogs = getFilteredLogs();
+  const activeFilterLabel = callFilters.find((filter) => filter.key === activeFilter)?.label || 'All';
+
   return (
     <div className="flex-1 overflow-auto thin-scrollbar">
       {loading && <p className="text-gray-400 text-center py-12">Loading call history...</p>}
       {error && <p className="text-red-400 text-center py-12">{error}</p>}
 
-      {!loading && logs.length === 0 && (
+      {!loading && !error && logs.length > 0 && (
+        <div className="sticky top-0 z-10 bg-[#161B26]/95 px-5 py-4 backdrop-blur border-b border-gray-800">
+          <div className="grid grid-cols-4 gap-2 rounded-xl bg-[#0F141F] p-1">
+            {callFilters.map((filter) => {
+              const isActive = activeFilter === filter.key;
+
+              return (
+                <button
+                  key={filter.key}
+                  type="button"
+                  onClick={() => setActiveFilter(filter.key)}
+                  className={`h-10 rounded-lg text-sm font-semibold transition-colors ${
+                    isActive
+                      ? 'bg-sky-500 text-white shadow-sm'
+                      : 'text-gray-400 hover:bg-[#1F2533] hover:text-white'
+                  }`}
+                  aria-pressed={isActive}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && logs.length === 0 && (
         <div className="text-center py-20 text-gray-400">
           No calls yet. Start making calls!
         </div>
       )}
 
+      {!loading && !error && logs.length > 0 && filteredLogs.length === 0 && (
+        <div className="text-center py-20 text-gray-400">
+          No {activeFilterLabel.toLowerCase()} calls found.
+        </div>
+      )}
+
       <div className="divide-y divide-gray-800">
-        {logs.map((log) => {
+        {filteredLogs.map((log) => {
           const meta = getCallMeta(log);
 
           return (
@@ -197,13 +282,26 @@ function CallHistory() {
                   </div>
                 </div>
 
-                <div className="text-right shrink-0">
-                  <span className={`inline-flex items-center px-3 py-1 rounded-full border text-xs font-semibold capitalize ${meta.statusClass}`}>
-                    {meta.statusLabel}
-                  </span>
-                  <p className="text-sm text-gray-400 mt-2 font-mono tracking-wide">
-                    {formatDuration(log.duration)}
-                  </p>
+                <div className="grid w-[132px] shrink-0 grid-cols-[1fr_40px] items-center gap-3">
+                  <div className="min-w-0 text-right">
+                    <span className={`inline-flex min-w-[84px] justify-center rounded-full border px-3 py-1 text-xs font-semibold capitalize ${meta.statusClass}`}>
+                      {meta.statusLabel}
+                    </span>
+                    <p className="mt-2 font-mono text-sm tracking-wide text-gray-400">
+                      {formatDuration(log.duration)}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleMakeCall(log.phoneNumber)}
+                    disabled={!canCallNumber(log.phoneNumber)}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/20 transition-colors hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-600 disabled:ring-gray-700"
+                    title={`Call ${formatPhoneNumber(log.phoneNumber)}`}
+                    aria-label={`Call ${formatPhoneNumber(log.phoneNumber)}`}
+                  >
+                    <PhoneIcon />
+                  </button>
                 </div>
               </div>
             </div>
