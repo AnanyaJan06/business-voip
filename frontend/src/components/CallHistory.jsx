@@ -199,23 +199,24 @@ function CallHistory() {
     };
   };
 
+  
   const getUserName = (log) => {
     if (log.userName) return log.userName;
     if (typeof log.user === 'object' && log.user?.name) return log.user.name;
     return 'Unknown User';
   };
-  
+
 
   const getUserActionLabel = (log) => {
     const status = log.status?.toLowerCase();
     const callType = log.callType?.toLowerCase();
     const userName = getUserName(log);
 
-    if (callType === 'outbound') return `Made by ${userName}`;
-    if (status === 'missed') return `Missed by ${userName}`;
-    if (status === 'rejected') return `Rejected by ${userName}`;
-    if (callType === 'inbound') return `Answered by ${userName}`;
-    return `Handled by ${userName}`;
+    if (callType === 'outbound') return `Call Made by ${userName}`;
+    if (status === 'missed') return `Call Missed by ${userName}`;
+    if (status === 'rejected') return `Call Rejected by ${userName}`;
+    if (callType === 'inbound') return `Call Answered by ${userName}`;
+    return `Call Handled by ${userName}`;
   };
 
   const getFilteredLogs = () => {
