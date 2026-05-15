@@ -86,7 +86,7 @@ function DirectionIcon({ type }) {
 function PhoneIcon() {
   return (
     <svg
-      className="h-5 w-5"
+      className="h-4 w-4"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -96,6 +96,41 @@ function PhoneIcon() {
       aria-hidden="true"
     >
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.77.62 2.61a2 2 0 0 1-.45 2.11L8 9.72" />
+    </svg>
+  );
+}
+
+function MessageIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
     </svg>
   );
 }
@@ -163,6 +198,23 @@ function CallHistory() {
     }));
   };
 
+  const handleMessage = (phoneNumber) => {
+    if (!canCallNumber(phoneNumber)) return;
+    window.dispatchEvent(new CustomEvent('messageContact', {
+      detail: { phoneNumber }
+    }));
+  };
+
+  const handleCopyNumber = async (phoneNumber) => {
+    if (!phoneNumber) return;
+
+    try {
+      await navigator.clipboard.writeText(phoneNumber);
+    } catch (err) {
+      console.error('Failed to copy phone number:', err);
+    }
+  };
+
   const formatDuration = (seconds) => {
     const secs = Number(seconds) || 0;
     if (secs === 0) return '0s';
@@ -206,18 +258,6 @@ function CallHistory() {
     return 'Unknown User';
   };
 
-
-  const getUserActionLabel = (log) => {
-    const status = log.status?.toLowerCase();
-    const callType = log.callType?.toLowerCase();
-    const userName = getUserName(log);
-
-    if (callType === 'outbound') return `Call Made by ${userName}`;
-    if (status === 'missed') return `Call Missed by ${userName}`;
-    if (status === 'rejected') return `Call Rejected by ${userName}`;
-    if (callType === 'inbound') return `Call Answered by ${userName}`;
-    return `Call Handled by ${userName}`;
-  };
 
   const getFilteredLogs = () => {
     if (activeFilter === 'all') return logs;
@@ -284,9 +324,41 @@ function CallHistory() {
           return (
             <div
               key={log._id || log.callSid}
-              className="px-3 py-3.5 hover:bg-[#1F2533] transition-colors sm:px-4"
+              className="group relative px-3 py-3.5 transition-colors hover:bg-[#1F2533] focus-within:bg-[#1F2533] sm:px-4"
             >
-              <div className="flex items-center gap-3">
+              <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                <button
+                  type="button"
+                  onClick={() => handleMakeCall(log.phoneNumber)}
+                  disabled={!canCallNumber(log.phoneNumber)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/20 bg-[#0F141F]/95 text-emerald-300 shadow-sm transition-colors hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600"
+                  title={`Call ${formatPhoneNumber(log.phoneNumber)}`}
+                  aria-label={`Call ${formatPhoneNumber(log.phoneNumber)}`}
+                >
+                  <PhoneIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMessage(log.phoneNumber)}
+                  disabled={!canCallNumber(log.phoneNumber)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-sky-500/20 bg-[#0F141F]/95 text-sky-300 shadow-sm transition-colors hover:bg-sky-500 hover:text-white disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600"
+                  title={`Message ${formatPhoneNumber(log.phoneNumber)}`}
+                  aria-label={`Message ${formatPhoneNumber(log.phoneNumber)}`}
+                >
+                  <MessageIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCopyNumber(log.phoneNumber)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-600 bg-[#0F141F]/95 text-gray-300 shadow-sm transition-colors hover:bg-gray-700 hover:text-white"
+                  title="Copy number"
+                  aria-label={`Copy ${formatPhoneNumber(log.phoneNumber)}`}
+                >
+                  <CopyIcon />
+                </button>
+              </div>
+
+              <div className="flex items-start gap-3 pr-0 sm:pr-24">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ring-1 shrink-0 ${meta.iconClass}`}>
                   <DirectionIcon type={meta.visualType} />
                 </div>
@@ -298,35 +370,18 @@ function CallHistory() {
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
                     <span>{meta.directionLabel}</span>
                     <span className="text-gray-600">|</span>
+                    <span className="capitalize">{meta.statusLabel}</span>
+                    <span className="text-gray-600">|</span>
+                    <span>{formatDuration(log.duration)}</span>
+                    <span className="text-gray-600">|</span>
                     <span>{formatDateTime(log.startedAt || log.createdAt)}</span>
                   </div>
-                  <p className="mt-0.5 truncate text-xs font-medium text-sky-300">
-                    {getUserActionLabel(log)}
-                  </p>
-                </div>
-
-                <div className="grid w-[104px] shrink-0 grid-cols-[1fr_34px] items-center gap-2">
-                  <div className="min-w-0 text-right hidden min-[380px]:block">
-                    <span className={`inline-flex min-w-[68px] justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize ${meta.statusClass}`}>
-                      {meta.statusLabel}
-                    </span>
-                    <p className="mt-1 font-mono text-xs tracking-wide text-gray-400">
-                      {formatDuration(log.duration)}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleMakeCall(log.phoneNumber)}
-                    disabled={!canCallNumber(log.phoneNumber)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/20 transition-colors hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-600 disabled:ring-gray-700"
-                    title={`Call ${formatPhoneNumber(log.phoneNumber)}`}
-                    aria-label={`Call ${formatPhoneNumber(log.phoneNumber)}`}
-                  >
-                    <PhoneIcon />
-                  </button>
                 </div>
               </div>
+
+              <p className="mt-1 text-right text-xs font-medium text-sky-300">
+                {getUserName(log)}
+              </p>
             </div>
           );
         })}
