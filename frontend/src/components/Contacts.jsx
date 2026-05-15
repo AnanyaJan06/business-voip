@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -22,13 +22,13 @@ function Contacts() {
   // Toast for success messages
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: '' }), 3000);
-  };
+  }, []);
 
   // Fetch contacts
-  const fetchContacts = async () => {
+  const fetchContacts = useCallback(async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/contacts`, {
         headers: {
@@ -43,11 +43,11 @@ function Contacts() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     fetchContacts();
-  }, []);
+  }, [fetchContacts]);
 
   // Open Confirmation Modal
   const openModal = (type, data = {}) => {
@@ -75,7 +75,7 @@ function Contacts() {
           setShowAddForm(false);
           fetchContacts();
         }
-      } catch (err) {
+      } catch {
         showToast("Failed to add contact", "error");
       }
     } 
@@ -96,7 +96,7 @@ function Contacts() {
         });
         showToast("🗑️ Contact deleted successfully", "success");
         fetchContacts();
-      } catch (err) {
+      } catch {
         showToast("Failed to delete contact", "error");
       }
     }
@@ -126,24 +126,24 @@ function Contacts() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto relative">
+    <div className="max-w-3xl mx-auto relative">
       {/* Toast */}
       {toast.show && (
-        <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 text-white ${
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-sm text-white ${
           toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'
         }`}>
-          <span className="text-2xl">
+          <span className="text-lg">
             {toast.type === 'success' ? '✅' : '❌'}
           </span>
           <span>{toast.message}</span>
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-bold text-white">Contacts</h2>
+      <div className="flex justify-between items-center gap-3 mb-4">
+        <h2 className="text-lg font-semibold text-white">Contacts</h2>
         <button
           onClick={() => setShowAddForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-2xl text-white font-medium transition"
+          className="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl text-xs sm:text-sm text-white font-medium transition"
         >
           + Add Contact
         </button>
@@ -154,20 +154,20 @@ function Contacts() {
         placeholder="Search contacts by name or phone..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full bg-gray-900 border border-gray-700 text-white rounded-2xl px-5 py-4 mb-8 focus:border-blue-500"
+        className="w-full bg-gray-900 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 mb-4 focus:border-blue-500"
       />
 
       {/* Add Contact Form */}
       {showAddForm && (
-        <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 mb-8">
-          <h3 className="text-xl font-semibold mb-6 text-white">Add New Contact</h3>
-          <form onSubmit={handleAddClick} className="grid grid-cols-2 gap-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl p-4 mb-4">
+          <h3 className="text-base font-semibold mb-4 text-white">Add New Contact</h3>
+          <form onSubmit={handleAddClick} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <input
               type="text"
               placeholder="Full Name *"
               value={newContact.name}
               onChange={(e) => setNewContact({...newContact, name: e.target.value})}
-              className="bg-gray-800 border border-gray-700 text-white rounded-2xl px-5 py-4"
+              className="bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3"
               required
             />
             <input
@@ -175,7 +175,7 @@ function Contacts() {
               placeholder="Phone Number *"
               value={newContact.phone}
               onChange={(e) => setNewContact({...newContact, phone: e.target.value})}
-              className="bg-gray-800 border border-gray-700 text-white rounded-2xl px-5 py-4"
+              className="bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3"
               required
             />
             <input
@@ -183,18 +183,18 @@ function Contacts() {
               placeholder="Email"
               value={newContact.email}
               onChange={(e) => setNewContact({...newContact, email: e.target.value})}
-              className="bg-gray-800 border border-gray-700 text-white rounded-2xl px-5 py-4 col-span-2"
+              className="bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 sm:col-span-2"
             />
             <input
               type="text"
               placeholder="Company"
               value={newContact.company}
               onChange={(e) => setNewContact({...newContact, company: e.target.value})}
-              className="bg-gray-800 border border-gray-700 text-white rounded-2xl px-5 py-4 col-span-2"
+              className="bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 sm:col-span-2"
             />
             <button 
               type="submit" 
-              className="col-span-2 bg-blue-600 py-4 rounded-2xl text-white font-semibold hover:bg-blue-700"
+              className="bg-blue-600 py-3 rounded-xl text-sm text-white font-semibold hover:bg-blue-700 sm:col-span-2"
             >
               Save Contact
             </button>
@@ -204,32 +204,32 @@ function Contacts() {
 
       {/* Contacts List */}
       {loading ? (
-        <p className="text-gray-400 text-center py-10">Loading contacts...</p>
+        <p className="text-sm text-gray-400 text-center py-10">Loading contacts...</p>
       ) : filteredContacts.length === 0 ? (
-        <p className="text-gray-400 text-center py-10">No contacts found.</p>
+        <p className="text-sm text-gray-400 text-center py-10">No contacts found.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filteredContacts.map((contact) => (
             <div 
               key={contact._id} 
-              className="bg-gray-900 border border-gray-700 rounded-3xl p-6 flex justify-between items-center hover:border-blue-500 transition"
+              className="bg-gray-900 border border-gray-700 rounded-2xl p-4 flex flex-col gap-3 hover:border-blue-500 transition sm:flex-row sm:items-center sm:justify-between"
             >
-              <div>
-                <p className="text-lg font-medium text-white">{contact.name}</p>
-                <p className="text-gray-400">{contact.phone}</p>
-                {contact.company && <p className="text-sm text-gray-500 mt-1">{contact.company}</p>}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{contact.name}</p>
+                <p className="text-xs text-gray-400 truncate">{contact.phone}</p>
+                {contact.company && <p className="text-xs text-gray-500 mt-0.5 truncate">{contact.company}</p>}
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button
                   onClick={() => handleCallClick(contact.phone)}
-                  className="bg-green-600 hover:bg-green-700 px-8 py-3 rounded-2xl text-white font-medium transition"
+                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-xl text-xs text-white font-medium transition"
                 >
                   📞 Call
                 </button>
                 <button
                   onClick={() => handleDeleteClick(contact._id)}
-                  className="bg-red-600/80 hover:bg-red-700 px-5 py-3 rounded-2xl text-white transition"
+                  className="bg-red-600/80 hover:bg-red-700 px-3 py-2 rounded-xl text-xs text-white transition"
                 >
                   Delete
                 </button>
@@ -242,28 +242,28 @@ function Contacts() {
       {/* Confirmation Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 max-w-sm w-full mx-4">
-            <h3 className="text-xl font-semibold mb-4 text-white">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-3 text-white">
               {modalType === 'call' ? 'Make a Call?' : 
                modalType === 'delete' ? 'Delete Contact?' : 'Save Contact?'}
             </h3>
             
-            <p className="text-gray-400 mb-8">
+            <p className="text-sm text-gray-400 mb-6">
               {modalType === 'call' && `Do you want to call ${modalData.phone}?`}
               {modalType === 'delete' && 'Are you sure you want to delete this contact? This action cannot be undone.'}
               {modalType === 'add' && 'Do you want to save this new contact?'}
             </p>
 
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-2xl text-white font-medium transition"
+                className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-xl text-sm text-white font-medium transition"
               >
                 Cancel
               </button>
               <button
                 onClick={handleModalConfirm}
-                className={`flex-1 py-3 rounded-2xl text-white font-medium transition ${
+                className={`flex-1 py-2.5 rounded-xl text-sm text-white font-medium transition ${
                   modalType === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >

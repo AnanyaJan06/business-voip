@@ -44,7 +44,7 @@ const callStyles = {
 
 function DirectionIcon({ type }) {
   const common = {
-    className: 'w-5 h-5',
+    className: 'w-4 h-4',
     viewBox: '0 0 24 24',
     fill: 'none',
     stroke: 'currentColor',
@@ -236,12 +236,12 @@ function CallHistory() {
 
   return (
     <div className="flex-1 overflow-auto thin-scrollbar">
-      {loading && <p className="text-gray-400 text-center py-12">Loading call history...</p>}
-      {error && <p className="text-red-400 text-center py-12">{error}</p>}
+      {loading && <p className="text-sm text-gray-400 text-center py-10">Loading call history...</p>}
+      {error && <p className="text-sm text-red-400 text-center py-10">{error}</p>}
 
       {!loading && !error && logs.length > 0 && (
-        <div className="sticky top-0 z-10 bg-[#161B26]/95 px-5 py-4 backdrop-blur border-b border-gray-800">
-          <div className="grid grid-cols-4 gap-2 rounded-xl bg-[#0F141F] p-1">
+        <div className="sticky top-0 z-10 bg-[#161B26]/95 px-2 py-2 backdrop-blur border-b border-gray-800">
+          <div className="grid grid-cols-4 gap-1 rounded-xl bg-[#0F141F] p-1">
             {callFilters.map((filter) => {
               const isActive = activeFilter === filter.key;
 
@@ -250,7 +250,7 @@ function CallHistory() {
                   key={filter.key}
                   type="button"
                   onClick={() => setActiveFilter(filter.key)}
-                  className={`h-10 rounded-lg text-sm font-semibold transition-colors ${
+                  className={`h-8 rounded-lg text-xs font-semibold transition-colors ${
                     isActive
                       ? 'bg-sky-500 text-white shadow-sm'
                       : 'text-gray-400 hover:bg-[#1F2533] hover:text-white'
@@ -266,13 +266,13 @@ function CallHistory() {
       )}
 
       {!loading && !error && logs.length === 0 && (
-        <div className="text-center py-20 text-gray-400">
+        <div className="text-center py-16 text-sm text-gray-400">
           No calls yet. Start making calls!
         </div>
       )}
 
       {!loading && !error && logs.length > 0 && filteredLogs.length === 0 && (
-        <div className="text-center py-20 text-gray-400">
+        <div className="text-center py-16 text-sm text-gray-400">
           No {activeFilterLabel.toLowerCase()} calls found.
         </div>
       )}
@@ -284,33 +284,33 @@ function CallHistory() {
           return (
             <div
               key={log._id || log.callSid}
-              className="px-5 py-5 hover:bg-[#1F2533] transition-colors"
+              className="px-3 py-3.5 hover:bg-[#1F2533] transition-colors sm:px-4"
             >
-              <div className="flex items-center gap-4">
-                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center ring-1 shrink-0 ${meta.iconClass}`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ring-1 shrink-0 ${meta.iconClass}`}>
                   <DirectionIcon type={meta.visualType} />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-base text-white truncate">
+                  <p className="font-semibold text-sm text-white truncate">
                     {formatPhoneNumber(log.phoneNumber)}
                   </p>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400">
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
                     <span>{meta.directionLabel}</span>
                     <span className="text-gray-600">|</span>
                     <span>{formatDateTime(log.startedAt || log.createdAt)}</span>
                   </div>
-                  <p className="mt-1 truncate text-sm font-medium text-sky-300">
+                  <p className="mt-0.5 truncate text-xs font-medium text-sky-300">
                     {getUserActionLabel(log)}
                   </p>
                 </div>
 
-                <div className="grid w-[132px] shrink-0 grid-cols-[1fr_40px] items-center gap-3">
-                  <div className="min-w-0 text-right">
-                    <span className={`inline-flex min-w-[84px] justify-center rounded-full border px-3 py-1 text-xs font-semibold capitalize ${meta.statusClass}`}>
+                <div className="grid w-[104px] shrink-0 grid-cols-[1fr_34px] items-center gap-2">
+                  <div className="min-w-0 text-right hidden min-[380px]:block">
+                    <span className={`inline-flex min-w-[68px] justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize ${meta.statusClass}`}>
                       {meta.statusLabel}
                     </span>
-                    <p className="mt-2 font-mono text-sm tracking-wide text-gray-400">
+                    <p className="mt-1 font-mono text-xs tracking-wide text-gray-400">
                       {formatDuration(log.duration)}
                     </p>
                   </div>
@@ -319,7 +319,7 @@ function CallHistory() {
                     type="button"
                     onClick={() => handleMakeCall(log.phoneNumber)}
                     disabled={!canCallNumber(log.phoneNumber)}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/20 transition-colors hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-600 disabled:ring-gray-700"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/20 transition-colors hover:bg-emerald-500 hover:text-white disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-600 disabled:ring-gray-700"
                     title={`Call ${formatPhoneNumber(log.phoneNumber)}`}
                     aria-label={`Call ${formatPhoneNumber(log.phoneNumber)}`}
                   >

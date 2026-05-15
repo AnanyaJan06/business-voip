@@ -10,6 +10,74 @@ input:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
 }
+
+.dialer-backdrop {
+  transition: opacity 220ms ease;
+}
+
+.dialer-backdrop-opening,
+.dialer-backdrop-closing,
+.dialer-backdrop-minimizing {
+  opacity: 0;
+}
+
+.dialer-backdrop-open {
+  opacity: 1;
+}
+
+.dialer-panel {
+  transform-origin: center;
+  transition:
+    opacity 220ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.dialer-panel-opening {
+  opacity: 0;
+  transform: translateY(18px) scale(0.94);
+}
+
+.dialer-panel-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.dialer-panel-closing {
+  opacity: 0;
+  transform: translateY(16px) scale(0.96);
+}
+
+.dialer-panel-minimizing {
+  opacity: 0;
+  transform: translate(calc(50vw - 130px), calc(50vh - 90px)) scale(0.22);
+}
+
+.dialer-minimized-card {
+  animation: dialerMiniIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes dialerMiniIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialer-backdrop,
+  .dialer-panel {
+    transition: none;
+  }
+
+  .dialer-minimized-card {
+    animation: none;
+  }
+}
 /* Completely Hide Scrollbar but keep scrolling */
 .no-scrollbar {
   -ms-overflow-style: none;  /* IE and Edge */

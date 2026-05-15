@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Device } from '@twilio/voice-sdk';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
+const DIALER_ANIMATION_MS = 220;
 
 const getIncomingCallerNumber = (conn) => {
   const customFrom = conn?.customParameters?.get?.('originalFrom');
@@ -22,15 +23,42 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
   const [incomingCall, setIncomingCall] = useState(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isIncomingMinimized, setIsIncomingMinimized] = useState(false);
+  const [shouldRenderDialer, setShouldRenderDialer] = useState(isOpen);
+  const [dialerMotion, setDialerMotion] = useState(isOpen ? 'open' : 'closed');
 
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
   const activeCallRef = useRef(null);
+  const dialerAnimationRef = useRef(null);
+  const shouldShowFullDialer = (isOpen || isCalling) && !isMinimized;
 
   // Auto-fill from Contacts
   useEffect(() => {
     if (isOpen) setPhoneNumber(selectedPhoneNumber || '');
   }, [isOpen, selectedPhoneNumber]);
+
+  useEffect(() => {
+    clearTimeout(dialerAnimationRef.current);
+
+    if (shouldShowFullDialer) {
+      setShouldRenderDialer(true);
+      setDialerMotion('opening');
+      const frame = requestAnimationFrame(() => setDialerMotion('open'));
+      return () => {
+        cancelAnimationFrame(frame);
+        clearTimeout(dialerAnimationRef.current);
+      };
+    }
+
+    if (shouldRenderDialer) {
+      setDialerMotion('closing');
+      dialerAnimationRef.current = setTimeout(() => {
+        setShouldRenderDialer(false);
+      }, DIALER_ANIMATION_MS);
+    }
+
+    return () => clearTimeout(dialerAnimationRef.current);
+  }, [shouldShowFullDialer, shouldRenderDialer]);
 
   // Duration Timer
   useEffect(() => {
@@ -248,14 +276,23 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
 
   const handleCloseDialer = () => {
     if (isCalling) {
-      setIsMinimized(true);
+      setDialerMotion('minimizing');
+      clearTimeout(dialerAnimationRef.current);
+      dialerAnimationRef.current = setTimeout(() => {
+        setIsMinimized(true);
+      }, DIALER_ANIMATION_MS);
       return;
     }
 
-    onClose?.();
+    setDialerMotion('closing');
+    clearTimeout(dialerAnimationRef.current);
+    dialerAnimationRef.current = setTimeout(() => {
+      onClose?.();
+    }, DIALER_ANIMATION_MS);
   };
 
   const restoreDialer = () => {
+    clearTimeout(dialerAnimationRef.current);
     setIsMinimized(false);
   };
 
@@ -321,33 +358,33 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
     <>
       {/* Incoming Call Popup */}
       {incomingCall && !isIncomingMinimized && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]">
-          <div className="bg-[#1C2333] border border-gray-600 rounded-3xl p-10 w-96 text-center shadow-2xl">
-            <div className="flex justify-end -mt-4 -mr-4 mb-2">
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60] px-4">
+          <div className="bg-[#1C2333] border border-gray-600 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl">
+            <div className="flex justify-end -mt-2 -mr-2 mb-1">
               <button
                 onClick={() => setIsIncomingMinimized(true)}
-                className="text-gray-400 hover:text-white text-2xl"
+                className="text-gray-400 hover:text-white text-xl"
                 title="Minimize incoming call"
               >
                 −
               </button>
             </div>
-            <div className="text-6xl mb-6 animate-pulse">📲</div>
-            <p className="text-red-400 text-2xl font-semibold mb-2">Incoming Call</p>
-            <p className="text-3xl font-medium text-white mb-8">
+            <div className="text-4xl mb-4 animate-pulse">📲</div>
+            <p className="text-red-400 text-lg font-semibold mb-1">Incoming Call</p>
+            <p className="text-xl font-medium text-white mb-6 break-all">
               {incomingCall.from || 'Unknown Number'}
             </p>
 
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               <button
                 onClick={rejectIncomingCall}
-                className="flex-1 py-5 bg-gray-700 hover:bg-gray-600 rounded-2xl text-lg font-medium transition-all"
+                className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl text-sm font-medium transition-all"
               >
                 Reject
               </button>
               <button
                 onClick={acceptIncomingCall}
-                className="flex-1 py-5 bg-green-600 hover:bg-green-500 rounded-2xl text-lg font-semibold transition-all"
+                className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl text-sm font-semibold transition-all"
               >
                 Accept Call
               </button>
@@ -357,26 +394,26 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
       )}
 
       {incomingCall && isIncomingMinimized && (
-        <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 rounded-2xl border border-sky-500/30 bg-[#161B28] px-5 py-4 shadow-2xl">
+        <div className="fixed bottom-4 right-4 z-[60] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border border-sky-500/30 bg-[#161B28] px-3 py-3 shadow-2xl">
           <button
             onClick={() => setIsIncomingMinimized(false)}
-            className="flex items-center gap-3 text-left"
+            className="flex min-w-0 items-center gap-2 text-left"
           >
             <span className="flex h-3 w-3 rounded-full bg-sky-400 animate-pulse" />
             <span>
-              <span className="block text-sm font-semibold text-white">{incomingCall.from || 'Incoming call'}</span>
+              <span className="block truncate text-sm font-semibold text-white">{incomingCall.from || 'Incoming call'}</span>
               <span className="block text-xs text-sky-300">Incoming call</span>
             </span>
           </button>
           <button
             onClick={rejectIncomingCall}
-            className="rounded-xl bg-gray-700 px-3 py-2 text-sm font-medium text-white hover:bg-gray-600"
+            className="rounded-lg bg-gray-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-600"
           >
             Reject
           </button>
           <button
             onClick={acceptIncomingCall}
-            className="rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-500"
+            className="rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-500"
           >
             Accept
           </button>
@@ -386,70 +423,70 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
       {isCalling && isMinimized && (
         <button
           onClick={restoreDialer}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-[#161B28] px-5 py-4 text-left shadow-2xl hover:bg-[#1C2333] transition"
+          className="dialer-minimized-card fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border border-emerald-500/30 bg-[#161B28] px-3 py-3 text-left shadow-2xl hover:bg-[#1C2333] transition"
         >
           <span className="flex h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
           <span>
-            <span className="block text-sm font-semibold text-white">{phoneNumber || 'Active call'}</span>
+            <span className="block truncate text-sm font-semibold text-white">{phoneNumber || 'Active call'}</span>
             <span className="block text-xs text-emerald-300">{callStatus}</span>
           </span>
         </button>
       )}
 
-      {(isOpen || isCalling) && !isMinimized && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-[#161B28] border border-gray-700 rounded-3xl w-full max-w-md mx-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-gray-700 px-6 py-4">
-              <h3 className="text-xl font-semibold">{isCalling ? 'Active Call' : 'New Call'}</h3>
+      {shouldRenderDialer && (
+        <div className={`dialer-backdrop dialer-backdrop-${dialerMotion} fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-3 py-4`}>
+          <div className={`dialer-panel dialer-panel-${dialerMotion} bg-[#161B28] border border-gray-700 rounded-2xl w-full max-w-[360px] shadow-2xl`}>
+            <div className="flex justify-between items-center border-b border-gray-700 px-4 py-3">
+              <h3 className="text-base font-semibold">{isCalling ? 'Active Call' : 'New Call'}</h3>
               <button
                 onClick={handleCloseDialer}
-                className="text-gray-400 hover:text-white text-2xl"
+                className="text-gray-400 hover:text-white text-xl"
                 title={isCalling ? 'Minimize dialer' : 'Close dialer'}
               >
                 {isCalling ? '−' : '✕'}
               </button>
             </div>
 
-            <div className="p-6">
-              <div className="w-full max-w-[300px] mx-auto">
+            <div className="p-4">
+              <div className="w-full max-w-[270px] mx-auto">
 
       {/* Number Display */}
-      <div className="bg-[#161B28] border border-gray-700 rounded-3xl p-6 mb-8 text-center">
-        <p className="text-emerald-400 text-xs font-medium tracking-widest mb-2">UNITED STATES • +1</p>
-        <div className="text-4xl font-light font-mono text-white min-h-[52px] flex items-center justify-center tracking-widest">
+      <div className="bg-[#161B28] border border-gray-700 rounded-2xl p-4 mb-5 text-center">
+        <p className="text-emerald-400 text-[11px] font-medium tracking-widest mb-1.5">UNITED STATES • +1</p>
+        <div className="text-2xl font-light font-mono text-white min-h-[38px] flex items-center justify-center tracking-wider break-all">
           {phoneNumber}
         </div>
       </div>
 
       {/* In-Call Screen */}
       {isCalling ? (
-        <div className="bg-gradient-to-br from-[#1A2333] to-[#121A2A] border border-gray-700 rounded-3xl p-8 text-center">
-          <p className="text-xl font-medium text-white mb-1">{phoneNumber}</p>
-          <p className="text-emerald-400 mb-6 font-medium">{callStatus}</p>
+        <div className="bg-gradient-to-br from-[#1A2333] to-[#121A2A] border border-gray-700 rounded-2xl p-5 text-center">
+          <p className="text-base font-medium text-white mb-1 break-all">{phoneNumber}</p>
+          <p className="text-sm text-emerald-400 mb-4 font-medium">{callStatus}</p>
 
           {startTimeRef.current && (
-            <p className="text-5xl font-mono font-light text-white mb-10">
+            <p className="text-3xl font-mono font-light text-white mb-6">
               {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
             </p>
           )}
 
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <button onClick={toggleMute} className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-              <div className="text-3xl">{isMuted ? '🔊' : '🔇'}</div>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <button onClick={toggleMute} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
+              <div className="text-2xl">{isMuted ? '🔊' : '🔇'}</div>
               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 {isMuted ? 'Unmute' : 'Mute'}
               </span>
             </button>
 
-            <button onClick={toggleSpeaker} className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-              <div className="text-3xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
+            <button onClick={toggleSpeaker} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
+              <div className="text-2xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 Speaker
               </span>
             </button>
 
-            <button onClick={toggleHold} className="group p-5 rounded-2xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-              <div className="text-3xl">{isOnHold ? '▶' : '⏸'}</div>
+            <button onClick={toggleHold} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
+              <div className="text-2xl">{isOnHold ? '▶' : '⏸'}</div>
               <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
                 {isOnHold ? 'Resume' : 'Hold'}
               </span>
@@ -458,25 +495,25 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
 
           <button
             onClick={() => setShowKeypad(!showKeypad)}
-            className="w-full py-4 bg-gray-800 hover:bg-gray-700 rounded-2xl text-sm font-medium mb-6"
+            className="w-full py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm font-medium mb-4"
           >
             {showKeypad ? 'Hide Keypad' : 'Show Keypad'} ⌨️
           </button>
 
           <button
             onClick={endCall}
-            className="w-full bg-red-600 hover:bg-red-700 py-5 rounded-2xl text-lg font-semibold transition-all"
+            className="w-full bg-red-600 hover:bg-red-700 py-3.5 rounded-xl text-sm font-semibold transition-all"
           >
             End Call
           </button>
 
           {showKeypad && (
-            <div className="grid grid-cols-3 gap-3 mt-8">
+            <div className="grid grid-cols-3 gap-2 mt-5">
               {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
                 <button
                   key={d}
                   onClick={() => sendDTMF(d)}
-                  className="py-5 bg-gray-800 hover:bg-gray-700 rounded-2xl text-2xl transition-all hover:scale-105 active:scale-95"
+                  className="py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-xl transition-all hover:scale-105 active:scale-95"
                 >
                   {d}
                 </button>
@@ -487,25 +524,25 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
       ) : (
         /* Normal Dialer */
         <>
-          <div className="grid grid-cols-3 gap-3 mb-8">
+          <div className="grid grid-cols-3 gap-2.5 mb-5">
             {['1','2','3','4','5','6','7','8','9','*','0','#'].map((key) => (
               <button
                 key={key}
                 onClick={() => setPhoneNumber(prev => prev + key)}
-                className="h-16 bg-[#1F2937] hover:bg-[#374151] active:bg-[#4B5563] rounded-2xl text-3xl font-light text-white transition-all active:scale-95"
+                className="h-12 bg-[#1F2937] hover:bg-[#374151] active:bg-[#4B5563] rounded-xl text-2xl font-light text-white transition-all active:scale-95"
               >
                 {key}
               </button>
             ))}
           </div>
 
-          <div className="flex justify-center gap-6">
-            <button onClick={() => setPhoneNumber('')} className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition">✕</button>
+          <div className="flex justify-center gap-5">
+            <button onClick={() => setPhoneNumber('')} className="w-11 h-11 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-2xl transition">✕</button>
 
             <button
               onClick={makeCall}
               disabled={!phoneNumber.trim()}
-              className="w-20 h-20 flex items-center justify-center bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-600 rounded-full text-4xl shadow-xl shadow-emerald-500/30 transition-all active:scale-95"
+              className="w-16 h-16 flex items-center justify-center bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-600 rounded-full text-3xl shadow-xl shadow-emerald-500/30 transition-all active:scale-95"
             >
               📞
             </button>
@@ -513,7 +550,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
             <button
               onClick={() => setPhoneNumber(prev => prev.slice(0, -1))}
               disabled={!phoneNumber}
-              className="w-14 h-14 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-3xl transition disabled:opacity-40"
+              className="w-11 h-11 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-2xl transition disabled:opacity-40"
             >
               ⌫
             </button>
