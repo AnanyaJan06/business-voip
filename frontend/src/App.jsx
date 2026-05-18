@@ -1,4 +1,5 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
 import Dialer from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
 import ConfirmModal from './components/ConfirmModal.jsx';
@@ -8,6 +9,8 @@ import Messages from './components/Messages.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import './App.css';
+
+const BACKEND_URL = 'https://business-voip.onrender.com';
 
 function NavIcon({ type }) {
   const common = {
@@ -82,8 +85,19 @@ function App() {
   const [selectedMessageNumber, setSelectedMessageNumber] = useState('');
   const [conversationNumber, setConversationNumber] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'night');
+  const [unreadMessages, setUnreadMessages] = useState(() => Number(localStorage.getItem('unreadMessages')) || 0);
+  const [smsToast, setSmsToast] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
+  const activeTabRef = useRef(activeTab);
+  const smsToastTimerRef = useRef(null);
+
+  const openTab = useCallback((tabId) => {
+    setActiveTab(tabId);
+    if (tabId === 'messages') {
+      setUnreadMessages(0);
+    }
+  }, []);
 
   // Click-to-Call from Contacts
   useEffect(() => {
@@ -100,12 +114,47 @@ function App() {
     const handleMessageContact = (event) => {
       const { phoneNumber } = event.detail;
       setSelectedMessageNumber(phoneNumber);
-      setActiveTab('messages');
+      openTab('messages');
     };
 
     window.addEventListener('messageContact', handleMessageContact);
     return () => window.removeEventListener('messageContact', handleMessageContact);
-  }, []);
+  }, [openTab]);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem('unreadMessages', String(unreadMessages));
+  }, [unreadMessages]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    const socket = io(BACKEND_URL, {
+      transports: ['websocket', 'polling']
+    });
+
+    socket.on('incoming-message', (message) => {
+      window.dispatchEvent(new Event('refreshMessages'));
+      setSmsToast(message);
+
+      if (activeTabRef.current !== 'messages') {
+        setUnreadMessages((count) => count + 1);
+      }
+
+      window.clearTimeout(smsToastTimerRef.current);
+      smsToastTimerRef.current = window.setTimeout(() => {
+        setSmsToast(null);
+      }, 5000);
+    });
+
+    return () => {
+      window.clearTimeout(smsToastTimerRef.current);
+      socket.disconnect();
+    };
+  }, [token]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -138,6 +187,7 @@ function App() {
     setSelectedPhoneNumber('');
     setSelectedMessageNumber('');
     setConversationNumber('');
+    setUnreadMessages(0);
   };
 
   const toggleTheme = () => {
@@ -166,12 +216,17 @@ function App() {
           ].map((item) => (
             <div
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => openTab(item.id)}
               className={`flex shrink-0 items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer text-sm font-medium transition-all md:px-4 md:py-3
                 ${activeTab === item.id ? 'bg-gray-800 text-white' : 'hover:bg-gray-800 text-gray-300'}`}
             >
               <span className="w-5 text-current"><NavIcon type={item.id} /></span>
-              {item.label}
+              <span>{item.label}</span>
+              {item.id === 'messages' && unreadMessages > 0 && (
+                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                  {unreadMessages > 99 ? '99+' : unreadMessages}
+                </span>
+              )}
             </div>
           ))}
 
@@ -265,6 +320,32 @@ function App() {
         onCancel={() => setShowLogoutModal(false)}
         onConfirm={handleLogout}
       />
+
+      {smsToast && (
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedMessageNumber(smsToast.from);
+            setConversationNumber(smsToast.from);
+            openTab('messages');
+            setSmsToast(null);
+          }}
+          className="sms-toast fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-sky-500/25 bg-[#151B28] p-4 text-left shadow-2xl transition hover:border-sky-400"
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300">
+              <NavIcon type="messages" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-white">New SMS</span>
+              <span className="block truncate text-xs text-gray-400">{smsToast.from || 'Unknown number'}</span>
+            </span>
+          </div>
+          <p className="line-clamp-2 text-sm text-gray-300">
+            {smsToast.body || 'New message received'}
+          </p>
+        </button>
+      )}
     </div>
   );
 }
