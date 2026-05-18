@@ -116,6 +116,12 @@ function Contacts() {
     openModal('call', { phone });
   };
 
+  const handleMessageClick = (phone) => {
+    window.dispatchEvent(new CustomEvent('messageContact', {
+      detail: { phoneNumber: phone }
+    }));
+  };
+
   const handleDeleteClick = (id) => {
     openModal('delete', { id });
   };
@@ -226,6 +232,12 @@ function Contacts() {
                   className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-xl text-xs text-white font-medium transition"
                 >
                   📞 Call
+                </button>
+                <button
+                  onClick={() => handleMessageClick(contact.phone)}
+                  className="bg-sky-600 hover:bg-sky-700 px-4 py-2 rounded-xl text-xs text-white font-medium transition"
+                >
+                  SMS
                 </button>
                 <button
                   onClick={() => handleDeleteClick(contact._id)}

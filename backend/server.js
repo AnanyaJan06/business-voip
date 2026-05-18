@@ -8,6 +8,7 @@ import callRoutes from './routes/callRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import twilioRoutes from './routes/twilioRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
+import messageRoutes from './routes/messageRoutes.js';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/twilio', twilioRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/api/messages', messageRoutes);
 
 app.get('/', (req, res) => res.send('✅ VoIP Backend is Running'));
 app.get('/api/health', (req, res) => res.json({ status: 'OK' }));

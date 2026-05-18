@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import Dialer from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
 import Contacts from './components/Contacts.jsx';
+import Messages from './components/Messages.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import './App.css';
@@ -10,6 +11,7 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [activeTab, setActiveTab] = useState('history');
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState('');
+  const [selectedMessageNumber, setSelectedMessageNumber] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
 
@@ -24,6 +26,21 @@ function App() {
     return () => window.removeEventListener('callContact', handleCallContact);
   }, []);
 
+  useEffect(() => {
+    const handleMessageContact = (event) => {
+      const { phoneNumber } = event.detail;
+      setSelectedMessageNumber(phoneNumber);
+      setActiveTab('messages');
+    };
+
+    window.addEventListener('messageContact', handleMessageContact);
+    return () => window.removeEventListener('messageContact', handleMessageContact);
+  }, []);
+
+  const clearSelectedMessageNumber = useCallback(() => {
+    setSelectedMessageNumber('');
+  }, []);
+
   const openNewCall = () => {
     setSelectedPhoneNumber('');
     setShowDialerModal(true);
@@ -34,6 +51,7 @@ function App() {
     setToken(null);
     setShowLogoutModal(false);
     setSelectedPhoneNumber('');
+    setSelectedMessageNumber('');
   };
 
   if (!token) return <Login />;
@@ -107,7 +125,12 @@ function App() {
         <div className="flex-1 overflow-auto thin-scrollbar p-2 md:p-3">
           {activeTab === 'history' && <CallHistory />}
           {activeTab === 'contacts' && <Contacts />}
-          {activeTab === 'messages' && <div className="h-full flex items-center justify-center text-gray-400">Messages coming soon...</div>}
+          {activeTab === 'messages' && (
+            <Messages
+              selectedPhoneNumber={selectedMessageNumber}
+              onRecipientUsed={clearSelectedMessageNumber}
+            />
+          )}
           {activeTab === 'settings' && <Settings />}
         </div>
       </div>
