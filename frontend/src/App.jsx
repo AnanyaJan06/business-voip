@@ -2,6 +2,7 @@ import { useCallback, useState, useEffect } from 'react';
 import Dialer from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
 import Contacts from './components/Contacts.jsx';
+import ConversationDetails from './components/ConversationDetails.jsx';
 import Messages from './components/Messages.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
@@ -12,6 +13,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('history');
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState('');
   const [selectedMessageNumber, setSelectedMessageNumber] = useState('');
+  const [conversationNumber, setConversationNumber] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
 
@@ -37,6 +39,16 @@ function App() {
     return () => window.removeEventListener('messageContact', handleMessageContact);
   }, []);
 
+  useEffect(() => {
+    const handleOpenConversation = (event) => {
+      const { phoneNumber } = event.detail;
+      setConversationNumber(phoneNumber);
+    };
+
+    window.addEventListener('openConversation', handleOpenConversation);
+    return () => window.removeEventListener('openConversation', handleOpenConversation);
+  }, []);
+
   const clearSelectedMessageNumber = useCallback(() => {
     setSelectedMessageNumber('');
   }, []);
@@ -52,6 +64,7 @@ function App() {
     setShowLogoutModal(false);
     setSelectedPhoneNumber('');
     setSelectedMessageNumber('');
+    setConversationNumber('');
   };
 
   if (!token) return <Login />;
@@ -136,13 +149,11 @@ function App() {
       </div>
 
       {/* Right Persistent Area (Optional - you can keep small info here) */}
-      <div className="hidden flex-1 flex-col bg-[#0F1322] border-l border-gray-800 lg:flex">
-        <div className="h-14 border-b border-gray-800 bg-[#161B28] flex items-center px-6">
-          {/* <h2 className="text-xl font-semibold">Quick Dial</h2> */}
-        </div>
-        <div className="flex-1 flex items-center justify-center text-sm text-gray-500">
-          Click <strong className="text-emerald-400 mx-1">+ New Call</strong> to open dialer
-        </div>
+      <div className="hidden min-w-0 flex-1 flex-col border-l border-gray-800 bg-[#0F1322] lg:flex">
+        <ConversationDetails
+          phoneNumber={conversationNumber}
+          onClose={() => setConversationNumber('')}
+        />
       </div>
 
       <Dialer

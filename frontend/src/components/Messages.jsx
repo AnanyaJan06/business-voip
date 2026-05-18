@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -102,6 +102,36 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
     })}`;
   };
 
+  const openConversation = (phoneNumber) => {
+    window.dispatchEvent(new CustomEvent('openConversation', {
+      detail: { phoneNumber }
+    }));
+  };
+
+  const getThreadNumber = (message) => (
+    message.direction === 'outbound' ? message.to : message.from
+  );
+
+  const messageThreads = useMemo(() => {
+    const threads = new Map();
+
+    messages.forEach((message) => {
+      const phoneNumber = getThreadNumber(message);
+      const key = String(phoneNumber || '').replace(/\D/g, '') || phoneNumber;
+      const existing = threads.get(key);
+
+      if (!existing || new Date(message.createdAt) > new Date(existing.createdAt)) {
+        threads.set(key, {
+          ...message,
+          phoneNumber
+        });
+      }
+    });
+
+    return [...threads.values()]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [messages]);
+
   return (
     <div className="max-w-3xl mx-auto">
       <form onSubmit={sendMessage} className="rounded-2xl border border-gray-700 bg-gray-900 p-4">
@@ -153,29 +183,27 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
 
         {loading ? (
           <p className="py-10 text-center text-sm text-gray-400">Loading messages...</p>
-        ) : messages.length === 0 ? (
+        ) : messageThreads.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No messages yet.</p>
         ) : (
           <div className="divide-y divide-gray-800">
-            {messages.map((message) => (
+            {messageThreads.map((message) => (
               <div key={message._id || message.messageSid} className="px-4 py-3 hover:bg-[#1F2533]">
                 <div className="mb-1 flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white">
-                      {message.direction === 'outbound' ? message.to : message.from}
-                    </p>
-                    <p className="text-xs capitalize text-gray-400">
-                      {message.direction} | {message.status}
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openConversation(message.phoneNumber)}
+                      className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-sky-300"
+                      title="Open conversation"
+                    >
+                      {message.phoneNumber}
+                    </button>
                   </div>
                   <span className="shrink-0 text-xs text-gray-500">
                     {formatDateTime(message.createdAt)}
                   </span>
                 </div>
-                <p className="whitespace-pre-wrap text-sm text-gray-300">{message.body}</p>
-                {message.userName && (
-                  <p className="mt-1 text-right text-xs font-medium text-sky-300">{message.userName}</p>
-                )}
               </div>
             ))}
           </div>

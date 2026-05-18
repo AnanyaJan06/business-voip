@@ -203,6 +203,9 @@ function CallHistory() {
     window.dispatchEvent(new CustomEvent('messageContact', {
       detail: { phoneNumber }
     }));
+    window.dispatchEvent(new CustomEvent('openConversation', {
+      detail: { phoneNumber }
+    }));
   };
 
   const handleCopyNumber = async (phoneNumber) => {
@@ -213,6 +216,12 @@ function CallHistory() {
     } catch (err) {
       console.error('Failed to copy phone number:', err);
     }
+  };
+
+  const handleOpenConversation = (phoneNumber) => {
+    window.dispatchEvent(new CustomEvent('openConversation', {
+      detail: { phoneNumber }
+    }));
   };
 
   const formatDuration = (seconds) => {
@@ -364,9 +373,14 @@ function CallHistory() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm text-white truncate">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenConversation(log.phoneNumber)}
+                    className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-sky-300"
+                    title="Open conversation"
+                  >
                     {formatPhoneNumber(log.phoneNumber)}
-                  </p>
+                  </button>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
                     <span>{meta.directionLabel}</span>
                     <span className="text-gray-600">|</span>
