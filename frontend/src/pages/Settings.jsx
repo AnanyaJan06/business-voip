@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -70,7 +71,7 @@ function Settings() {
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-400 text-center py-10">Loading settings...</p>;
+    return <LoadingSpinner label="Loading settings..." />;
   }
 
   return (

@@ -1,4 +1,6 @@
 import { useCallback, useState, useEffect } from 'react';
+import ConfirmModal from './ConfirmModal.jsx';
+import LoadingSpinner from './LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -131,6 +133,27 @@ function Contacts() {
     contact.phone.includes(searchTerm)
   );
 
+  const modalContent = {
+    call: {
+      title: 'Make a call?',
+      message: `Do you want to call ${modalData.phone}?`,
+      confirmText: 'Call Now',
+      variant: 'success'
+    },
+    delete: {
+      title: 'Delete contact?',
+      message: 'Are you sure you want to delete this contact? This action cannot be undone.',
+      confirmText: 'Delete',
+      variant: 'danger'
+    },
+    add: {
+      title: 'Save contact?',
+      message: 'Do you want to save this new contact?',
+      confirmText: 'Save',
+      variant: 'primary'
+    }
+  }[modalType] || {};
+
   return (
     <div className="max-w-3xl mx-auto relative">
       {/* Toast */}
@@ -210,7 +233,7 @@ function Contacts() {
 
       {/* Contacts List */}
       {loading ? (
-        <p className="text-sm text-gray-400 text-center py-10">Loading contacts...</p>
+        <LoadingSpinner label="Loading contacts..." />
       ) : filteredContacts.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-10">No contacts found.</p>
       ) : (
@@ -251,41 +274,15 @@ function Contacts() {
         </div>
       )}
 
-      {/* Confirmation Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold mb-3 text-white">
-              {modalType === 'call' ? 'Make a Call?' : 
-               modalType === 'delete' ? 'Delete Contact?' : 'Save Contact?'}
-            </h3>
-            
-            <p className="text-sm text-gray-400 mb-6">
-              {modalType === 'call' && `Do you want to call ${modalData.phone}?`}
-              {modalType === 'delete' && 'Are you sure you want to delete this contact? This action cannot be undone.'}
-              {modalType === 'add' && 'Do you want to save this new contact?'}
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 bg-gray-700 hover:bg-gray-600 rounded-xl text-sm text-white font-medium transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleModalConfirm}
-                className={`flex-1 py-2.5 rounded-xl text-sm text-white font-medium transition ${
-                  modalType === 'delete' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                {modalType === 'call' ? 'Call Now' : 
-                 modalType === 'delete' ? 'Delete' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={showModal}
+        title={modalContent.title}
+        message={modalContent.message}
+        confirmText={modalContent.confirmText}
+        variant={modalContent.variant}
+        onCancel={() => setShowModal(false)}
+        onConfirm={handleModalConfirm}
+      />
     </div>
   );
 }

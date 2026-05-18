@@ -460,66 +460,70 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
 
       {/* In-Call Screen */}
       {isCalling ? (
-        <div className="bg-gradient-to-br from-[#1A2333] to-[#121A2A] border border-gray-700 rounded-2xl p-5 text-center">
+        <div className="dialer-call-card bg-gradient-to-br from-[#1A2333] to-[#121A2A] border border-gray-700 rounded-2xl p-5 text-center">
           <p className="text-base font-medium text-white mb-1 break-all">{phoneNumber}</p>
-          <p className="text-sm text-emerald-400 mb-4 font-medium">{callStatus}</p>
+          <p className={`text-sm text-emerald-400 font-medium ${showKeypad ? 'mb-2' : 'mb-4'}`}>{callStatus}</p>
 
-          {startTimeRef.current && (
+          {startTimeRef.current && !showKeypad && (
             <p className="text-3xl font-mono font-light text-white mb-6">
               {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
             </p>
           )}
 
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <button onClick={toggleMute} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-              <div className="text-2xl">{isMuted ? '🔊' : '🔇'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
-                {isMuted ? 'Unmute' : 'Mute'}
-              </span>
-            </button>
+          <div className="min-h-[132px]">
+            {showKeypad ? (
+              <div className="grid grid-cols-3 gap-2">
+                {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
+                  <button
+                    key={d}
+                    onClick={() => sendDTMF(d)}
+                    className="h-9 bg-gray-800 hover:bg-gray-700 rounded-lg text-lg transition-all hover:scale-105 active:scale-95"
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3 mb-4">
+                <button onClick={toggleMute} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
+                  <div className="text-2xl">{isMuted ? '🔊' : '🔇'}</div>
+                  <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                    {isMuted ? 'Unmute' : 'Mute'}
+                  </span>
+                </button>
 
-            <button onClick={toggleSpeaker} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-              <div className="text-2xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
-                Speaker
-              </span>
-            </button>
+                <button onClick={toggleSpeaker} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
+                  <div className="text-2xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
+                  <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                    Speaker
+                  </span>
+                </button>
 
-            <button onClick={toggleHold} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-              <div className="text-2xl">{isOnHold ? '▶' : '⏸'}</div>
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
-                {isOnHold ? 'Resume' : 'Hold'}
-              </span>
-            </button>
+                <button onClick={toggleHold} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
+                  <div className="text-2xl">{isOnHold ? '▶' : '⏸'}</div>
+                  <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
+                    {isOnHold ? 'Resume' : 'Hold'}
+                  </span>
+                </button>
+              </div>
+            )}
           </div>
 
-          <button
-            onClick={() => setShowKeypad(!showKeypad)}
-            className="w-full py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm font-medium mb-4"
-          >
-            {showKeypad ? 'Hide Keypad' : 'Show Keypad'} ⌨️
-          </button>
+          <div className={`grid gap-2 ${showKeypad ? 'grid-cols-2 mt-3' : 'grid-cols-1'}`}>
+            <button
+              onClick={() => setShowKeypad(!showKeypad)}
+              className={`${showKeypad ? 'py-2.5 text-xs' : 'py-3 text-sm'} bg-gray-800 hover:bg-gray-700 rounded-xl font-medium transition-all`}
+            >
+              {showKeypad ? 'Hide Keypad' : 'Show Keypad'} ⌨️
+            </button>
 
-          <button
-            onClick={endCall}
-            className="w-full bg-red-600 hover:bg-red-700 py-3.5 rounded-xl text-sm font-semibold transition-all"
-          >
-            End Call
-          </button>
-
-          {showKeypad && (
-            <div className="grid grid-cols-3 gap-2 mt-5">
-              {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
-                <button
-                  key={d}
-                  onClick={() => sendDTMF(d)}
-                  className="py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-xl transition-all hover:scale-105 active:scale-95"
-                >
-                  {d}
-                </button>
-              ))}
-            </div>
-          )}
+            <button
+              onClick={endCall}
+              className={`${showKeypad ? 'py-2.5 text-xs' : 'py-3.5 text-sm'} bg-red-600 hover:bg-red-700 rounded-xl font-semibold transition-all`}
+            >
+              End Call
+            </button>
+          </div>
         </div>
       ) : (
         /* Normal Dialer */

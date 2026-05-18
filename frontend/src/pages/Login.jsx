@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -86,7 +87,7 @@ function Login() {
               disabled={loading}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition disabled:opacity-70"
             >
-              {loading ? 'Signing In...' : 'Sign In'}
+              {loading ? <LoadingSpinner label="Signing In..." size="sm" tone="white" inline /> : 'Sign In'}
             </button>
           </form>
         </div>

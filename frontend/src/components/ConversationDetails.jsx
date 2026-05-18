@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import LoadingSpinner from './LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
-const normalizePhone = (phone) => String(phone || '').replace(/\D/g, '');
+const normalizePhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+};
 
 function ConversationDetails({ phoneNumber, onClose }) {
   const [calls, setCalls] = useState([]);
@@ -215,7 +219,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
       </div>
 
       <div className="thin-scrollbar min-h-0 flex-1 overflow-auto px-5 py-4">
-        {loading && <p className="py-10 text-center text-sm text-gray-400">Loading conversation...</p>}
+        {loading && <LoadingSpinner label="Loading conversation..." tone="emerald" />}
 
         {!loading && timeline.length === 0 && (
           <p className="py-10 text-center text-sm text-gray-400">No calls or messages found for this number.</p>
@@ -241,10 +245,10 @@ function ConversationDetails({ phoneNumber, onClose }) {
                   >
                     <div className={`max-w-[74%] rounded-2xl px-4 py-3 shadow-lg ${
                       isCall
-                        ? 'bg-[#1C2333] text-white'
+                        ? 'conversation-call-bubble bg-[#1C2333] text-white'
                         : isOutbound
-                          ? 'bg-[#1E293B] text-white'
-                          : 'bg-[#4B5563] text-white'
+                          ? 'conversation-sms-outbound bg-[#1E293B] text-white'
+                          : 'conversation-sms-inbound bg-[#4B5563] text-white'
                     }`}>
                       {isCall ? (
                         <>
@@ -297,7 +301,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
             disabled={sending || !messageBody.trim()}
             className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-400"
           >
-            {sending ? 'Sending...' : 'Send'}
+            {sending ? <LoadingSpinner label="Sending..." size="sm" tone="white" inline /> : 'Send'}
           </button>
         </div>
       </form>

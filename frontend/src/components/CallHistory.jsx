@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import LoadingSpinner from './LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -285,7 +286,7 @@ function CallHistory() {
 
   return (
     <div className="flex-1 overflow-auto thin-scrollbar">
-      {loading && <p className="text-sm text-gray-400 text-center py-10">Loading call history...</p>}
+      {loading && <LoadingSpinner label="Loading call history..." />}
       {error && <p className="text-sm text-red-400 text-center py-10">{error}</p>}
 
       {!loading && !error && logs.length > 0 && (
@@ -333,7 +334,7 @@ function CallHistory() {
           return (
             <div
               key={log._id || log.callSid}
-              className="group relative px-3 py-3.5 transition-colors hover:bg-[#1F2533] focus-within:bg-[#1F2533] sm:px-4"
+              className="group relative px-3 py-3.5 transition-colors hover:bg-[#1F2533] sm:px-4"
             >
               <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
                 <button

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import LoadingSpinner from './LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
+
+const normalizePhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+};
 
 function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
   const [messages, setMessages] = useState([]);
@@ -117,7 +123,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
 
     messages.forEach((message) => {
       const phoneNumber = getThreadNumber(message);
-      const key = String(phoneNumber || '').replace(/\D/g, '') || phoneNumber;
+      const key = normalizePhone(phoneNumber) || phoneNumber;
       const existing = threads.get(key);
 
       if (!existing || new Date(message.createdAt) > new Date(existing.createdAt)) {
@@ -172,7 +178,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
           disabled={sending}
           className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
         >
-          {sending ? 'Sending...' : 'Send SMS'}
+          {sending ? <LoadingSpinner label="Sending..." size="sm" tone="white" inline /> : 'Send SMS'}
         </button>
       </form>
 
@@ -182,7 +188,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
         </div>
 
         {loading ? (
-          <p className="py-10 text-center text-sm text-gray-400">Loading messages...</p>
+          <LoadingSpinner label="Loading messages..." />
         ) : messageThreads.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No messages yet.</p>
         ) : (
