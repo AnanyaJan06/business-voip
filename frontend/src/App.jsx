@@ -6,6 +6,7 @@ import ConfirmModal from './components/ConfirmModal.jsx';
 import Contacts from './components/Contacts.jsx';
 import ConversationDetails from './components/ConversationDetails.jsx';
 import Messages from './components/Messages.jsx';
+import AdminDashboard from './components/AdminDashboard.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import './App.css';
@@ -41,6 +42,14 @@ function NavIcon({ type }) {
     messages: (
       <svg {...common}>
         <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+      </svg>
+    ),
+    admin: (
+      <svg {...common}>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
       </svg>
     ),
     settings: (
@@ -89,8 +98,10 @@ function App() {
   const [smsToast, setSmsToast] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
+  const [currentUser, setCurrentUser] = useState(null);
   const activeTabRef = useRef(activeTab);
   const smsToastTimerRef = useRef(null);
+  const isAdmin = currentUser?.role === 'admin';
 
   const openTab = useCallback((tabId) => {
     setActiveTab(tabId);
@@ -131,6 +142,25 @@ function App() {
 
   useEffect(() => {
     if (!token) return undefined;
+
+    const fetchCurrentUser = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          setCurrentUser(data);
+        }
+      } catch (error) {
+        console.error('Failed to load current user:', error);
+      }
+    };
+
+    fetchCurrentUser();
 
     const socket = io(BACKEND_URL, {
       transports: ['websocket', 'polling']
@@ -188,6 +218,7 @@ function App() {
     setSelectedMessageNumber('');
     setConversationNumber('');
     setUnreadMessages(0);
+    setCurrentUser(null);
   };
 
   const toggleTheme = () => {
@@ -209,6 +240,7 @@ function App() {
 
         <nav className="flex gap-2 overflow-x-auto p-3 no-scrollbar md:flex-1 md:flex-col md:gap-1 md:overflow-visible md:p-3">
           {[
+            ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
             { id: 'history', label: 'Calls' },
             { id: 'contacts', label: 'Contacts' },
             { id: 'messages', label: 'Messages' },
@@ -263,6 +295,7 @@ function App() {
       <div className="min-h-0 flex-1 border-r border-gray-800 bg-[#161B28] flex flex-col md:w-[390px] md:flex-none xl:w-[410px]">
         <div className="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-[#1C2333] md:h-14 md:px-5">
           <h2 className="text-base font-semibold md:text-lg">
+            {activeTab === 'admin' && 'Admin Dashboard'}
             {activeTab === 'history' && 'Call History'}
             {activeTab === 'contacts' && 'Contacts'}
             {activeTab === 'messages' && 'Messages'}
@@ -285,6 +318,7 @@ function App() {
         </div>
 
         <div className="flex-1 overflow-auto thin-scrollbar p-2 md:p-3">
+          {activeTab === 'admin' && isAdmin && <AdminDashboard />}
           {activeTab === 'history' && <CallHistory />}
           {activeTab === 'contacts' && <Contacts />}
           {activeTab === 'messages' && (
