@@ -99,7 +99,7 @@ function FollowUps({ onDueCountChange }) {
           name: form.name.trim(),
           phone: form.phone.trim(),
           note: form.note.trim(),
-          followUpDate: form.followUpDate
+          followUpDate: new Date(form.followUpDate).toISOString()
         })
       });
 
@@ -158,6 +158,7 @@ function FollowUps({ onDueCountChange }) {
   };
 
   const formatDate = (date) => new Date(date).toLocaleString([], {
+    timeZone: 'Asia/Kolkata',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -259,6 +260,9 @@ function FollowUps({ onDueCountChange }) {
                         {followUp.name}
                       </p>
                       {followUp.phone && <p className="text-xs text-gray-400">{followUp.phone}</p>}
+                      <p className="mt-1 text-xs text-gray-500">
+                        {formatDate(followUp.followUpDate)}
+                      </p>
                     </div>
                     <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${
                       followUp.completed
