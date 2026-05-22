@@ -177,7 +177,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
             value={recipient}
             onChange={(event) => setRecipient(event.target.value)}
             placeholder="+1..."
-            className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+            className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
           />
         </div>
 
@@ -189,7 +189,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
             rows={4}
             maxLength={1600}
             placeholder="Write a message..."
-            className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+            className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
           />
           <div className="mt-1 text-right text-[11px] text-gray-500">{body.length}/1600</div>
         </div>
@@ -205,7 +205,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
         <button
           type="submit"
           disabled={sending}
-          className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+          className="w-full rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
         >
           {sending ? <LoadingSpinner label="Sending..." size="sm" tone="white" inline /> : 'Send SMS'}
         </button>
@@ -229,7 +229,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
                     <button
                       type="button"
                       onClick={() => openConversation(message.phoneNumber)}
-                      className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-sky-300"
+                      className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-emerald-300"
                       title="Open conversation"
                     >
                       {message.phoneNumber}

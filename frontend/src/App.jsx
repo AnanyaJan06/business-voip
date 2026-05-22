@@ -302,7 +302,7 @@ function App() {
       {/* Sidebar */}
       <div className="shrink-0 bg-[#11151F] border-b border-gray-800 flex flex-col md:w-60 md:border-b-0 md:border-r">
         <div className="px-4 py-3 flex items-center gap-3 border-b border-gray-800 md:px-5 md:py-4">
-          <div className="w-9 h-9 bg-gradient-to-br from-blue-500 via-cyan-400 to-teal-400 rounded-xl flex items-center justify-center text-white shadow-lg">
+          <div className="w-9 h-9 bg-gradient-to-br from-[#059669] via-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white shadow-lg">
             <NavIcon type="history" />
           </div>
           <h1 className="text-xl font-bold tracking-tight md:text-2xl">VoIP Pro</h1>
@@ -452,10 +452,10 @@ function App() {
             openTab('messages');
             setSmsToast(null);
           }}
-          className="sms-toast fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-sky-500/25 bg-[#151B28] p-4 text-left shadow-2xl transition hover:border-sky-400"
+          className="sms-toast fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-emerald-500/25 bg-[#151B28] p-4 text-left shadow-2xl transition hover:border-emerald-400"
         >
           <div className="mb-2 flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
               <NavIcon type="messages" />
             </span>
             <span className="min-w-0">

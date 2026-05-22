@@ -394,15 +394,15 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
       )}
 
       {incomingCall && isIncomingMinimized && (
-        <div className="fixed bottom-4 right-4 z-[60] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border border-sky-500/30 bg-[#161B28] px-3 py-3 shadow-2xl">
+        <div className="fixed bottom-4 right-4 z-[60] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border border-emerald-500/30 bg-[#161B28] px-3 py-3 shadow-2xl">
           <button
             onClick={() => setIsIncomingMinimized(false)}
             className="flex min-w-0 items-center gap-2 text-left"
           >
-            <span className="flex h-3 w-3 rounded-full bg-sky-400 animate-pulse" />
+            <span className="flex h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
             <span>
               <span className="block truncate text-sm font-semibold text-white">{incomingCall.from || 'Incoming call'}</span>
-              <span className="block text-xs text-sky-300">Incoming call</span>
+              <span className="block text-xs text-emerald-300">Incoming call</span>
             </span>
           </button>
           <button

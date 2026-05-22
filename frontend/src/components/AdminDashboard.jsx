@@ -12,8 +12,8 @@ const emptyForm = {
 
 function StatCard({ label, value, tone }) {
   const tones = {
-    total: 'border-blue-500/20 bg-blue-500/10 text-blue-300',
-    inbound: 'border-sky-500/20 bg-sky-500/10 text-sky-300',
+    total: 'border-emerald-500/20 bg-[#059669]/10 text-emerald-300',
+    inbound: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
     outbound: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
     missed: 'border-red-500/20 bg-red-500/10 text-red-300',
     messages: 'border-violet-500/20 bg-violet-500/10 text-violet-300'
@@ -218,7 +218,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
               name="name"
               value={form.name}
               onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
               placeholder="Username"
               required
             />
@@ -231,7 +231,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
               name="email"
               value={form.email}
               onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
               placeholder="email@company.com"
               required
             />
@@ -244,7 +244,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
               name="password"
               value={form.password}
               onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
               placeholder="Minimum 6 characters"
               minLength={6}
               required
@@ -257,7 +257,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
               name="role"
               value={form.role}
               onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
             >
               <option value="agent">Agent</option>
               <option value="admin">Admin</option>
@@ -276,7 +276,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
         <button
           type="submit"
           disabled={creating}
-          className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+          className="mt-4 w-full rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
         >
           {creating ? <LoadingSpinner label="Creating..." size="sm" tone="white" inline /> : 'Create User'}
         </button>

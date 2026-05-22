@@ -178,7 +178,7 @@ function FollowUps({ onDueCountChange }) {
               name="name"
               value={form.name}
               onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
               placeholder="Customer name"
               required
             />
@@ -190,7 +190,7 @@ function FollowUps({ onDueCountChange }) {
               name="phone"
               value={form.phone}
               onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
               placeholder="+1..."
             />
           </div>
@@ -202,7 +202,7 @@ function FollowUps({ onDueCountChange }) {
               name="followUpDate"
               value={form.followUpDate}
               onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
               required
             />
           </div>
@@ -214,7 +214,7 @@ function FollowUps({ onDueCountChange }) {
               value={form.note}
               onChange={handleChange}
               rows={3}
-              className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+              className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
               placeholder="What should be followed up?"
               required
             />
@@ -232,7 +232,7 @@ function FollowUps({ onDueCountChange }) {
         <button
           type="submit"
           disabled={saving}
-          className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+          className="mt-4 w-full rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
         >
           {saving ? <LoadingSpinner label="Saving..." size="sm" tone="white" inline /> : 'Save Follow-up'}
         </button>
@@ -269,7 +269,7 @@ function FollowUps({ onDueCountChange }) {
                         ? 'bg-gray-700 text-gray-300'
                         : due
                           ? 'bg-red-500/15 text-red-300'
-                          : 'bg-sky-500/15 text-sky-300'
+                          : 'bg-emerald-500/15 text-emerald-300'
                     }`}>
                       {followUp.completed ? 'Done' : due ? 'Due' : formatDate(followUp.followUpDate)}
                     </span>

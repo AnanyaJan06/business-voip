@@ -23,8 +23,8 @@ const callStyles = {
   },
   inbound: {
     label: 'Inbound',
-    iconClass: 'bg-sky-500/10 text-sky-300 ring-sky-500/20',
-    statusClass: 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+    iconClass: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20',
+    statusClass: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
   },
   missed: {
     label: 'Missed',
@@ -364,7 +364,7 @@ function CallHistory() {
                   onClick={() => setActiveFilter(filter.key)}
                   className={`h-8 rounded-lg text-xs font-semibold transition-colors ${
                     isActive
-                      ? 'bg-sky-500 text-white shadow-sm'
+                      ? 'bg-[#059669] text-white shadow-sm'
                       : 'text-gray-400 hover:bg-[#1F2533] hover:text-white'
                   }`}
                   aria-pressed={isActive}
@@ -380,7 +380,7 @@ function CallHistory() {
               id="call-sort-order"
               value={sortOrder}
               onChange={(event) => setSortOrder(event.target.value)}
-              className="h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-sky-500"
+              className="h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-[#059669]"
             >
               {sortOptions.map((option) => (
                 <option key={option.key} value={option.key}>
@@ -395,7 +395,7 @@ function CallHistory() {
               type="date"
               value={selectedDate}
               onChange={(event) => setSelectedDate(event.target.value)}
-              className="call-history-date-input h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-sky-500"
+              className="call-history-date-input h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-[#059669]"
             />
 
             {selectedDate && (
@@ -447,7 +447,7 @@ function CallHistory() {
                   type="button"
                   onClick={() => handleMessage(log.phoneNumber)}
                   disabled={!canCallNumber(log.phoneNumber)}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-sky-500/20 bg-[#0F141F]/95 text-sky-300 shadow-sm transition-colors hover:bg-sky-500 hover:text-white disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/20 bg-[#0F141F]/95 text-emerald-300 shadow-sm transition-colors hover:bg-[#059669] hover:text-white disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600"
                   title={`Message ${formatPhoneNumber(log.phoneNumber)}`}
                   aria-label={`Message ${formatPhoneNumber(log.phoneNumber)}`}
                 >
@@ -473,7 +473,7 @@ function CallHistory() {
                   <button
                     type="button"
                     onClick={() => handleOpenConversation(log.phoneNumber)}
-                    className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-sky-300"
+                    className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-emerald-300"
                     title="Open conversation"
                   >
                     {formatPhoneNumber(log.phoneNumber)}
@@ -490,7 +490,7 @@ function CallHistory() {
                 </div>
               </div>
 
-              <p className="mt-1 text-right text-xs font-medium text-sky-300">
+              <p className="mt-1 text-right text-xs font-medium text-emerald-300">
                 {getUserName(log)}
               </p>
             </div>

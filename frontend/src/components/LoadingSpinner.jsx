@@ -1,4 +1,4 @@
-function LoadingSpinner({ label = 'Loading', size = 'md', tone = 'blue', inline = false }) {
+function LoadingSpinner({ label = 'Loading', size = 'md', tone = 'emerald', inline = false }) {
   const sizeClass = {
     sm: 'h-4 w-4',
     md: 'h-6 w-6',
@@ -6,7 +6,6 @@ function LoadingSpinner({ label = 'Loading', size = 'md', tone = 'blue', inline 
   }[size];
 
   const toneClass = {
-    blue: 'text-blue-400',
     white: 'text-white',
     emerald: 'text-emerald-400'
   }[tone];

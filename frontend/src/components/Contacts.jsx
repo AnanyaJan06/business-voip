@@ -172,7 +172,7 @@ function Contacts() {
         <h2 className="text-lg font-semibold text-white">Contacts</h2>
         <button
           onClick={() => setShowAddForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-xl text-xs sm:text-sm text-white font-medium transition"
+          className="bg-[#059669] hover:bg-[#047857] px-3 py-2 rounded-xl text-xs sm:text-sm text-white font-medium transition"
         >
           + Add Contact
         </button>
@@ -183,7 +183,7 @@ function Contacts() {
         placeholder="Search contacts by name or phone..."
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full bg-gray-900 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 mb-4 focus:border-blue-500"
+        className="w-full bg-gray-900 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 mb-4 focus:border-[#059669]"
       />
 
       {/* Add Contact Form */}
@@ -223,7 +223,7 @@ function Contacts() {
             />
             <button 
               type="submit" 
-              className="bg-blue-600 py-3 rounded-xl text-sm text-white font-semibold hover:bg-blue-700 sm:col-span-2"
+              className="bg-[#059669] py-3 rounded-xl text-sm text-white font-semibold hover:bg-[#047857] sm:col-span-2"
             >
               Save Contact
             </button>
@@ -241,7 +241,7 @@ function Contacts() {
           {filteredContacts.map((contact) => (
             <div 
               key={contact._id} 
-              className="bg-gray-900 border border-gray-700 rounded-2xl p-4 flex flex-col gap-3 hover:border-blue-500 transition sm:flex-row sm:items-center sm:justify-between"
+              className="bg-gray-900 border border-gray-700 rounded-2xl p-4 flex flex-col gap-3 hover:border-[#059669] transition sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-white truncate">{contact.name}</p>
@@ -258,7 +258,7 @@ function Contacts() {
                 </button>
                 <button
                   onClick={() => handleMessageClick(contact.phone)}
-                  className="bg-sky-600 hover:bg-sky-700 px-4 py-2 rounded-xl text-xs text-white font-medium transition"
+                  className="bg-[#059669] hover:bg-[#047857] px-4 py-2 rounded-xl text-xs text-white font-medium transition"
                 >
                   SMS
                 </button>
