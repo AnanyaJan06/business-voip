@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import LoadingSpinner from './LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -8,6 +8,11 @@ const callFilters = [
   { key: 'missed', label: 'Missed' },
   { key: 'inbound', label: 'Inbound' },
   { key: 'outbound', label: 'Outbound' }
+];
+
+const sortOptions = [
+  { key: 'newest', label: 'Newest' },
+  { key: 'oldest', label: 'Oldest' }
 ];
 
 const callStyles = {
@@ -136,9 +141,28 @@ function CopyIcon() {
   );
 }
 
+const getCallDate = (log) => log.startedAt || log.createdAt;
+
+const getCallTime = (log) => {
+  const time = new Date(getCallDate(log)).getTime();
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const getDateInputValue = (date) => {
+  const value = new Date(date);
+  if (Number.isNaN(value.getTime())) return '';
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 function CallHistory() {
   const [logs, setLogs] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('newest');
+  const [selectedDate, setSelectedDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -269,19 +293,28 @@ function CallHistory() {
   };
 
 
-  const getFilteredLogs = () => {
-    if (activeFilter === 'all') return logs;
+  const visibleLogs = useMemo(() => {
+    return logs
+      .filter((log) => {
+        const status = log.status?.toLowerCase();
+        const callType = log.callType?.toLowerCase();
+        const matchesType = activeFilter === 'all'
+          ? true
+          : activeFilter === 'missed'
+            ? status === 'missed'
+            : callType === activeFilter;
+        const matchesDate = selectedDate
+          ? getDateInputValue(getCallDate(log)) === selectedDate
+          : true;
 
-    return logs.filter((log) => {
-      const status = log.status?.toLowerCase();
-      const callType = log.callType?.toLowerCase();
+        return matchesType && matchesDate;
+      })
+      .sort((a, b) => {
+        const newestFirst = getCallTime(b) - getCallTime(a);
+        return sortOrder === 'newest' ? newestFirst : -newestFirst;
+      });
+  }, [activeFilter, logs, selectedDate, sortOrder]);
 
-      if (activeFilter === 'missed') return status === 'missed';
-      return callType === activeFilter;
-    });
-  };
-
-  const filteredLogs = getFilteredLogs();
   const activeFilterLabel = callFilters.find((filter) => filter.key === activeFilter)?.label || 'All';
 
   return (
@@ -312,6 +345,40 @@ function CallHistory() {
               );
             })}
           </div>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+            <label className="sr-only" htmlFor="call-sort-order">Sort calls</label>
+            <select
+              id="call-sort-order"
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              className="h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-sky-500"
+            >
+              {sortOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  Sort: {option.label}
+                </option>
+              ))}
+            </select>
+
+            <label className="sr-only" htmlFor="call-date-filter">Filter calls by date</label>
+            <input
+              id="call-date-filter"
+              type="date"
+              value={selectedDate}
+              onChange={(event) => setSelectedDate(event.target.value)}
+              className="call-history-date-input h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-sky-500"
+            />
+
+            {selectedDate && (
+              <button
+                type="button"
+                onClick={() => setSelectedDate('')}
+                className="h-9 rounded-lg border border-gray-700 px-3 text-xs font-semibold text-gray-300 transition-colors hover:bg-[#1F2533] hover:text-white"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -321,14 +388,14 @@ function CallHistory() {
         </div>
       )}
 
-      {!loading && !error && logs.length > 0 && filteredLogs.length === 0 && (
+      {!loading && !error && logs.length > 0 && visibleLogs.length === 0 && (
         <div className="text-center py-16 text-sm text-gray-400">
-          No {activeFilterLabel.toLowerCase()} calls found.
+          No {activeFilterLabel.toLowerCase()} calls found{selectedDate ? ' for this date' : ''}.
         </div>
       )}
 
       <div className="divide-y divide-gray-800">
-        {filteredLogs.map((log) => {
+        {visibleLogs.map((log) => {
           const meta = getCallMeta(log);
 
           return (
@@ -389,7 +456,7 @@ function CallHistory() {
                     <span className="text-gray-600">|</span>
                     <span>{formatDuration(log.duration)}</span>
                     <span className="text-gray-600">|</span>
-                    <span>{formatDateTime(log.startedAt || log.createdAt)}</span>
+                    <span>{formatDateTime(getCallDate(log))}</span>
                   </div>
                 </div>
               </div>

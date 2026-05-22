@@ -154,6 +154,17 @@ html[data-theme="day"] textarea {
   color: #172033;
 }
 
+.call-history-date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1) brightness(1.4);
+  opacity: 0.9;
+}
+
+html[data-theme="day"] .call-history-date-input::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.75;
+}
+
 html[data-theme="day"] input::placeholder,
 html[data-theme="day"] textarea::placeholder {
   color: #94a3b8;
