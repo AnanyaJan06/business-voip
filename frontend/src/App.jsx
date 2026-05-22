@@ -395,7 +395,9 @@ function App() {
         </div>
 
         <div className="flex-1 overflow-auto thin-scrollbar p-2 md:p-3">
-          {activeTab === 'admin' && isAdmin && <AdminDashboard />}
+          {activeTab === 'admin' && isAdmin && (
+            <AdminDashboard showStats={false} showCreateUser={false} showUsers />
+          )}
           {activeTab === 'history' && <CallHistory />}
           {activeTab === 'contacts' && <Contacts />}
           {activeTab === 'messages' && (
@@ -413,15 +415,15 @@ function App() {
 
       {/* Right Persistent Area (Optional - you can keep small info here) */}
       <div className="hidden min-w-0 flex-1 flex-col border-l border-gray-800 bg-[#0F1322] lg:flex">
-        {conversationNumber || !isAdmin ? (
+        {activeTab === 'admin' && isAdmin ? (
+          <div className="h-full overflow-auto p-4 thin-scrollbar">
+            <AdminDashboard showUsers={false} />
+          </div>
+        ) : (
           <ConversationDetails
             phoneNumber={conversationNumber}
             onClose={() => setConversationNumber('')}
           />
-        ) : (
-          <div className="h-full overflow-auto p-4 thin-scrollbar">
-            <AdminDashboard />
-          </div>
         )}
       </div>
 
