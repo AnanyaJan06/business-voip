@@ -6,11 +6,22 @@ import ConfirmModal from './components/ConfirmModal.jsx';
 import Contacts from './components/Contacts.jsx';
 import ConversationDetails from './components/ConversationDetails.jsx';
 import Messages from './components/Messages.jsx';
+import AdminDashboard from './components/AdminDashboard.jsx';
+import FollowUps from './components/FollowUps.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import './App.css';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
+
+const readJsonResponse = async (res) => {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return null;
+  }
+};
 
 function NavIcon({ type }) {
   const common = {
@@ -41,6 +52,23 @@ function NavIcon({ type }) {
     messages: (
       <svg {...common}>
         <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+      </svg>
+    ),
+    followups: (
+      <svg {...common}>
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M3 10h18" />
+        <path d="m9 16 2 2 4-4" />
+      </svg>
+    ),
+    admin: (
+      <svg {...common}>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
       </svg>
     ),
     settings: (
@@ -86,11 +114,16 @@ function App() {
   const [conversationNumber, setConversationNumber] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'night');
   const [unreadMessages, setUnreadMessages] = useState(() => Number(localStorage.getItem('unreadMessages')) || 0);
+  const [dueFollowUps, setDueFollowUps] = useState(0);
+  const [followUpToast, setFollowUpToast] = useState(null);
   const [smsToast, setSmsToast] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
+  const [currentUser, setCurrentUser] = useState(null);
   const activeTabRef = useRef(activeTab);
   const smsToastTimerRef = useRef(null);
+  const followUpToastTimerRef = useRef(null);
+  const isAdmin = currentUser?.role === 'admin';
 
   const openTab = useCallback((tabId) => {
     setActiveTab(tabId);
@@ -129,8 +162,73 @@ function App() {
     localStorage.setItem('unreadMessages', String(unreadMessages));
   }, [unreadMessages]);
 
+  const refreshDueFollowUps = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/followups`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await readJsonResponse(res);
+
+      if (!res.ok || !Array.isArray(data)) return;
+
+      const dueItems = data.filter((item) => (
+        !item.completed && new Date(item.followUpDate) <= new Date()
+      ));
+
+      setDueFollowUps(dueItems.length);
+
+      if (dueItems.length > 0 && activeTabRef.current !== 'followups') {
+        setFollowUpToast(dueItems[0]);
+        window.clearTimeout(followUpToastTimerRef.current);
+        followUpToastTimerRef.current = window.setTimeout(() => {
+          setFollowUpToast(null);
+        }, 7000);
+      }
+    } catch (error) {
+      console.error('Failed to refresh follow-up reminders:', error);
+    }
+  }, [token]);
+
   useEffect(() => {
     if (!token) return undefined;
+
+    const initialRefresh = window.setTimeout(refreshDueFollowUps, 0);
+    const interval = window.setInterval(refreshDueFollowUps, 60000);
+    window.addEventListener('refreshFollowUps', refreshDueFollowUps);
+
+    return () => {
+      window.clearTimeout(initialRefresh);
+      window.clearInterval(interval);
+      window.clearTimeout(followUpToastTimerRef.current);
+      window.removeEventListener('refreshFollowUps', refreshDueFollowUps);
+    };
+  }, [refreshDueFollowUps, token]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    const fetchCurrentUser = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          setCurrentUser(data);
+        }
+      } catch (error) {
+        console.error('Failed to load current user:', error);
+      }
+    };
+
+    fetchCurrentUser();
 
     const socket = io(BACKEND_URL, {
       transports: ['websocket', 'polling']
@@ -188,6 +286,9 @@ function App() {
     setSelectedMessageNumber('');
     setConversationNumber('');
     setUnreadMessages(0);
+    setDueFollowUps(0);
+    setFollowUpToast(null);
+    setCurrentUser(null);
   };
 
   const toggleTheme = () => {
@@ -209,9 +310,11 @@ function App() {
 
         <nav className="flex gap-2 overflow-x-auto p-3 no-scrollbar md:flex-1 md:flex-col md:gap-1 md:overflow-visible md:p-3">
           {[
+            ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
             { id: 'history', label: 'Calls' },
             { id: 'contacts', label: 'Contacts' },
             { id: 'messages', label: 'Messages' },
+            { id: 'followups', label: 'Follow Ups' },
             { id: 'settings', label: 'Settings' },
           ].map((item) => (
             <div
@@ -225,6 +328,11 @@ function App() {
               {item.id === 'messages' && unreadMessages > 0 && (
                 <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                   {unreadMessages > 99 ? '99+' : unreadMessages}
+                </span>
+              )}
+              {item.id === 'followups' && dueFollowUps > 0 && (
+                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                  {dueFollowUps > 99 ? '99+' : dueFollowUps}
                 </span>
               )}
             </div>
@@ -263,9 +371,11 @@ function App() {
       <div className="min-h-0 flex-1 border-r border-gray-800 bg-[#161B28] flex flex-col md:w-[390px] md:flex-none xl:w-[410px]">
         <div className="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-[#1C2333] md:h-14 md:px-5">
           <h2 className="text-base font-semibold md:text-lg">
+            {activeTab === 'admin' && 'Admin Dashboard'}
             {activeTab === 'history' && 'Call History'}
             {activeTab === 'contacts' && 'Contacts'}
             {activeTab === 'messages' && 'Messages'}
+            {activeTab === 'followups' && 'Follow Ups'}
             {activeTab === 'settings' && 'Settings'}
           </h2>
           <button
@@ -285,6 +395,7 @@ function App() {
         </div>
 
         <div className="flex-1 overflow-auto thin-scrollbar p-2 md:p-3">
+          {activeTab === 'admin' && isAdmin && <AdminDashboard />}
           {activeTab === 'history' && <CallHistory />}
           {activeTab === 'contacts' && <Contacts />}
           {activeTab === 'messages' && (
@@ -292,6 +403,9 @@ function App() {
               selectedPhoneNumber={selectedMessageNumber}
               onRecipientUsed={clearSelectedMessageNumber}
             />
+          )}
+          {activeTab === 'followups' && (
+            <FollowUps onDueCountChange={setDueFollowUps} />
           )}
           {activeTab === 'settings' && <Settings />}
         </div>
@@ -343,6 +457,30 @@ function App() {
           </div>
           <p className="line-clamp-2 text-sm text-gray-300">
             {smsToast.body || 'New message received'}
+          </p>
+        </button>
+      )}
+
+      {followUpToast && (
+        <button
+          type="button"
+          onClick={() => {
+            openTab('followups');
+            setFollowUpToast(null);
+          }}
+          className="fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-amber-500/25 bg-[#151B28] p-4 text-left shadow-2xl transition hover:border-amber-400"
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-300">
+              <NavIcon type="followups" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-white">Follow-up reminder</span>
+              <span className="block truncate text-xs text-gray-400">{followUpToast.name}</span>
+            </span>
+          </div>
+          <p className="line-clamp-2 text-sm text-gray-300">
+            {followUpToast.note}
           </p>
         </button>
       )}
