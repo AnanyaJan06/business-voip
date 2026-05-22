@@ -413,10 +413,16 @@ function App() {
 
       {/* Right Persistent Area (Optional - you can keep small info here) */}
       <div className="hidden min-w-0 flex-1 flex-col border-l border-gray-800 bg-[#0F1322] lg:flex">
-        <ConversationDetails
-          phoneNumber={conversationNumber}
-          onClose={() => setConversationNumber('')}
-        />
+        {conversationNumber || !isAdmin ? (
+          <ConversationDetails
+            phoneNumber={conversationNumber}
+            onClose={() => setConversationNumber('')}
+          />
+        ) : (
+          <div className="h-full overflow-auto p-4 thin-scrollbar">
+            <AdminDashboard />
+          </div>
+        )}
       </div>
 
       <Dialer

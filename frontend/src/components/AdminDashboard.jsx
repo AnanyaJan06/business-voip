@@ -12,6 +12,7 @@ const emptyForm = {
 
 function StatCard({ label, value, tone }) {
   const tones = {
+    total: 'border-blue-500/20 bg-blue-500/10 text-blue-300',
     inbound: 'border-sky-500/20 bg-sky-500/10 text-sky-300',
     outbound: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
     missed: 'border-red-500/20 bg-red-500/10 text-red-300',
@@ -29,6 +30,7 @@ function StatCard({ label, value, tone }) {
 function AdminDashboard() {
   const [calls, setCalls] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState(emptyForm);
@@ -44,21 +46,25 @@ function AdminDashboard() {
       setLoading(true);
       setError('');
 
-      const [callsRes, messagesRes] = await Promise.all([
+      const [callsRes, messagesRes, usersRes] = await Promise.all([
         fetch(`${BACKEND_URL}/api/calls/logs`, { headers: authHeaders }),
-        fetch(`${BACKEND_URL}/api/messages`, { headers: authHeaders })
+        fetch(`${BACKEND_URL}/api/messages`, { headers: authHeaders }),
+        fetch(`${BACKEND_URL}/api/auth/users`, { headers: authHeaders })
       ]);
 
-      const [callsData, messagesData] = await Promise.all([
+      const [callsData, messagesData, usersData] = await Promise.all([
         callsRes.json(),
-        messagesRes.json()
+        messagesRes.json(),
+        usersRes.json()
       ]);
 
       if (!callsRes.ok) throw new Error(callsData.message || 'Failed to load call totals');
       if (!messagesRes.ok) throw new Error(messagesData.message || 'Failed to load message totals');
+      if (!usersRes.ok) throw new Error(usersData.message || 'Failed to load users');
 
       setCalls(Array.isArray(callsData) ? callsData : []);
       setMessages(Array.isArray(messagesData) ? messagesData : []);
+      setUsers(Array.isArray(usersData) ? usersData : []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -85,16 +91,32 @@ function AdminDashboard() {
     const callType = call.callType?.toLowerCase();
     const status = call.status?.toLowerCase();
 
+    acc.total += 1;
     if (callType === 'inbound') acc.inbound += 1;
     if (callType === 'outbound') acc.outbound += 1;
     if (status === 'missed') acc.missed += 1;
 
     return acc;
   }, {
+    total: 0,
     inbound: 0,
     outbound: 0,
     missed: 0
   }), [calls]);
+
+  const messageTotals = useMemo(() => messages.reduce((acc, message) => {
+    const direction = message.direction?.toLowerCase();
+
+    acc.total += 1;
+    if (direction === 'inbound') acc.inbound += 1;
+    if (direction === 'outbound') acc.outbound += 1;
+
+    return acc;
+  }, {
+    total: 0,
+    inbound: 0,
+    outbound: 0
+  }), [messages]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -135,6 +157,7 @@ function AdminDashboard() {
 
       setForm(emptyForm);
       setNotice({ text: `${data.user?.name || 'User'} created successfully.`, type: 'success' });
+      fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
     } finally {
@@ -153,10 +176,16 @@ function AdminDashboard() {
       )}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatCard label="Total Calls" value={totals.total} tone="total" />
         <StatCard label="Inbound Calls" value={totals.inbound} tone="inbound" />
         <StatCard label="Outbound Calls" value={totals.outbound} tone="outbound" />
         <StatCard label="Missed Calls" value={totals.missed} tone="missed" />
-        <StatCard label="Messages" value={messages.length} tone="messages" />
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <StatCard label="Total Messages" value={messageTotals.total} tone="messages" />
+        <StatCard label="Inbound Messages" value={messageTotals.inbound} tone="inbound" />
+        <StatCard label="Outbound Messages" value={messageTotals.outbound} tone="outbound" />
       </div>
 
       <form onSubmit={createUser} className="rounded-xl border border-gray-800 bg-gray-900 p-4">
@@ -235,6 +264,30 @@ function AdminDashboard() {
           {creating ? <LoadingSpinner label="Creating..." size="sm" tone="white" inline /> : 'Create User'}
         </button>
       </form>
+
+      <div className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900">
+        <div className="border-b border-gray-800 px-4 py-3">
+          <h3 className="text-sm font-semibold text-white">Created Users</h3>
+        </div>
+
+        {users.length === 0 ? (
+          <p className="py-10 text-center text-sm text-gray-400">No users created yet.</p>
+        ) : (
+          <div className="divide-y divide-gray-800">
+            {users.map((user) => (
+              <div key={user._id || user.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">{user.name}</p>
+                  <p className="truncate text-xs text-gray-400">{user.email}</p>
+                </div>
+                <span className="shrink-0 rounded-full border border-gray-700 px-2.5 py-1 text-[11px] font-semibold capitalize text-gray-300">
+                  {user.role}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

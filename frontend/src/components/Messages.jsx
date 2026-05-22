@@ -138,8 +138,37 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [messages]);
 
+  const messageTotals = useMemo(() => messages.reduce((acc, message) => {
+    const direction = message.direction?.toLowerCase();
+
+    acc.total += 1;
+    if (direction === 'inbound') acc.inbound += 1;
+    if (direction === 'outbound') acc.outbound += 1;
+
+    return acc;
+  }, {
+    total: 0,
+    inbound: 0,
+    outbound: 0
+  }), [messages]);
+
   return (
     <div className="max-w-3xl mx-auto">
+      {!loading && (
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {[
+            ['Total', messageTotals.total],
+            ['Inbound', messageTotals.inbound],
+            ['Outbound', messageTotals.outbound]
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-3 text-center">
+              <p className="text-[10px] font-semibold uppercase text-gray-500">{label}</p>
+              <p className="mt-1 text-lg font-bold text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={sendMessage} className="rounded-2xl border border-gray-700 bg-gray-900 p-4">
         <div className="mb-3">
           <label className="mb-1.5 block text-xs text-gray-400">To</label>

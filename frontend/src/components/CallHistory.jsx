@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import LoadingSpinner from './LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -283,6 +283,22 @@ function CallHistory() {
 
   const filteredLogs = getFilteredLogs();
   const activeFilterLabel = callFilters.find((filter) => filter.key === activeFilter)?.label || 'All';
+  const callTotals = useMemo(() => logs.reduce((acc, log) => {
+    const status = log.status?.toLowerCase();
+    const callType = log.callType?.toLowerCase();
+
+    acc.total += 1;
+    if (callType === 'inbound') acc.inbound += 1;
+    if (callType === 'outbound') acc.outbound += 1;
+    if (status === 'missed') acc.missed += 1;
+
+    return acc;
+  }, {
+    total: 0,
+    inbound: 0,
+    outbound: 0,
+    missed: 0
+  }), [logs]);
 
   return (
     <div className="flex-1 overflow-auto thin-scrollbar">
@@ -291,6 +307,19 @@ function CallHistory() {
 
       {!loading && !error && logs.length > 0 && (
         <div className="sticky top-0 z-10 bg-[#161B26]/95 px-2 py-2 backdrop-blur border-b border-gray-800">
+          <div className="mb-2 grid grid-cols-4 gap-1">
+            {[
+              ['Total', callTotals.total],
+              ['Inbound', callTotals.inbound],
+              ['Outbound', callTotals.outbound],
+              ['Missed', callTotals.missed]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-gray-800 bg-[#0F141F] px-2 py-2 text-center">
+                <p className="text-[10px] font-semibold uppercase text-gray-500">{label}</p>
+                <p className="text-sm font-bold text-white">{value}</p>
+              </div>
+            ))}
+          </div>
           <div className="grid grid-cols-4 gap-1 rounded-xl bg-[#0F141F] p-1">
             {callFilters.map((filter) => {
               const isActive = activeFilter === filter.key;
