@@ -44,7 +44,7 @@ function Login() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
           <div className="flex justify-center mb-3">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-3xl">
+            <div className="w-12 h-12 bg-[#059669] rounded-xl flex items-center justify-center text-3xl">
               📞
             </div>
           </div>
@@ -62,7 +62,7 @@ function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-blue-500 transition"
+                className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-[#059669] transition"
                 placeholder="you@company.com"
                 required
               />
@@ -74,7 +74,7 @@ function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-blue-500 transition"
+                className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-[#059669] transition"
                 placeholder="••••••••"
                 required
               />
@@ -85,7 +85,7 @@ function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm transition disabled:opacity-70"
+              className="w-full bg-[#059669] hover:bg-[#047857] text-white font-semibold py-3 rounded-xl text-sm transition disabled:opacity-70"
             >
               {loading ? <LoadingSpinner label="Signing In..." size="sm" tone="white" inline /> : 'Sign In'}
             </button>

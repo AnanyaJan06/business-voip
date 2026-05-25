@@ -1,11 +1,65 @@
 import twilio from 'twilio';
 import dotenv from 'dotenv';
+import CallLog from '../model/CallLog.js';
+import CallTranscript from '../model/CallTranscript.js';
 
 dotenv.config();
 
 const AccessToken = twilio.jwt.AccessToken;
 const VoiceGrant = AccessToken.VoiceGrant;
 const BROWSER_CLIENT_IDENTITY = process.env.TWILIO_CLIENT_IDENTITY || 'browser-client';
+
+const getPublicBaseUrl = () => (process.env.BASE_URL || '').replace(/\/$/, '');
+
+const addTranscription = (twiml, labelPrefix = 'call') => {
+  const baseUrl = getPublicBaseUrl();
+  if (!baseUrl) {
+    console.warn('BASE_URL is missing; call transcription webhook was not added.');
+    return;
+  }
+
+  const start = twiml.start();
+  start.transcription({
+    statusCallbackUrl: `${baseUrl}/api/twilio/transcription`,
+    track: 'both_tracks',
+    inboundTrackLabel: `${labelPrefix}-inbound`,
+    outboundTrackLabel: `${labelPrefix}-outbound`,
+    transcriptionEngine: process.env.TWILIO_TRANSCRIPTION_ENGINE || 'google',
+    enableAutomaticPunctuation: true,
+    partialResults: false
+  });
+};
+
+const parseJsonField = (value) => {
+  if (!value) return {};
+
+  try {
+    return typeof value === 'string' ? JSON.parse(value) : value;
+  } catch {
+    return {};
+  }
+};
+
+const rebuildTranscriptText = (segments) => [...segments]
+  .sort((a, b) => (a.sequenceId || 0) - (b.sequenceId || 0))
+  .map((segment) => segment.text)
+  .filter(Boolean)
+  .join('\n');
+
+const syncTranscriptToCallLog = async (transcript) => {
+  if (!transcript?.callSid) return;
+
+  await CallLog.updateMany(
+    { callSid: transcript.callSid },
+    {
+      transcriptionText: transcript.text,
+      transcriptionStatus: transcript.status,
+      transcriptionSid: transcript.transcriptionSid,
+      transcriptionSegments: transcript.segments,
+      transcriptionError: transcript.error || ''
+    }
+  );
+};
 
 // getToken
 export const getToken = async (req, res) => {
@@ -60,6 +114,7 @@ export const voiceResponse = (req, res) => {
     console.log("Twilio webhook body:", req.body); // <-- Added log
 
     const twiml = new twilio.twiml.VoiceResponse();
+    addTranscription(twiml, 'outbound');
 
     const to = req.body.To;
 
@@ -105,6 +160,7 @@ export const incomingVoice = async (req, res) => {
     }
 
     const twiml = new twilio.twiml.VoiceResponse();
+    addTranscription(twiml, 'inbound');
 
     const client = twiml.dial({
       answerOnBridge: true,
@@ -125,5 +181,93 @@ export const incomingVoice = async (req, res) => {
     twiml.say("Sorry, we are unable to connect the call right now.");
     res.type('text/xml');
     res.send(twiml.toString());
+  }
+};
+
+export const transcriptionStatus = async (req, res) => {
+  try {
+    const {
+      CallSid,
+      TranscriptionSid,
+      TranscriptionEvent,
+      TranscriptionData,
+      TranscriptionErrorCode,
+      TranscriptionErrorMessage,
+      SequenceId,
+      Track,
+      Timestamp,
+      Final
+    } = req.body;
+
+    if (!CallSid) {
+      return res.status(400).json({ message: 'CallSid is required' });
+    }
+
+    const eventAt = Timestamp ? new Date(Timestamp) : new Date();
+    const update = {
+      callSid: CallSid,
+      transcriptionSid: TranscriptionSid,
+      lastEventAt: Number.isNaN(eventAt.getTime()) ? new Date() : eventAt
+    };
+
+    let transcript = await CallTranscript.findOneAndUpdate(
+      { callSid: CallSid },
+      { $set: update },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    if (TranscriptionEvent === 'transcription-started') {
+      transcript.status = 'started';
+    }
+
+    if (TranscriptionEvent === 'transcription-content') {
+      const data = parseJsonField(TranscriptionData);
+      const text = String(data.transcript || '').trim();
+      const sequenceId = Number(SequenceId) || 0;
+      const isFinal = String(Final).toLowerCase() !== 'false';
+
+      transcript.status = 'in-progress';
+
+      if (text && isFinal) {
+        const nextSegment = {
+          sequenceId,
+          track: Track,
+          text,
+          confidence: Number.isFinite(Number(data.confidence)) ? Number(data.confidence) : undefined,
+          final: isFinal,
+          timestamp: Number.isNaN(eventAt.getTime()) ? new Date() : eventAt
+        };
+
+        const existingIndex = transcript.segments.findIndex((segment) => (
+          segment.sequenceId === sequenceId && segment.track === Track
+        ));
+
+        if (existingIndex >= 0) {
+          transcript.segments[existingIndex] = nextSegment;
+        } else {
+          transcript.segments.push(nextSegment);
+        }
+
+        transcript.text = rebuildTranscriptText(transcript.segments);
+      }
+    }
+
+    if (TranscriptionEvent === 'transcription-stopped') {
+      transcript.status = 'completed';
+      transcript.text = rebuildTranscriptText(transcript.segments);
+    }
+
+    if (TranscriptionEvent === 'transcription-error') {
+      transcript.status = 'failed';
+      transcript.error = TranscriptionErrorMessage || TranscriptionErrorCode || 'Transcription failed';
+    }
+
+    transcript = await transcript.save();
+    await syncTranscriptToCallLog(transcript);
+
+    res.sendStatus(204);
+  } catch (error) {
+    console.error('Transcription Webhook Error:', error);
+    res.status(500).json({ message: error.message });
   }
 };

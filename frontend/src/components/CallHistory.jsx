@@ -23,8 +23,8 @@ const callStyles = {
   },
   inbound: {
     label: 'Inbound',
-    iconClass: 'bg-sky-500/10 text-sky-300 ring-sky-500/20',
-    statusClass: 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+    iconClass: 'bg-emerald-500/10 text-emerald-300 ring-emerald-500/20',
+    statusClass: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
   },
   missed: {
     label: 'Missed',
@@ -162,6 +162,26 @@ function FollowUpIcon() {
   );
 }
 
+function TranscriptIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8" />
+      <path d="M8 17h6" />
+    </svg>
+  );
+}
+
 const getCallDate = (log) => log.startedAt || log.createdAt;
 
 const getCallTime = (log) => {
@@ -189,6 +209,7 @@ function CallHistory() {
   const [followUpDraft, setFollowUpDraft] = useState(null);
   const [savingFollowUp, setSavingFollowUp] = useState(false);
   const [followUpNotice, setFollowUpNotice] = useState({ text: '', type: '' });
+  const [expandedTranscriptId, setExpandedTranscriptId] = useState('');
 
   const fetchCallLogs = async () => {
     try {
@@ -323,7 +344,7 @@ function CallHistory() {
           name: followUpDraft.name.trim(),
           phone: followUpDraft.phone.trim(),
           note: followUpDraft.note.trim(),
-          followUpDate: followUpDraft.followUpDate
+          followUpDate: new Date(followUpDraft.followUpDate).toISOString()
         })
       });
 
@@ -416,6 +437,22 @@ function CallHistory() {
   }, [activeFilter, logs, selectedDate, sortOrder]);
 
   const activeFilterLabel = callFilters.find((filter) => filter.key === activeFilter)?.label || 'All';
+  const callTotals = useMemo(() => logs.reduce((acc, log) => {
+    const status = log.status?.toLowerCase();
+    const callType = log.callType?.toLowerCase();
+
+    acc.total += 1;
+    if (callType === 'inbound') acc.inbound += 1;
+    if (callType === 'outbound') acc.outbound += 1;
+    if (status === 'missed') acc.missed += 1;
+
+    return acc;
+  }, {
+    total: 0,
+    inbound: 0,
+    outbound: 0,
+    missed: 0
+  }), [logs]);
 
   return (
     <div className="flex-1 overflow-auto thin-scrollbar">
@@ -424,6 +461,19 @@ function CallHistory() {
 
       {!loading && !error && logs.length > 0 && (
         <div className="sticky top-0 z-10 bg-[#161B26]/95 px-2 py-2 backdrop-blur border-b border-gray-800">
+          <div className="mb-2 grid grid-cols-4 gap-1">
+            {[
+              ['Total', callTotals.total],
+              ['Inbound', callTotals.inbound],
+              ['Outbound', callTotals.outbound],
+              ['Missed', callTotals.missed]
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg border border-gray-800 bg-[#0F141F] px-2 py-2 text-center">
+                <p className="text-[10px] font-semibold uppercase text-gray-500">{label}</p>
+                <p className="text-sm font-bold text-white">{value}</p>
+              </div>
+            ))}
+          </div>
           <div className="grid grid-cols-4 gap-1 rounded-xl bg-[#0F141F] p-1">
             {callFilters.map((filter) => {
               const isActive = activeFilter === filter.key;
@@ -435,7 +485,7 @@ function CallHistory() {
                   onClick={() => setActiveFilter(filter.key)}
                   className={`h-8 rounded-lg text-xs font-semibold transition-colors ${
                     isActive
-                      ? 'bg-sky-500 text-white shadow-sm'
+                      ? 'bg-[#059669] text-white shadow-sm'
                       : 'text-gray-400 hover:bg-[#1F2533] hover:text-white'
                   }`}
                   aria-pressed={isActive}
@@ -451,7 +501,7 @@ function CallHistory() {
               id="call-sort-order"
               value={sortOrder}
               onChange={(event) => setSortOrder(event.target.value)}
-              className="h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-sky-500"
+              className="h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-[#059669]"
             >
               {sortOptions.map((option) => (
                 <option key={option.key} value={option.key}>
@@ -466,7 +516,7 @@ function CallHistory() {
               type="date"
               value={selectedDate}
               onChange={(event) => setSelectedDate(event.target.value)}
-              className="call-history-date-input h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-sky-500"
+              className="call-history-date-input h-9 rounded-lg border border-gray-700 bg-[#0F141F] px-3 text-xs font-medium text-white transition-colors hover:border-gray-600 focus:border-[#059669]"
             />
 
             {selectedDate && (
@@ -497,10 +547,14 @@ function CallHistory() {
       <div className="divide-y divide-gray-800">
         {visibleLogs.map((log) => {
           const meta = getCallMeta(log);
+          const logId = log._id || log.callSid;
+          const transcriptText = String(log.transcriptionText || '').trim();
+          const transcriptionStatus = log.transcriptionStatus || 'not-started';
+          const showTranscript = expandedTranscriptId === logId;
 
           return (
             <div
-              key={log._id || log.callSid}
+              key={logId}
               className="group relative px-3 py-3.5 transition-colors hover:bg-[#1F2533] sm:px-4"
             >
               <div className="pointer-events-none absolute right-3 top-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
@@ -518,7 +572,7 @@ function CallHistory() {
                   type="button"
                   onClick={() => handleMessage(log.phoneNumber)}
                   disabled={!canCallNumber(log.phoneNumber)}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-sky-500/20 bg-[#0F141F]/95 text-sky-300 shadow-sm transition-colors hover:bg-sky-500 hover:text-white disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/20 bg-[#0F141F]/95 text-emerald-300 shadow-sm transition-colors hover:bg-[#059669] hover:text-white disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600"
                   title={`Message ${formatPhoneNumber(log.phoneNumber)}`}
                   aria-label={`Message ${formatPhoneNumber(log.phoneNumber)}`}
                 >
@@ -554,7 +608,7 @@ function CallHistory() {
                   <button
                     type="button"
                     onClick={() => handleOpenConversation(log.phoneNumber)}
-                    className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-sky-300"
+                    className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-emerald-300"
                     title="Open conversation"
                   >
                     {formatPhoneNumber(log.phoneNumber)}
@@ -571,9 +625,28 @@ function CallHistory() {
                 </div>
               </div>
 
-              <p className="mt-1 text-right text-xs font-medium text-sky-300">
+              <p className="mt-1 text-right text-xs font-medium text-emerald-300">
                 {getUserName(log)}
               </p>
+
+              {(transcriptText || transcriptionStatus !== 'not-started') && (
+                <div className="mt-3 pl-12">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedTranscriptId(showTranscript ? '' : logId)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-semibold text-gray-300 transition hover:bg-gray-800 hover:text-white"
+                  >
+                    <TranscriptIcon />
+                    {transcriptText ? 'Transcript' : `Transcript ${transcriptionStatus}`}
+                  </button>
+
+                  {showTranscript && (
+                    <div className="mt-2 rounded-lg border border-gray-800 bg-[#0F141F] p-3 text-sm leading-6 text-gray-300">
+                      {transcriptText || 'Transcript is not available yet.'}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

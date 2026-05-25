@@ -138,8 +138,37 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [messages]);
 
+  const messageTotals = useMemo(() => messages.reduce((acc, message) => {
+    const direction = message.direction?.toLowerCase();
+
+    acc.total += 1;
+    if (direction === 'inbound') acc.inbound += 1;
+    if (direction === 'outbound') acc.outbound += 1;
+
+    return acc;
+  }, {
+    total: 0,
+    inbound: 0,
+    outbound: 0
+  }), [messages]);
+
   return (
     <div className="max-w-3xl mx-auto">
+      {!loading && (
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {[
+            ['Total', messageTotals.total],
+            ['Inbound', messageTotals.inbound],
+            ['Outbound', messageTotals.outbound]
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-3 text-center">
+              <p className="text-[10px] font-semibold uppercase text-gray-500">{label}</p>
+              <p className="mt-1 text-lg font-bold text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={sendMessage} className="rounded-2xl border border-gray-700 bg-gray-900 p-4">
         <div className="mb-3">
           <label className="mb-1.5 block text-xs text-gray-400">To</label>
@@ -148,7 +177,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
             value={recipient}
             onChange={(event) => setRecipient(event.target.value)}
             placeholder="+1..."
-            className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+            className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
           />
         </div>
 
@@ -160,7 +189,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
             rows={4}
             maxLength={1600}
             placeholder="Write a message..."
-            className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+            className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
           />
           <div className="mt-1 text-right text-[11px] text-gray-500">{body.length}/1600</div>
         </div>
@@ -176,7 +205,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
         <button
           type="submit"
           disabled={sending}
-          className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+          className="w-full rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
         >
           {sending ? <LoadingSpinner label="Sending..." size="sm" tone="white" inline /> : 'Send SMS'}
         </button>
@@ -200,7 +229,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
                     <button
                       type="button"
                       onClick={() => openConversation(message.phoneNumber)}
-                      className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-sky-300"
+                      className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-emerald-300"
                       title="Open conversation"
                     >
                       {message.phoneNumber}

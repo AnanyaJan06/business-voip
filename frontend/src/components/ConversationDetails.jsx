@@ -185,7 +185,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
             <button
               type="button"
               onClick={() => navigator.clipboard?.writeText(phoneNumber)}
-              className="truncate text-left text-xl font-semibold text-white hover:text-sky-300"
+              className="truncate text-left text-xl font-semibold text-white hover:text-emerald-300"
               title="Copy number"
             >
               {phoneNumber}
@@ -292,14 +292,14 @@ function ConversationDetails({ phoneNumber, onClose }) {
           rows={3}
           maxLength={1600}
           placeholder="Write a message..."
-          className="w-full resize-none rounded-2xl border border-gray-700 bg-[#0F1322] px-4 py-3 text-sm text-white focus:border-blue-500"
+          className="w-full resize-none rounded-2xl border border-gray-700 bg-[#0F1322] px-4 py-3 text-sm text-white focus:border-[#059669]"
         />
         <div className="mt-2 flex items-center justify-between">
           <span className="text-xs text-gray-500">{messageBody.length}/1600</span>
           <button
             type="submit"
             disabled={sending || !messageBody.trim()}
-            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-400"
+            className="rounded-xl bg-[#059669] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:bg-gray-700 disabled:text-gray-400"
           >
             {sending ? <LoadingSpinner label="Sending..." size="sm" tone="white" inline /> : 'Send'}
           </button>

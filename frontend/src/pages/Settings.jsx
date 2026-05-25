@@ -114,7 +114,7 @@ function Settings() {
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-blue-500"
+              className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-[#059669]"
               required
             />
           </div>
@@ -124,7 +124,7 @@ function Settings() {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-blue-500"
+              className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-[#059669]"
               required
             />
           </div>
@@ -134,14 +134,14 @@ function Settings() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-blue-500"
+              className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-[#059669]"
               required
             />
           </div>
 
           <button 
             type="submit" 
-            className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-xl text-sm text-white font-semibold transition"
+            className="w-full bg-[#059669] hover:bg-[#047857] py-3 rounded-xl text-sm text-white font-semibold transition"
           >
             Change Password
           </button>

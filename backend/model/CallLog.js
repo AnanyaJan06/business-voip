@@ -29,6 +29,25 @@ const callLogSchema = new mongoose.Schema({
     default: 0  
   },
   recordingUrl: { type: String },
+  transcriptionText: { type: String, default: '' },
+  transcriptionStatus: {
+    type: String,
+    enum: ['not-started', 'started', 'in-progress', 'completed', 'failed'],
+    default: 'not-started'
+  },
+  transcriptionSid: { type: String },
+  transcriptionSegments: {
+    type: [{
+      sequenceId: Number,
+      track: String,
+      text: String,
+      confidence: Number,
+      final: Boolean,
+      timestamp: Date
+    }],
+    default: []
+  },
+  transcriptionError: { type: String },
   callSid: { type: String },           // Important for Twilio
   startedAt: { 
     type: Date, 

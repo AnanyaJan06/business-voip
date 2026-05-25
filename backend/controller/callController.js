@@ -1,9 +1,11 @@
 import CallLog from '../model/CallLog.js';
+import CallTranscript from '../model/CallTranscript.js';
 import '../model/User.js';
 
 export const saveCallLog = async (req, res) => {
   try {
     const { phoneNumber, callType, duration = 0, status, callSid } = req.body;
+    const transcript = callSid ? await CallTranscript.findOne({ callSid }) : null;
 
     const callLog = await CallLog.create({
       user: req.user.id,
@@ -12,6 +14,11 @@ export const saveCallLog = async (req, res) => {
       duration: Number(duration) || 0,        // Ensure it's a number
       status: status || 'completed',
       callSid,
+      transcriptionText: transcript?.text || '',
+      transcriptionStatus: transcript?.status || 'not-started',
+      transcriptionSid: transcript?.transcriptionSid || '',
+      transcriptionSegments: transcript?.segments || [],
+      transcriptionError: transcript?.error || '',
       startedAt: new Date(),
       endedAt: new Date()
     });

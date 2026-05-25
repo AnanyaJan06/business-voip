@@ -11,7 +11,7 @@ body {
 
 input:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.3);
 }
 
 html[data-theme="day"] body {
@@ -71,8 +71,8 @@ html[data-theme="day"] .text-gray-600 {
   color: #94a3b8;
 }
 
-html[data-theme="day"] .bg-blue-600,
-html[data-theme="day"] .hover\:bg-blue-700:hover {
+html[data-theme="day"] .bg-\[\#059669\],
+html[data-theme="day"] .hover\:bg-\[\#047857\]:hover {
   color: #ffffff;
 }
 
@@ -80,8 +80,8 @@ html[data-theme="day"] .bg-emerald-600,
 html[data-theme="day"] .hover\:bg-emerald-500:hover,
 html[data-theme="day"] .bg-red-600,
 html[data-theme="day"] .hover\:bg-red-700:hover,
-html[data-theme="day"] .bg-sky-600,
-html[data-theme="day"] .hover\:bg-sky-700:hover {
+html[data-theme="day"] .bg-\[\#059669\],
+html[data-theme="day"] .hover\:bg-\[\#047857\]:hover {
   color: #ffffff;
 }
 
@@ -98,7 +98,7 @@ html[data-theme="day"] .conversation-call-bubble {
 }
 
 html[data-theme="day"] .conversation-sms-outbound {
-  background-color: #dbeafe;
+  background-color: #d1fae5;
   color: #172033;
 }
 
@@ -124,7 +124,7 @@ html[data-theme="day"] .dialer-panel .bg-\[\#161B28\] {
 }
 
 html[data-theme="day"] .dialer-call-card {
-  background: linear-gradient(135deg, #eef6ff 0%, #ffffff 100%);
+  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 100%);
   color: #172033;
 }
 
@@ -146,7 +146,7 @@ html[data-theme="day"] .dialer-panel .active\:bg-\[\#4B5563\]:active {
 html[data-theme="day"] .sms-toast {
   background-color: #ffffff;
   color: #172033;
-  border-color: #bfdbfe;
+  border-color: #a7f3d0;
 }
 
 html[data-theme="day"] input,

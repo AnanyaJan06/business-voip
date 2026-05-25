@@ -12,8 +12,8 @@ function ConfirmModal({
 
   const variantStyles = {
     primary: {
-      icon: 'text-blue-300 bg-blue-500/15 ring-blue-500/20',
-      button: 'bg-blue-600 hover:bg-blue-700'
+      icon: 'text-emerald-300 bg-[#059669]/15 ring-emerald-500/20',
+      button: 'bg-[#059669] hover:bg-[#047857]'
     },
     danger: {
       icon: 'text-red-300 bg-red-500/15 ring-red-500/20',
