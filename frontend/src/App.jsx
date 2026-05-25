@@ -248,6 +248,10 @@ function App() {
       }, 5000);
     });
 
+    socket.on('call-transcription-updated', () => {
+      window.dispatchEvent(new Event('refreshCallHistory'));
+    });
+
     return () => {
       window.clearTimeout(smsToastTimerRef.current);
       socket.disconnect();

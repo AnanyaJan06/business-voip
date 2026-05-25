@@ -265,6 +265,14 @@ export const transcriptionStatus = async (req, res) => {
     transcript = await transcript.save();
     await syncTranscriptToCallLog(transcript);
 
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('call-transcription-updated', {
+        callSid: transcript.callSid,
+        status: transcript.status
+      });
+    }
+
     res.sendStatus(204);
   } catch (error) {
     console.error('Transcription Webhook Error:', error);
