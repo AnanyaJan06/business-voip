@@ -141,6 +141,27 @@ function CopyIcon() {
   );
 }
 
+function FollowUpIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 2v4" />
+      <path d="M16 2v4" />
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M9 16l2 2 4-4" />
+    </svg>
+  );
+}
+
 const getCallDate = (log) => log.startedAt || log.createdAt;
 
 const getCallTime = (log) => {
@@ -165,6 +186,9 @@ function CallHistory() {
   const [selectedDate, setSelectedDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [followUpDraft, setFollowUpDraft] = useState(null);
+  const [savingFollowUp, setSavingFollowUp] = useState(false);
+  const [followUpNotice, setFollowUpNotice] = useState({ text: '', type: '' });
 
   const fetchCallLogs = async () => {
     try {
@@ -240,6 +264,82 @@ function CallHistory() {
       await navigator.clipboard.writeText(phoneNumber);
     } catch (err) {
       console.error('Failed to copy phone number:', err);
+    }
+  };
+
+  const getDefaultFollowUpDate = () => {
+    const value = new Date();
+    value.setDate(value.getDate() + 1);
+    value.setMinutes(value.getMinutes() - value.getTimezoneOffset());
+    return value.toISOString().slice(0, 16);
+  };
+
+  const handleOpenFollowUp = (log) => {
+    if (!canCallNumber(log.phoneNumber)) return;
+
+    setFollowUpNotice({ text: '', type: '' });
+    setFollowUpDraft({
+      name: formatPhoneNumber(log.phoneNumber),
+      phone: log.phoneNumber,
+      note: `Follow up about ${getCallMeta(log).directionLabel.toLowerCase()} call from ${formatDateTime(getCallDate(log))}.`,
+      followUpDate: getDefaultFollowUpDate()
+    });
+  };
+
+  const handleFollowUpChange = (event) => {
+    const { name, value } = event.target;
+    setFollowUpDraft((current) => ({
+      ...current,
+      [name]: value
+    }));
+  };
+
+  const closeFollowUpModal = () => {
+    if (savingFollowUp) return;
+    setFollowUpDraft(null);
+    setFollowUpNotice({ text: '', type: '' });
+  };
+
+  const saveFollowUp = async (event) => {
+    event.preventDefault();
+    if (!followUpDraft) return;
+
+    if (!followUpDraft.name.trim() || !followUpDraft.note.trim() || !followUpDraft.followUpDate) {
+      setFollowUpNotice({ text: 'Add a name, note, and follow-up date.', type: 'error' });
+      return;
+    }
+
+    try {
+      setSavingFollowUp(true);
+      setFollowUpNotice({ text: '', type: '' });
+
+      const res = await fetch(`${BACKEND_URL}/api/followups`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          name: followUpDraft.name.trim(),
+          phone: followUpDraft.phone.trim(),
+          note: followUpDraft.note.trim(),
+          followUpDate: followUpDraft.followUpDate
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to create follow-up');
+
+      setFollowUpNotice({ text: 'Follow-up saved.', type: 'success' });
+      window.dispatchEvent(new Event('refreshFollowUps'));
+      window.setTimeout(() => {
+        setFollowUpDraft(null);
+        setFollowUpNotice({ text: '', type: '' });
+      }, 700);
+    } catch (err) {
+      setFollowUpNotice({ text: err.message, type: 'error' });
+    } finally {
+      setSavingFollowUp(false);
     }
   };
 
@@ -426,6 +526,16 @@ function CallHistory() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => handleOpenFollowUp(log)}
+                  disabled={!canCallNumber(log.phoneNumber)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-violet-500/20 bg-[#0F141F]/95 text-violet-300 shadow-sm transition-colors hover:bg-violet-500 hover:text-white disabled:cursor-not-allowed disabled:border-gray-700 disabled:text-gray-600"
+                  title={`Add follow-up for ${formatPhoneNumber(log.phoneNumber)}`}
+                  aria-label={`Add follow-up for ${formatPhoneNumber(log.phoneNumber)}`}
+                >
+                  <FollowUpIcon />
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleCopyNumber(log.phoneNumber)}
                   className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-600 bg-[#0F141F]/95 text-gray-300 shadow-sm transition-colors hover:bg-gray-700 hover:text-white"
                   title="Copy number"
@@ -435,7 +545,7 @@ function CallHistory() {
                 </button>
               </div>
 
-              <div className="flex items-start gap-3 pr-0 sm:pr-24">
+              <div className="flex items-start gap-3 pr-0 sm:pr-32">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center ring-1 shrink-0 ${meta.iconClass}`}>
                   <DirectionIcon type={meta.visualType} />
                 </div>
@@ -468,6 +578,79 @@ function CallHistory() {
           );
         })}
       </div>
+
+      {followUpDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <form onSubmit={saveFollowUp} className="w-full max-w-md rounded-xl border border-gray-800 bg-gray-900 p-4 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-white">Add Follow-up</h3>
+                <p className="mt-1 text-xs text-gray-400">{formatPhoneNumber(followUpDraft.phone)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeFollowUpModal}
+                className="rounded-lg border border-gray-700 px-2.5 py-1 text-xs font-semibold text-gray-300 transition hover:bg-gray-800 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Name</label>
+                <input
+                  name="name"
+                  value={followUpDraft.name}
+                  onChange={handleFollowUpChange}
+                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Date and Time</label>
+                <input
+                  type="datetime-local"
+                  name="followUpDate"
+                  value={followUpDraft.followUpDate}
+                  onChange={handleFollowUpChange}
+                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Note</label>
+                <textarea
+                  name="note"
+                  value={followUpDraft.note}
+                  onChange={handleFollowUpChange}
+                  rows={3}
+                  className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-blue-500"
+                  required
+                />
+              </div>
+            </div>
+
+            {followUpNotice.text && (
+              <div className={`mt-4 rounded-xl px-3 py-2 text-xs text-white ${
+                followUpNotice.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+              }`}>
+                {followUpNotice.text}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={savingFollowUp}
+              className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+            >
+              {savingFollowUp ? <LoadingSpinner label="Saving..." size="sm" tone="white" inline /> : 'Save Follow-up'}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
