@@ -217,6 +217,8 @@ export const incomingVoice = async (req, res) => {
 
 export const transcriptionStatus = async (req, res) => {
   try {
+    console.log('Twilio transcription webhook body:', req.body);
+
     const {
       CallSid,
       TranscriptionSid,

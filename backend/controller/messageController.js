@@ -22,6 +22,8 @@ const getSenderConfig = () => {
   return { from: process.env.TWILIO_PHONE_NUMBER };
 };
 
+const getPublicBaseUrl = () => (process.env.BASE_URL || '').replace(/\/$/, '');
+
 export const sendMessage = async (req, res) => {
   try {
     const { to, body } = req.body;
@@ -42,11 +44,13 @@ export const sendMessage = async (req, res) => {
 
     const client = getTwilioClient();
     const senderConfig = getSenderConfig();
+    const baseUrl = getPublicBaseUrl();
 
     const twilioMessage = await client.messages.create({
       ...senderConfig,
       to: trimmedTo,
-      body: trimmedBody
+      body: trimmedBody,
+      ...(baseUrl ? { statusCallback: `${baseUrl}/api/messages/status` } : {})
     });
 
     const sender = senderConfig.from || process.env.TWILIO_MESSAGING_SERVICE_SID;
@@ -68,6 +72,50 @@ export const sendMessage = async (req, res) => {
       message: error.message,
       code: error.code
     });
+  }
+};
+
+export const updateMessageStatus = async (req, res) => {
+  try {
+    console.log('Twilio message status webhook body:', req.body);
+
+    const messageSid = req.body.MessageSid || req.body.SmsSid;
+    const status = req.body.MessageStatus || req.body.SmsStatus;
+
+    if (!messageSid || !status) {
+      return res.status(400).json({ message: 'MessageSid and status are required' });
+    }
+
+    const update = {
+      status,
+      errorCode: req.body.ErrorCode || '',
+      errorMessage: req.body.ErrorMessage || ''
+    };
+
+    if (status === 'delivered') {
+      update.deliveredAt = new Date();
+    }
+
+    const messageLog = await MessageLog.findOneAndUpdate(
+      { messageSid },
+      update,
+      { returnDocument: 'after' }
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('message-status-updated', {
+        messageSid,
+        status,
+        errorCode: update.errorCode,
+        deliveredAt: messageLog?.deliveredAt
+      });
+    }
+
+    res.sendStatus(204);
+  } catch (error) {
+    console.error('Message Status Error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 

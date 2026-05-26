@@ -8,6 +8,21 @@ const normalizePhone = (phone) => {
   return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
 };
 
+const messageStatusStyles = {
+  delivered: 'bg-emerald-500/15 text-emerald-300',
+  sent: 'bg-sky-500/15 text-sky-300',
+  queued: 'bg-amber-500/15 text-amber-300',
+  sending: 'bg-amber-500/15 text-amber-300',
+  accepted: 'bg-amber-500/15 text-amber-300',
+  undelivered: 'bg-red-500/15 text-red-300',
+  failed: 'bg-red-500/15 text-red-300',
+  received: 'bg-gray-700 text-gray-300'
+};
+
+const formatMessageStatus = (status = '') => (
+  status ? status.replace('-', ' ') : 'queued'
+);
+
 function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
   const [messages, setMessages] = useState([]);
   const [recipient, setRecipient] = useState(selectedPhoneNumber);
@@ -234,6 +249,13 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
                     >
                       {message.phoneNumber}
                     </button>
+                    {message.direction === 'outbound' && (
+                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
+                        messageStatusStyles[message.status] || messageStatusStyles.queued
+                      }`}>
+                        {formatMessageStatus(message.status)}
+                      </span>
+                    )}
                   </div>
                   <span className="shrink-0 text-xs text-gray-500">
                     {formatDateTime(message.createdAt)}

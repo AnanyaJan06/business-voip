@@ -8,6 +8,20 @@ const normalizePhone = (phone) => {
   return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
 };
 
+const messageStatusStyles = {
+  delivered: 'text-emerald-300',
+  sent: 'text-sky-300',
+  queued: 'text-amber-300',
+  sending: 'text-amber-300',
+  accepted: 'text-amber-300',
+  undelivered: 'text-red-300',
+  failed: 'text-red-300'
+};
+
+const formatMessageStatus = (status = '') => (
+  status ? status.replace('-', ' ') : 'queued'
+);
+
 function ConversationDetails({ phoneNumber, onClose }) {
   const [calls, setCalls] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -89,6 +103,8 @@ function ConversationDetails({ phoneNumber, onClose }) {
         type: 'sms',
         direction: message.direction,
         status: message.status,
+        errorCode: message.errorCode,
+        deliveredAt: message.deliveredAt,
         body: message.body,
         date: message.createdAt,
         userName: message.userName || message.user?.name || ''
@@ -266,7 +282,19 @@ function ConversationDetails({ phoneNumber, onClose }) {
                       ) : (
                         <>
                           <p className="whitespace-pre-wrap text-sm leading-6">{item.body}</p>
-                          <p className="mt-2 text-xs uppercase tracking-wide text-gray-300">SMS</p>
+                          <p className="mt-2 text-xs uppercase tracking-wide text-gray-300">
+                            SMS
+                            {isOutbound && (
+                              <span className={`ml-2 capitalize ${
+                                messageStatusStyles[item.status] || messageStatusStyles.queued
+                              }`}>
+                                {formatMessageStatus(item.status)}
+                              </span>
+                            )}
+                          </p>
+                          {item.errorCode && (
+                            <p className="mt-1 text-xs text-red-300">Error {item.errorCode}</p>
+                          )}
                         </>
                       )}
 

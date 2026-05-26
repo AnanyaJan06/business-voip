@@ -30,8 +30,18 @@ const messageLogSchema = new mongoose.Schema({
     type: String,
     default: 'queued'
   },
-  messageSid: {
+  errorCode: {
     type: String
+  },
+  errorMessage: {
+    type: String
+  },
+  deliveredAt: {
+    type: Date
+  },
+  messageSid: {
+    type: String,
+    index: true
   }
 }, {
   timestamps: true

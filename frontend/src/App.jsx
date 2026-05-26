@@ -252,6 +252,10 @@ function App() {
       window.dispatchEvent(new Event('refreshCallHistory'));
     });
 
+    socket.on('message-status-updated', () => {
+      window.dispatchEvent(new Event('refreshMessages'));
+    });
+
     return () => {
       window.clearTimeout(smsToastTimerRef.current);
       socket.disconnect();
