@@ -22,6 +22,14 @@ const callTranscriptSchema = new mongoose.Schema({
     type: String,
     index: true
   },
+  phoneNumber: {
+    type: String,
+    index: true
+  },
+  callType: {
+    type: String,
+    enum: ['outbound', 'inbound']
+  },
   status: {
     type: String,
     enum: ['started', 'in-progress', 'completed', 'failed'],

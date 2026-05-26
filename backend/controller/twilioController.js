@@ -11,7 +11,7 @@ const BROWSER_CLIENT_IDENTITY = process.env.TWILIO_CLIENT_IDENTITY || 'browser-c
 
 const getPublicBaseUrl = () => (process.env.BASE_URL || '').replace(/\/$/, '');
 
-const addTranscription = (twiml, labelPrefix = 'call') => {
+const addTranscription = (twiml, labels = { inbound: 'caller', outbound: 'agent' }) => {
   const baseUrl = getPublicBaseUrl();
   if (!baseUrl) {
     console.warn('BASE_URL is missing; call transcription webhook was not added.');
@@ -22,8 +22,8 @@ const addTranscription = (twiml, labelPrefix = 'call') => {
   start.transcription({
     statusCallbackUrl: `${baseUrl}/api/twilio/transcription`,
     track: 'both_tracks',
-    inboundTrackLabel: `${labelPrefix}-inbound`,
-    outboundTrackLabel: `${labelPrefix}-outbound`,
+    inboundTrackLabel: labels.inbound,
+    outboundTrackLabel: labels.outbound,
     transcriptionEngine: process.env.TWILIO_TRANSCRIPTION_ENGINE || 'google',
     enableAutomaticPunctuation: true,
     partialResults: false
@@ -49,15 +49,29 @@ const rebuildTranscriptText = (segments) => [...segments]
 const syncTranscriptToCallLog = async (transcript) => {
   if (!transcript?.callSid) return;
 
-  await CallLog.updateMany(
+  const transcriptUpdate = {
+    transcriptionText: transcript.text,
+    transcriptionStatus: transcript.status,
+    transcriptionSid: transcript.transcriptionSid,
+    transcriptionSegments: transcript.segments,
+    transcriptionError: transcript.error || ''
+  };
+
+  const exactResult = await CallLog.updateMany(
     { callSid: transcript.callSid },
+    transcriptUpdate
+  );
+
+  if (exactResult.modifiedCount > 0 || !transcript.phoneNumber || !transcript.callType) return;
+
+  await CallLog.findOneAndUpdate(
     {
-      transcriptionText: transcript.text,
-      transcriptionStatus: transcript.status,
-      transcriptionSid: transcript.transcriptionSid,
-      transcriptionSegments: transcript.segments,
-      transcriptionError: transcript.error || ''
-    }
+      phoneNumber: transcript.phoneNumber,
+      callType: transcript.callType,
+      startedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    },
+    transcriptUpdate,
+    { sort: { startedAt: -1 } }
   );
 };
 
@@ -113,15 +127,24 @@ export const voiceResponse = (req, res) => {
   try {
     console.log("Twilio webhook body:", req.body); // <-- Added log
 
-    const twiml = new twilio.twiml.VoiceResponse();
-    addTranscription(twiml, 'outbound');
-
     const to = req.body.To;
+    const callSid = req.body.CallSid;
 
     if (!to) {
       console.log("No destination number received");
       return res.status(400).send("Missing destination number");
     }
+
+    if (callSid) {
+      CallTranscript.findOneAndUpdate(
+        { callSid },
+        { $set: { phoneNumber: to, callType: 'outbound' } },
+        { upsert: true, setDefaultsOnInsert: true }
+      ).catch((error) => console.error('Failed to seed outbound transcript:', error));
+    }
+
+    const twiml = new twilio.twiml.VoiceResponse();
+    addTranscription(twiml, { inbound: 'agent', outbound: 'customer' });
 
     const dial = twiml.dial({
       callerId: process.env.TWILIO_PHONE_NUMBER,
@@ -159,8 +182,16 @@ export const incomingVoice = async (req, res) => {
       });
     }
 
+    if (callSid) {
+      CallTranscript.findOneAndUpdate(
+        { callSid },
+        { $set: { phoneNumber: from, callType: 'inbound' } },
+        { upsert: true, setDefaultsOnInsert: true }
+      ).catch((error) => console.error('Failed to seed inbound transcript:', error));
+    }
+
     const twiml = new twilio.twiml.VoiceResponse();
-    addTranscription(twiml, 'inbound');
+    addTranscription(twiml, { inbound: 'customer', outbound: 'agent' });
 
     const client = twiml.dial({
       answerOnBridge: true,
@@ -192,6 +223,7 @@ export const transcriptionStatus = async (req, res) => {
       TranscriptionEvent,
       TranscriptionData,
       TranscriptionErrorCode,
+      TranscriptionError,
       TranscriptionErrorMessage,
       SequenceId,
       Track,
@@ -259,7 +291,7 @@ export const transcriptionStatus = async (req, res) => {
 
     if (TranscriptionEvent === 'transcription-error') {
       transcript.status = 'failed';
-      transcript.error = TranscriptionErrorMessage || TranscriptionErrorCode || 'Transcription failed';
+      transcript.error = TranscriptionError || TranscriptionErrorMessage || TranscriptionErrorCode || 'Transcription failed';
     }
 
     transcript = await transcript.save();

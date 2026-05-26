@@ -5,7 +5,17 @@ import '../model/User.js';
 export const saveCallLog = async (req, res) => {
   try {
     const { phoneNumber, callType, duration = 0, status, callSid } = req.body;
-    const transcript = callSid ? await CallTranscript.findOne({ callSid }) : null;
+    const transcriptQuery = {
+      $or: [
+        ...(callSid ? [{ callSid }] : []),
+        {
+          phoneNumber,
+          callType: callType || 'outbound',
+          createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+        }
+      ]
+    };
+    const transcript = await CallTranscript.findOne(transcriptQuery).sort({ updatedAt: -1 });
 
     const callLog = await CallLog.create({
       user: req.user.id,
