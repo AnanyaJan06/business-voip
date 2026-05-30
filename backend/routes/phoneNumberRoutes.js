@@ -3,6 +3,7 @@ import {
   assignNumberToUser,
   buyNumber,
   importOwnedNumbers,
+  importSingleOwnedNumber,
   listOwnedNumbers,
   searchAvailableNumbers
 } from '../controller/phoneNumberController.js';
@@ -15,6 +16,7 @@ router.use(authMiddleware, requireAdmin);
 
 router.get('/', listOwnedNumbers);
 router.post('/import', importOwnedNumbers);
+router.post('/import-one', importSingleOwnedNumber);
 router.get('/available', searchAvailableNumbers);
 router.post('/buy', buyNumber);
 router.patch('/:id/assign', assignNumberToUser);

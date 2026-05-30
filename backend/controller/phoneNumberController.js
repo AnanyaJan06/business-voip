@@ -37,6 +37,13 @@ const buildWebhookConfig = () => {
   };
 };
 
+const updateNumberWebhooks = async (client, number) => {
+  const webhookConfig = buildWebhookConfig();
+  if (Object.keys(webhookConfig).length === 0) return number;
+
+  return client.incomingPhoneNumbers(number.sid).update(webhookConfig);
+};
+
 export const searchAvailableNumbers = async (req, res) => {
   try {
     const client = getTwilioClient();
@@ -85,22 +92,67 @@ export const importOwnedNumbers = async (req, res) => {
   try {
     const client = getTwilioClient();
     const incomingNumbers = await client.incomingPhoneNumbers.list({ limit: 100 });
-    const webhookConfig = buildWebhookConfig();
+    const importedSids = incomingNumbers.map((number) => number.sid);
 
-    if (Object.keys(webhookConfig).length > 0) {
-      await Promise.all(incomingNumbers.map((number) => (
-        client.incomingPhoneNumbers(number.sid).update(webhookConfig)
-      )));
+    await Promise.all(incomingNumbers.map((number) => updateNumberWebhooks(client, number)));
+
+    const staleNumbers = await TwilioNumber.find({
+      sid: { $nin: importedSids }
+    });
+
+    if (staleNumbers.length > 0) {
+      await User.updateMany(
+        { assignedPhoneNumberSid: { $in: staleNumbers.map((number) => number.sid) } },
+        { assignedPhoneNumber: '', assignedPhoneNumberSid: '' }
+      );
+
+      await TwilioNumber.deleteMany({
+        _id: { $in: staleNumbers.map((number) => number._id) }
+      });
     }
 
     const numbers = await Promise.all(incomingNumbers.map(upsertTwilioNumber));
     const populatedNumbers = await TwilioNumber.find({
       _id: { $in: numbers.map((number) => number._id) }
-    }).populate('assignedTo', 'name email role');
+    })
+      .populate('assignedTo', 'name email role')
+      .sort({ phoneNumber: 1 });
 
     res.json(populatedNumbers.map(serializeNumber));
   } catch (error) {
     console.error('Import Twilio Numbers Error:', error);
+    res.status(500).json({ message: error.message, code: error.code });
+  }
+};
+
+export const importSingleOwnedNumber = async (req, res) => {
+  try {
+    const phoneNumber = String(req.body.phoneNumber || '').trim();
+
+    if (!phoneNumber) {
+      return res.status(400).json({ message: 'phoneNumber is required' });
+    }
+
+    const client = getTwilioClient();
+    const matches = await client.incomingPhoneNumbers.list({
+      phoneNumber,
+      limit: 1
+    });
+    const ownedNumber = matches[0];
+
+    if (!ownedNumber) {
+      return res.status(404).json({
+        message: `${phoneNumber} is not owned by the configured Twilio account`
+      });
+    }
+
+    const updatedNumber = await updateNumberWebhooks(client, ownedNumber);
+    const number = await upsertTwilioNumber(updatedNumber || ownedNumber);
+    const populated = await TwilioNumber.findById(number._id).populate('assignedTo', 'name email role');
+
+    res.status(201).json(serializeNumber(populated));
+  } catch (error) {
+    console.error('Import Single Twilio Number Error:', error);
     res.status(500).json({ message: error.message, code: error.code });
   }
 };

@@ -37,9 +37,11 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
   const [error, setError] = useState('');
   const [form, setForm] = useState(emptyForm);
   const [numberSearch, setNumberSearch] = useState({ areaCode: '', contains: '', limit: '10' });
+  const [ownedNumberInput, setOwnedNumberInput] = useState('');
   const [selectedUserId, setSelectedUserId] = useState('');
   const [creating, setCreating] = useState(false);
   const [searchingNumbers, setSearchingNumbers] = useState(false);
+  const [importingOwnedNumber, setImportingOwnedNumber] = useState(false);
   const [buyingNumber, setBuyingNumber] = useState('');
   const [assigningNumber, setAssigningNumber] = useState('');
   const [notice, setNotice] = useState({ text: '', type: '' });
@@ -239,12 +241,47 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       if (!res.ok) throw new Error(data.message || 'Failed to import Twilio numbers');
 
       setOwnedNumbers(Array.isArray(data) ? data : []);
-      setNotice({ text: 'Twilio numbers imported successfully.', type: 'success' });
+      setNotice({ text: 'Twilio owned numbers synced successfully.', type: 'success' });
       fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
     } finally {
       setSearchingNumbers(false);
+    }
+  };
+
+  const importOwnedNumber = async (event) => {
+    event.preventDefault();
+
+    const phoneNumber = ownedNumberInput.trim();
+    if (!phoneNumber) {
+      setNotice({ text: 'Enter a Twilio number to import.', type: 'error' });
+      return;
+    }
+
+    try {
+      setImportingOwnedNumber(true);
+      setNotice({ text: '', type: '' });
+
+      const res = await fetch(`${BACKEND_URL}/api/phone-numbers/import-one`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({ phoneNumber })
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Failed to import owned Twilio number');
+
+      setOwnedNumberInput('');
+      setNotice({ text: `${data.phoneNumber} imported successfully.`, type: 'success' });
+      fetchDashboardData();
+    } catch (err) {
+      setNotice({ text: err.message, type: 'error' });
+    } finally {
+      setImportingOwnedNumber(false);
     }
   };
 
@@ -423,9 +460,26 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
               disabled={searchingNumbers}
               className="shrink-0 rounded-lg border border-gray-700 px-3 py-2 text-xs font-semibold text-gray-200 transition hover:bg-gray-800 disabled:opacity-60"
             >
-              Import
+              Sync Twilio
             </button>
           </div>
+
+          <form onSubmit={importOwnedNumber} className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
+            <input
+              type="tel"
+              value={ownedNumberInput}
+              onChange={(event) => setOwnedNumberInput(event.target.value)}
+              className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
+              placeholder="Import owned number, e.g. +12294975901"
+            />
+            <button
+              type="submit"
+              disabled={importingOwnedNumber}
+              className="rounded-xl border border-emerald-700 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-950/40 disabled:opacity-60"
+            >
+              {importingOwnedNumber ? 'Importing...' : 'Import Number'}
+            </button>
+          </form>
 
           <form onSubmit={searchNumbers} className="grid gap-3 md:grid-cols-[1fr_1fr_90px_auto]">
             <input
