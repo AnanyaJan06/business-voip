@@ -53,16 +53,27 @@ export const listOwnedNumbers = async (req, res) => {
 export const syncPurchasedNumbers = async (req, res) => {
   try {
     const client = getTwilioClient();
+    console.log("Client",client);
+    
+    console.log('[Twilio Sync] Starting purchased number sync...');
+
     const incomingNumbers = await client.incomingPhoneNumbers.list({ limit: 100 });
     const importedSids = incomingNumbers.map((number) => number.sid);
+    const importedPhoneNumbers = incomingNumbers.map((number) => number.phoneNumber);
+
+    console.log(`[Twilio Sync] Fetched ${incomingNumbers.length} purchased number(s) from Twilio.`);
+    console.log('[Twilio Sync] Purchased numbers:', importedPhoneNumbers);
 
     await Promise.all(incomingNumbers.map((number) => updateNumberWebhooks(client, number)));
+    console.log('[Twilio Sync] Webhook URLs updated for fetched numbers.');
 
     const staleNumbers = await TwilioNumber.find({
       sid: { $nin: importedSids }
     });
 
     if (staleNumbers.length > 0) {
+      console.log('[Twilio Sync] Removing stale numbers:', staleNumbers.map((number) => number.phoneNumber));
+
       await User.updateMany(
         { assignedPhoneNumberSid: { $in: staleNumbers.map((number) => number.sid) } },
         { assignedPhoneNumber: '', assignedPhoneNumberSid: '' }
@@ -71,6 +82,8 @@ export const syncPurchasedNumbers = async (req, res) => {
       await TwilioNumber.deleteMany({
         _id: { $in: staleNumbers.map((number) => number._id) }
       });
+    } else {
+      console.log('[Twilio Sync] No stale numbers found.');
     }
 
     const numbers = await Promise.all(incomingNumbers.map(upsertTwilioNumber));
@@ -79,6 +92,12 @@ export const syncPurchasedNumbers = async (req, res) => {
     })
       .populate('assignedTo', 'name email role')
       .sort({ phoneNumber: 1 });
+
+    console.log('[Twilio Sync] Stored numbers in TwilioNumber collection:', populatedNumbers.map((number) => ({
+      phoneNumber: number.phoneNumber,
+      assignedTo: number.assignedTo?.email || 'Unassigned'
+    })));
+    console.log('[Twilio Sync] Sync completed.');
 
     res.json(populatedNumbers.map(serializeNumber));
   } catch (error) {
