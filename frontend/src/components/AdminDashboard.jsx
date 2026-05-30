@@ -314,6 +314,14 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
         </div>
       )}
 
+      {notice.text && (
+        <div className={`rounded-xl px-4 py-3 text-sm text-white ${
+          notice.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+        }`}>
+          {notice.text}
+        </div>
+      )}
+
       {showStats && (
         <>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -391,14 +399,6 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
             </select>
           </div>
         </div>
-
-        {notice.text && (
-          <div className={`mt-4 rounded-xl px-3 py-2 text-xs text-white ${
-            notice.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
-          }`}>
-            {notice.text}
-          </div>
-        )}
 
         <button
           type="submit"
