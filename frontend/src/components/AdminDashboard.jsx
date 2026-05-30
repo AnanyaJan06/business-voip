@@ -32,17 +32,11 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
   const [ownedNumbers, setOwnedNumbers] = useState([]);
-  const [availableNumbers, setAvailableNumbers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState(emptyForm);
-  const [numberSearch, setNumberSearch] = useState({ areaCode: '', contains: '', limit: '10' });
-  const [ownedNumberInput, setOwnedNumberInput] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState('');
   const [creating, setCreating] = useState(false);
-  const [searchingNumbers, setSearchingNumbers] = useState(false);
-  const [importingOwnedNumber, setImportingOwnedNumber] = useState(false);
-  const [buyingNumber, setBuyingNumber] = useState('');
+  const [syncingNumbers, setSyncingNumbers] = useState(false);
   const [assigningNumber, setAssigningNumber] = useState('');
   const [notice, setNotice] = useState({ text: '', type: '' });
 
@@ -192,44 +186,9 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     }
   };
 
-  const handleNumberSearchChange = (event) => {
-    const { name, value } = event.target;
-    setNumberSearch((current) => ({ ...current, [name]: value }));
-  };
-
-  const searchNumbers = async (event) => {
-    event.preventDefault();
-
-    try {
-      setSearchingNumbers(true);
-      setNotice({ text: '', type: '' });
-
-      const params = new URLSearchParams();
-      if (numberSearch.areaCode.trim()) params.set('areaCode', numberSearch.areaCode.trim());
-      if (numberSearch.contains.trim()) params.set('contains', numberSearch.contains.trim());
-      params.set('limit', numberSearch.limit || '10');
-
-      const res = await fetch(`${BACKEND_URL}/api/phone-numbers/available?${params.toString()}`, {
-        headers: authHeaders
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || 'Failed to search Twilio numbers');
-
-      setAvailableNumbers(Array.isArray(data) ? data : []);
-      if (Array.isArray(data) && data.length === 0) {
-        setNotice({ text: 'No US numbers found for that search.', type: 'error' });
-      }
-    } catch (err) {
-      setNotice({ text: err.message, type: 'error' });
-    } finally {
-      setSearchingNumbers(false);
-    }
-  };
-
   const importNumbers = async () => {
     try {
-      setSearchingNumbers(true);
+      setSyncingNumbers(true);
       setNotice({ text: '', type: '' });
 
       const res = await fetch(`${BACKEND_URL}/api/phone-numbers/import`, {
@@ -241,77 +200,15 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       if (!res.ok) throw new Error(data.message || 'Failed to import Twilio numbers');
 
       setOwnedNumbers(Array.isArray(data) ? data : []);
-      setNotice({ text: 'Twilio owned numbers synced successfully.', type: 'success' });
-      fetchDashboardData();
-    } catch (err) {
-      setNotice({ text: err.message, type: 'error' });
-    } finally {
-      setSearchingNumbers(false);
-    }
-  };
-
-  const importOwnedNumber = async (event) => {
-    event.preventDefault();
-
-    const phoneNumber = ownedNumberInput.trim();
-    if (!phoneNumber) {
-      setNotice({ text: 'Enter a Twilio number to import.', type: 'error' });
-      return;
-    }
-
-    try {
-      setImportingOwnedNumber(true);
-      setNotice({ text: '', type: '' });
-
-      const res = await fetch(`${BACKEND_URL}/api/phone-numbers/import-one`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders
-        },
-        body: JSON.stringify({ phoneNumber })
+      setNotice({
+        text: `Synced ${Array.isArray(data) ? data.length : 0} purchased Twilio number${Array.isArray(data) && data.length === 1 ? '' : 's'}.`,
+        type: 'success'
       });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || 'Failed to import owned Twilio number');
-
-      setOwnedNumberInput('');
-      setNotice({ text: `${data.phoneNumber} imported successfully.`, type: 'success' });
       fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
     } finally {
-      setImportingOwnedNumber(false);
-    }
-  };
-
-  const buyNumber = async (phoneNumber) => {
-    try {
-      setBuyingNumber(phoneNumber);
-      setNotice({ text: '', type: '' });
-
-      const res = await fetch(`${BACKEND_URL}/api/phone-numbers/buy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders
-        },
-        body: JSON.stringify({
-          phoneNumber,
-          userId: selectedUserId
-        })
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || 'Failed to buy Twilio number');
-
-      setAvailableNumbers((current) => current.filter((number) => number.phoneNumber !== phoneNumber));
-      setNotice({ text: `${phoneNumber} purchased successfully.`, type: 'success' });
-      fetchDashboardData();
-    } catch (err) {
-      setNotice({ text: err.message, type: 'error' });
-    } finally {
-      setBuyingNumber('');
+      setSyncingNumbers(false);
     }
   };
 
@@ -452,114 +349,24 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold text-white">Twilio Numbers</h3>
-              <p className="text-xs text-gray-400">Buy US numbers and assign one number to each user.</p>
+              <p className="text-xs text-gray-400">Sync purchased Twilio numbers, then assign one number to each user.</p>
             </div>
             <button
               type="button"
               onClick={importNumbers}
-              disabled={searchingNumbers}
-              className="shrink-0 rounded-lg border border-gray-700 px-3 py-2 text-xs font-semibold text-gray-200 transition hover:bg-gray-800 disabled:opacity-60"
+              disabled={syncingNumbers}
+              className="shrink-0 rounded-lg bg-[#059669] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
             >
-              Sync Twilio
+              {syncingNumbers ? 'Syncing...' : 'Sync Twilio'}
             </button>
           </div>
 
-          <form onSubmit={importOwnedNumber} className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
-            <input
-              type="tel"
-              value={ownedNumberInput}
-              onChange={(event) => setOwnedNumberInput(event.target.value)}
-              className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="Import owned number, e.g. +12294975901"
-            />
-            <button
-              type="submit"
-              disabled={importingOwnedNumber}
-              className="rounded-xl border border-emerald-700 px-4 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-950/40 disabled:opacity-60"
-            >
-              {importingOwnedNumber ? 'Importing...' : 'Import Number'}
-            </button>
-          </form>
-
-          <form onSubmit={searchNumbers} className="grid gap-3 md:grid-cols-[1fr_1fr_90px_auto]">
-            <input
-              name="areaCode"
-              value={numberSearch.areaCode}
-              onChange={handleNumberSearchChange}
-              maxLength={3}
-              className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="Area code"
-            />
-            <input
-              name="contains"
-              value={numberSearch.contains}
-              onChange={handleNumberSearchChange}
-              className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="Contains"
-            />
-            <input
-              name="limit"
-              type="number"
-              min="1"
-              max="20"
-              value={numberSearch.limit}
-              onChange={handleNumberSearchChange}
-              className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-            />
-            <button
-              type="submit"
-              disabled={searchingNumbers}
-              className="rounded-xl bg-[#059669] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
-            >
-              {searchingNumbers ? 'Searching...' : 'Search'}
-            </button>
-          </form>
-
-          <div className="mt-3">
-            <label className="mb-1.5 block text-xs text-gray-400">Assign new purchases to</label>
-            <select
-              value={selectedUserId}
-              onChange={(event) => setSelectedUserId(event.target.value)}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-            >
-              <option value="">Buy without assigning</option>
-              {users.map((user) => (
-                <option key={user._id || user.id} value={user._id || user.id}>
-                  {user.name} ({user.email})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {availableNumbers.length > 0 && (
-            <div className="mt-4 overflow-hidden rounded-xl border border-gray-800">
-              <div className="divide-y divide-gray-800">
-                {availableNumbers.map((number) => (
-                  <div key={number.phoneNumber} className="flex items-center justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">{number.phoneNumber}</p>
-                      <p className="truncate text-xs text-gray-400">{[number.locality, number.region].filter(Boolean).join(', ') || 'United States'}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => buyNumber(number.phoneNumber)}
-                      disabled={buyingNumber === number.phoneNumber}
-                      className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
-                    >
-                      {buyingNumber === number.phoneNumber ? 'Buying...' : 'Buy'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 overflow-hidden rounded-xl border border-gray-800">
+          <div className="overflow-hidden rounded-xl border border-gray-800">
             <div className="border-b border-gray-800 px-4 py-3">
-              <h4 className="text-sm font-semibold text-white">Owned Numbers</h4>
+              <h4 className="text-sm font-semibold text-white">Purchased Twilio Numbers</h4>
             </div>
             {ownedNumbers.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">No Twilio numbers imported or purchased yet.</p>
+              <p className="py-8 text-center text-sm text-gray-400">Click Sync Twilio to import purchased numbers.</p>
             ) : (
               <div className="divide-y divide-gray-800">
                 {ownedNumbers.map((number) => {

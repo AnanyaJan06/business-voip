@@ -1,11 +1,8 @@
 import express from 'express';
 import {
   assignNumberToUser,
-  buyNumber,
-  importOwnedNumbers,
-  importSingleOwnedNumber,
   listOwnedNumbers,
-  searchAvailableNumbers
+  syncPurchasedNumbers
 } from '../controller/phoneNumberController.js';
 import { requireAdmin } from '../controller/authController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
@@ -15,10 +12,7 @@ const router = express.Router();
 router.use(authMiddleware, requireAdmin);
 
 router.get('/', listOwnedNumbers);
-router.post('/import', importOwnedNumbers);
-router.post('/import-one', importSingleOwnedNumber);
-router.get('/available', searchAvailableNumbers);
-router.post('/buy', buyNumber);
+router.post('/import', syncPurchasedNumbers);
 router.patch('/:id/assign', assignNumberToUser);
 
 export default router;

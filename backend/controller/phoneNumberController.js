@@ -7,12 +7,6 @@ import {
   upsertTwilioNumber
 } from '../utils/twilioNumbers.js';
 
-const parseLimit = (value, fallback = 10, max = 50) => {
-  const limit = Number(value);
-  if (!Number.isFinite(limit) || limit < 1) return fallback;
-  return Math.min(Math.floor(limit), max);
-};
-
 const serializeNumber = (number) => ({
   id: number._id,
   sid: number.sid,
@@ -44,38 +38,6 @@ const updateNumberWebhooks = async (client, number) => {
   return client.incomingPhoneNumbers(number.sid).update(webhookConfig);
 };
 
-export const searchAvailableNumbers = async (req, res) => {
-  try {
-    const client = getTwilioClient();
-    const limit = parseLimit(req.query.limit, 10, 20);
-    const areaCode = String(req.query.areaCode || '').replace(/\D/g, '').slice(0, 3);
-    const contains = String(req.query.contains || '').trim();
-
-    const query = {
-      limit,
-      voiceEnabled: true,
-      smsEnabled: true
-    };
-
-    if (areaCode.length === 3) query.areaCode = areaCode;
-    if (contains) query.contains = contains;
-
-    const numbers = await client.availablePhoneNumbers('US').local.list(query);
-
-    res.json(numbers.map((number) => ({
-      phoneNumber: number.phoneNumber,
-      friendlyName: number.friendlyName,
-      locality: number.locality,
-      region: number.region,
-      isoCountry: number.isoCountry,
-      capabilities: number.capabilities
-    })));
-  } catch (error) {
-    console.error('Search Twilio Numbers Error:', error);
-    res.status(500).json({ message: error.message, code: error.code });
-  }
-};
-
 export const listOwnedNumbers = async (req, res) => {
   try {
     const numbers = await TwilioNumber.find()
@@ -88,7 +50,7 @@ export const listOwnedNumbers = async (req, res) => {
   }
 };
 
-export const importOwnedNumbers = async (req, res) => {
+export const syncPurchasedNumbers = async (req, res) => {
   try {
     const client = getTwilioClient();
     const incomingNumbers = await client.incomingPhoneNumbers.list({ limit: 100 });
@@ -120,68 +82,7 @@ export const importOwnedNumbers = async (req, res) => {
 
     res.json(populatedNumbers.map(serializeNumber));
   } catch (error) {
-    console.error('Import Twilio Numbers Error:', error);
-    res.status(500).json({ message: error.message, code: error.code });
-  }
-};
-
-export const importSingleOwnedNumber = async (req, res) => {
-  try {
-    const phoneNumber = String(req.body.phoneNumber || '').trim();
-
-    if (!phoneNumber) {
-      return res.status(400).json({ message: 'phoneNumber is required' });
-    }
-
-    const client = getTwilioClient();
-    const matches = await client.incomingPhoneNumbers.list({
-      phoneNumber,
-      limit: 1
-    });
-    const ownedNumber = matches[0];
-
-    if (!ownedNumber) {
-      return res.status(404).json({
-        message: `${phoneNumber} is not owned by the configured Twilio account`
-      });
-    }
-
-    const updatedNumber = await updateNumberWebhooks(client, ownedNumber);
-    const number = await upsertTwilioNumber(updatedNumber || ownedNumber);
-    const populated = await TwilioNumber.findById(number._id).populate('assignedTo', 'name email role');
-
-    res.status(201).json(serializeNumber(populated));
-  } catch (error) {
-    console.error('Import Single Twilio Number Error:', error);
-    res.status(500).json({ message: error.message, code: error.code });
-  }
-};
-
-export const buyNumber = async (req, res) => {
-  try {
-    const phoneNumber = String(req.body.phoneNumber || '').trim();
-    const userId = req.body.userId || '';
-
-    if (!phoneNumber) {
-      return res.status(400).json({ message: 'phoneNumber is required' });
-    }
-
-    const client = getTwilioClient();
-    const purchased = await client.incomingPhoneNumbers.create({
-      phoneNumber,
-      ...buildWebhookConfig()
-    });
-
-    let number = await upsertTwilioNumber(purchased);
-
-    if (userId) {
-      await assignNumberToUserById(number._id, userId);
-      number = await TwilioNumber.findById(number._id).populate('assignedTo', 'name email role');
-    }
-
-    res.status(201).json(serializeNumber(number));
-  } catch (error) {
-    console.error('Buy Twilio Number Error:', error);
+    console.error('Sync Twilio Numbers Error:', error);
     res.status(500).json({ message: error.message, code: error.code });
   }
 };
