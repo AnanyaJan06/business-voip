@@ -38,7 +38,8 @@ export const register = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        assignedPhoneNumber: user.assignedPhoneNumber || ''
       }
     });
   } catch (error) {
@@ -70,7 +71,8 @@ export const login = async (req, res) => {
         id: user._id, 
         name: user.name, 
         email: user.email, 
-        role: user.role 
+        role: user.role,
+        assignedPhoneNumber: user.assignedPhoneNumber || ''
       } 
     });
   } catch (error) {

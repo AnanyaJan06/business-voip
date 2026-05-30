@@ -1,5 +1,7 @@
 import twilio from 'twilio';
 import MessageLog from '../model/MessageLog.js';
+import TwilioNumber from '../model/TwilioNumber.js';
+import { getAssignedNumberForUser } from '../utils/twilioNumbers.js';
 import '../model/User.js';
 
 const getTwilioClient = () => {
@@ -10,7 +12,12 @@ const getTwilioClient = () => {
   return twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
 };
 
-const getSenderConfig = () => {
+const getSenderConfig = async (userId) => {
+  const assignedNumber = await getAssignedNumberForUser(userId);
+  if (assignedNumber) {
+    return { from: assignedNumber };
+  }
+
   if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
     return { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID };
   }
@@ -43,7 +50,7 @@ export const sendMessage = async (req, res) => {
     }
 
     const client = getTwilioClient();
-    const senderConfig = getSenderConfig();
+    const senderConfig = await getSenderConfig(req.user.id);
     const baseUrl = getPublicBaseUrl();
 
     const twilioMessage = await client.messages.create({
@@ -121,9 +128,15 @@ export const updateMessageStatus = async (req, res) => {
 
 export const getMessages = async (req, res) => {
   try {
+    const assignedNumber = req.user.assignedPhoneNumber || await getAssignedNumberForUser(req.user.id);
     const query = req.user.role === 'admin'
       ? {}
-      : { $or: [{ user: req.user.id }, { direction: 'inbound' }] };
+      : {
+          $or: [
+            { user: req.user.id },
+            ...(assignedNumber ? [{ direction: 'inbound', to: assignedNumber }] : [])
+          ]
+        };
 
     const messages = await MessageLog.find(query)
       .populate('user', 'name email role')
@@ -149,8 +162,10 @@ export const receiveMessage = async (req, res) => {
     const to = req.body.To || process.env.TWILIO_PHONE_NUMBER || 'Unknown';
     const body = req.body.Body || '';
     const messageSid = req.body.MessageSid || req.body.SmsSid || '';
+    const assignedNumber = await TwilioNumber.findOne({ phoneNumber: to });
 
     const messageLog = await MessageLog.create({
+      user: assignedNumber?.assignedTo || undefined,
       phoneNumber: from,
       from,
       to,

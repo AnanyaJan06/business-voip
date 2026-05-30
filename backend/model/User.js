@@ -19,6 +19,19 @@ const userSchema = new mongoose.Schema({
     enum: ['admin', 'agent'], 
     default: 'agent' 
   },
+  twilioIdentity: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  assignedPhoneNumber: {
+    type: String,
+    default: ''
+  },
+  assignedPhoneNumberSid: {
+    type: String,
+    default: ''
+  },
   createdAt: { 
     type: Date, 
     default: Date.now 

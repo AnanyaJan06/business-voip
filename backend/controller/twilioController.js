@@ -2,14 +2,21 @@ import twilio from 'twilio';
 import dotenv from 'dotenv';
 import CallLog from '../model/CallLog.js';
 import CallTranscript from '../model/CallTranscript.js';
+import TwilioNumber from '../model/TwilioNumber.js';
+import {
+  ensureVoiceIdentity,
+  getAssignedNumberByIdentity,
+  getAssignedNumberForUser,
+  getPublicBaseUrl,
+  getTwilioClient,
+  normalizeClientIdentity
+} from '../utils/twilioNumbers.js';
 
 dotenv.config();
 
 const AccessToken = twilio.jwt.AccessToken;
 const VoiceGrant = AccessToken.VoiceGrant;
 const BROWSER_CLIENT_IDENTITY = process.env.TWILIO_CLIENT_IDENTITY || 'browser-client';
-
-const getPublicBaseUrl = () => (process.env.BASE_URL || '').replace(/\/$/, '');
 
 const addTranscription = (twiml, labels = { inbound: 'caller', outbound: 'agent' }) => {
   const baseUrl = getPublicBaseUrl();
@@ -78,7 +85,7 @@ const syncTranscriptToCallLog = async (transcript) => {
 // getToken
 export const getToken = async (req, res) => {
   try {
-    const identity = BROWSER_CLIENT_IDENTITY;
+    const identity = await ensureVoiceIdentity(req.user);
 
     const token = new AccessToken(
       process.env.TWILIO_ACCOUNT_SID,
@@ -109,11 +116,17 @@ export const makeCall = async (req, res) => {
   try {
     const { to } = req.body;
     const userId = req.user?.id;
+    const client = getTwilioClient();
+    const from = await getAssignedNumberForUser(userId);
+
+    if (!from) {
+      return res.status(400).json({ message: 'No Twilio number is assigned to this user' });
+    }
 
     const call = await client.calls.create({
       url: `${process.env.BASE_URL}/api/twilio/voice`,
       to: to,
-      from: process.env.TWILIO_PHONE_NUMBER,
+      from,
     });
 
     res.json({ message: 'Call initiated', callSid: call.sid });
@@ -123,12 +136,14 @@ export const makeCall = async (req, res) => {
 };
 
 // voiceResponse (TwiML)
-export const voiceResponse = (req, res) => {
+export const voiceResponse = async (req, res) => {
   try {
     console.log("Twilio webhook body:", req.body); // <-- Added log
 
     const to = req.body.To;
     const callSid = req.body.CallSid;
+    const fromIdentity = normalizeClientIdentity(req.body.From || '');
+    const callerId = await getAssignedNumberByIdentity(fromIdentity);
 
     if (!to) {
       console.log("No destination number received");
@@ -147,7 +162,7 @@ export const voiceResponse = (req, res) => {
     addTranscription(twiml, { inbound: 'agent', outbound: 'customer' });
 
     const dial = twiml.dial({
-      callerId: process.env.TWILIO_PHONE_NUMBER,
+      callerId: callerId || process.env.TWILIO_PHONE_NUMBER,
       answerOnBridge: true
     });
 
@@ -169,7 +184,13 @@ export const voiceResponse = (req, res) => {
 export const incomingVoice = async (req, res) => {
   try {
     const from = req.body.From || 'Unknown';
+    const to = req.body.To || '';
     const callSid = req.body.CallSid;
+    const assignedNumber = to
+      ? await TwilioNumber.findOne({ phoneNumber: to }).populate('assignedTo', 'twilioIdentity assignedPhoneNumber')
+      : null;
+    const assignedUser = assignedNumber?.assignedTo || null;
+    const identity = assignedUser ? await ensureVoiceIdentity(assignedUser) : BROWSER_CLIENT_IDENTITY;
 
     console.log(`📲 Incoming call from: ${from} | SID: ${callSid}`);
 
@@ -177,6 +198,8 @@ export const incomingVoice = async (req, res) => {
     if (io) {
       io.emit('incoming-call', {
         from: from,
+        to,
+        assignedTo: assignedUser?._id,
         callSid: callSid,
         timestamp: new Date().toISOString()
       });
@@ -195,8 +218,8 @@ export const incomingVoice = async (req, res) => {
 
     const client = twiml.dial({
       answerOnBridge: true,
-      callerId: process.env.TWILIO_PHONE_NUMBER
-    }).client(BROWSER_CLIENT_IDENTITY);
+      callerId: to || process.env.TWILIO_PHONE_NUMBER
+    }).client(identity);
 
     client.parameter({
       name: 'originalFrom',
