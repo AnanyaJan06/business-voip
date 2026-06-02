@@ -5,7 +5,9 @@ const BACKEND_URL = 'https://business-voip.onrender.com';
 
 function Settings() {
   const [user, setUser] = useState(null);
+  const [assignedNumbers, setAssignedNumbers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [savingDefault, setSavingDefault] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -15,14 +17,23 @@ function Settings() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (res.ok) {
-          const data = await res.json();
+        const headers = {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        };
+
+        const [userRes, numbersRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/auth/me`, { headers }),
+          fetch(`${BACKEND_URL}/api/phone-numbers/me`, { headers })
+        ]);
+
+        if (userRes.ok) {
+          const data = await userRes.json();
           setUser(data);
+        }
+
+        if (numbersRes.ok) {
+          const data = await numbersRes.json();
+          setAssignedNumbers(Array.isArray(data) ? data : []);
         }
       } catch (err) {
         console.error(err);
@@ -32,6 +43,43 @@ function Settings() {
     };
     fetchUser();
   }, []);
+
+  const handleDefaultNumberChange = async (event) => {
+    const numberId = event.target.value;
+    if (!numberId) return;
+
+    try {
+      setSavingDefault(true);
+      setMessage({ text: '', type: '' });
+
+      const res = await fetch(`${BACKEND_URL}/api/phone-numbers/me/default`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ numberId })
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Failed to update default number');
+
+      setUser((current) => ({
+        ...current,
+        assignedPhoneNumber: data.phoneNumber,
+        assignedPhoneNumberSid: data.sid
+      }));
+      setMessage({ text: `${data.phoneNumber} is now your default sender.`, type: 'success' });
+      } catch (err) {
+      setMessage({ text: err.message, type: 'error' });
+    } finally {
+      setSavingDefault(false);
+    }
+  };
+
+  const defaultNumberId = assignedNumbers.find((number) => (
+    number.sid === user?.assignedPhoneNumberSid || number.phoneNumber === user?.assignedPhoneNumber
+  ))?.id || '';
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -93,6 +141,25 @@ function Settings() {
           <div>
             <p className="text-gray-400 text-xs">Role</p>
             <p className="text-white text-sm font-medium capitalize">{user?.role || 'Agent'}</p>
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs block mb-1.5">Default Number</label>
+            {assignedNumbers.length > 0 ? (
+              <select
+                value={defaultNumberId}
+                onChange={handleDefaultNumberChange}
+                disabled={savingDefault}
+                className="w-full bg-gray-800 border border-gray-700 text-sm text-white rounded-xl px-4 py-3 focus:border-[#059669] disabled:opacity-60"
+              >
+                {assignedNumbers.map((number) => (
+                  <option key={number.id || number._id || number.sid} value={number.id || number._id}>
+                    {number.phoneNumber}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-white text-sm font-medium">No numbers allotted</p>
+            )}
           </div>
         </div>
       </div>

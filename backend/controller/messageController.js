@@ -1,7 +1,7 @@
 import twilio from 'twilio';
 import MessageLog from '../model/MessageLog.js';
 import TwilioNumber from '../model/TwilioNumber.js';
-import { getAssignedNumberForUser } from '../utils/twilioNumbers.js';
+import { getAssignedNumberForUser, getAssignedNumbersForUser } from '../utils/twilioNumbers.js';
 import '../model/User.js';
 
 const getTwilioClient = () => {
@@ -128,13 +128,18 @@ export const updateMessageStatus = async (req, res) => {
 
 export const getMessages = async (req, res) => {
   try {
-    const assignedNumber = req.user.assignedPhoneNumber || await getAssignedNumberForUser(req.user.id);
+    const assignedNumbers = await getAssignedNumbersForUser(req.user.id);
+    const fallbackAssignedNumber = req.user.assignedPhoneNumber || await getAssignedNumberForUser(req.user.id);
+    const recipientNumbers = [...new Set([
+      ...assignedNumbers,
+      fallbackAssignedNumber
+    ].filter(Boolean))];
     const query = req.user.role === 'admin'
       ? {}
       : {
           $or: [
             { user: req.user.id },
-            ...(assignedNumber ? [{ direction: 'inbound', to: assignedNumber }] : [])
+            ...(recipientNumbers.length > 0 ? [{ direction: 'inbound', to: { $in: recipientNumbers } }] : [])
           ]
         };
 

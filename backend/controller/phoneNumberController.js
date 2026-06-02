@@ -7,6 +7,17 @@ import {
   upsertTwilioNumber
 } from '../utils/twilioNumbers.js';
 
+const setUserDefaultNumber = async (userId, number = null) => {
+  if (!userId) return;
+
+  const fallback = number || await TwilioNumber.findOne({ assignedTo: userId }).sort({ phoneNumber: 1 });
+
+  await User.findByIdAndUpdate(userId, {
+    assignedPhoneNumber: fallback?.phoneNumber || '',
+    assignedPhoneNumberSid: fallback?.sid || ''
+  });
+};
+
 const serializeNumber = (number) => ({
   id: number._id,
   sid: number.sid,
@@ -50,6 +61,18 @@ export const listOwnedNumbers = async (req, res) => {
   }
 };
 
+export const listMyAssignedNumbers = async (req, res) => {
+  try {
+    const numbers = await TwilioNumber.find({ assignedTo: req.user.id })
+      .populate('assignedTo', 'name email role')
+      .sort({ phoneNumber: 1 });
+
+    res.json(numbers.map(serializeNumber));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const syncPurchasedNumbers = async (req, res) => {
   try {
     const client = getTwilioClient();
@@ -73,6 +96,9 @@ export const syncPurchasedNumbers = async (req, res) => {
 
     if (staleNumbers.length > 0) {
       console.log('[Twilio Sync] Removing stale numbers:', staleNumbers.map((number) => number.phoneNumber));
+      const affectedUserIds = [...new Set(staleNumbers
+        .map((number) => number.assignedTo?.toString())
+        .filter(Boolean))];
 
       await User.updateMany(
         { assignedPhoneNumberSid: { $in: staleNumbers.map((number) => number.sid) } },
@@ -82,6 +108,8 @@ export const syncPurchasedNumbers = async (req, res) => {
       await TwilioNumber.deleteMany({
         _id: { $in: staleNumbers.map((number) => number._id) }
       });
+
+      await Promise.all(affectedUserIds.map((userId) => setUserDefaultNumber(userId)));
     } else {
       console.log('[Twilio Sync] No stale numbers found.');
     }
@@ -115,15 +143,11 @@ const assignNumberToUserById = async (numberId, userId) => {
   }
 
   if (!userId) {
-    if (number.assignedTo) {
-      await User.findByIdAndUpdate(number.assignedTo, {
-        assignedPhoneNumber: '',
-        assignedPhoneNumberSid: ''
-      });
-    }
+    const previousUserId = number.assignedTo;
 
     number.assignedTo = null;
     await number.save();
+    if (previousUserId) await setUserDefaultNumber(previousUserId);
     return number;
   }
 
@@ -135,22 +159,26 @@ const assignNumberToUserById = async (numberId, userId) => {
   }
 
   await ensureVoiceIdentity(user);
-
-  await TwilioNumber.updateMany({ assignedTo: user._id }, { assignedTo: null });
-
-  if (number.assignedTo && String(number.assignedTo) !== String(user._id)) {
-    await User.findByIdAndUpdate(number.assignedTo, {
-      assignedPhoneNumber: '',
-      assignedPhoneNumberSid: ''
-    });
-  }
+  const previousUserId = number.assignedTo && String(number.assignedTo) !== String(user._id)
+    ? number.assignedTo
+    : null;
 
   number.assignedTo = user._id;
   await number.save();
+  if (previousUserId) await setUserDefaultNumber(previousUserId);
 
-  user.assignedPhoneNumber = number.phoneNumber;
-  user.assignedPhoneNumberSid = number.sid;
-  await user.save();
+  const hasValidDefault = user.assignedPhoneNumberSid
+    ? await TwilioNumber.exists({
+        sid: user.assignedPhoneNumberSid,
+        assignedTo: user._id
+      })
+    : false;
+
+  if (!hasValidDefault) {
+    user.assignedPhoneNumber = number.phoneNumber;
+    user.assignedPhoneNumberSid = number.sid;
+    await user.save();
+  }
 
   return number;
 };
@@ -163,5 +191,55 @@ export const assignNumberToUser = async (req, res) => {
     res.json(serializeNumber(populated));
   } catch (error) {
     res.status(error.status || 500).json({ message: error.message });
+  }
+};
+
+export const setDefaultNumberForUser = async (req, res) => {
+  try {
+    const number = await TwilioNumber.findById(req.params.id);
+    if (!number) {
+      return res.status(404).json({ message: 'Phone number not found' });
+    }
+
+    if (!number.assignedTo) {
+      return res.status(400).json({ message: 'Assign this number to a user before setting it as default' });
+    }
+
+    const user = await User.findById(number.assignedTo);
+    if (!user) {
+      return res.status(404).json({ message: 'Assigned user not found' });
+    }
+
+    user.assignedPhoneNumber = number.phoneNumber;
+    user.assignedPhoneNumberSid = number.sid;
+    await user.save();
+
+    const populated = await TwilioNumber.findById(number._id).populate('assignedTo', 'name email role');
+    res.json(serializeNumber(populated));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const setMyDefaultNumber = async (req, res) => {
+  try {
+    const number = await TwilioNumber.findById(req.body.numberId);
+    if (!number) {
+      return res.status(404).json({ message: 'Phone number not found' });
+    }
+
+    if (String(number.assignedTo || '') !== String(req.user.id)) {
+      return res.status(403).json({ message: 'This number is not allotted to your account' });
+    }
+
+    const user = await User.findById(req.user.id);
+    user.assignedPhoneNumber = number.phoneNumber;
+    user.assignedPhoneNumberSid = number.sid;
+    await user.save();
+
+    const populated = await TwilioNumber.findById(number._id).populate('assignedTo', 'name email role');
+    res.json(serializeNumber(populated));
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };

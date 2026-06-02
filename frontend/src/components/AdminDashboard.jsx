@@ -38,6 +38,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
   const [creating, setCreating] = useState(false);
   const [syncingNumbers, setSyncingNumbers] = useState(false);
   const [assigningNumber, setAssigningNumber] = useState('');
+  const [settingDefaultNumber, setSettingDefaultNumber] = useState('');
   const [notice, setNotice] = useState({ text: '', type: '' });
 
   const authHeaders = useMemo(() => ({
@@ -238,6 +239,33 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     }
   };
 
+  const setDefaultNumber = async (numberId) => {
+    try {
+      setSettingDefaultNumber(numberId);
+      setNotice({ text: '', type: '' });
+
+      const res = await fetch(`${BACKEND_URL}/api/phone-numbers/${numberId}/default`, {
+        method: 'PATCH',
+        headers: authHeaders
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Failed to set default phone number');
+
+      setNotice({ text: `${data.phoneNumber} is now the default sender.`, type: 'success' });
+      fetchDashboardData();
+    } catch (err) {
+      setNotice({ text: err.message, type: 'error' });
+    } finally {
+      setSettingDefaultNumber('');
+    }
+  };
+
+  const getUserAssignedNumbers = (userId) => ownedNumbers.filter((number) => {
+    const assignedId = number.assignedTo?._id || number.assignedTo?.id || number.assignedTo || '';
+    return String(assignedId) === String(userId);
+  });
+
   if (loading) return <LoadingSpinner label="Loading admin dashboard..." />;
 
   return (
@@ -349,7 +377,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold text-white">Twilio Numbers</h3>
-              <p className="text-xs text-gray-400">Sync purchased Twilio numbers, then assign one number to each user.</p>
+              <p className="text-xs text-gray-400">Sync purchased Twilio numbers, assign multiple numbers, and choose each user's default sender.</p>
             </div>
             <button
               type="button"
@@ -372,9 +400,12 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
                 {ownedNumbers.map((number) => {
                   const numberId = number.id || number._id;
                   const assignedId = number.assignedTo?._id || number.assignedTo?.id || number.assignedTo || '';
+                  const assignedUser = users.find((user) => String(user._id || user.id) === String(assignedId));
+                  const isDefault = assignedUser?.assignedPhoneNumberSid === number.sid
+                    || assignedUser?.assignedPhoneNumber === number.phoneNumber;
 
                   return (
-                    <div key={numberId || number.sid} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1.4fr] md:items-center">
+                    <div key={numberId || number.sid} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1.2fr_auto] md:items-center">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-white">{number.phoneNumber}</p>
                         <p className="truncate text-xs text-gray-400">{number.friendlyName || number.sid}</p>
@@ -392,6 +423,18 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
                           </option>
                         ))}
                       </select>
+                      <button
+                        type="button"
+                        onClick={() => setDefaultNumber(numberId)}
+                        disabled={!assignedId || isDefault || settingDefaultNumber === numberId || assigningNumber === numberId}
+                        className={`rounded-xl px-4 py-3 text-xs font-semibold transition disabled:opacity-60 ${
+                          isDefault
+                            ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                            : 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-emerald-500/60 hover:text-white'
+                        }`}
+                      >
+                        {isDefault ? 'Default' : settingDefaultNumber === numberId ? 'Saving...' : 'Set Default'}
+                      </button>
                     </div>
                   );
                 })}
@@ -411,20 +454,45 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
             <p className="py-10 text-center text-sm text-gray-400">No users created yet.</p>
           ) : (
             <div className="divide-y divide-gray-800">
-              {users.map((user) => (
-                <div key={user._id || user.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white">{user.name}</p>
-                    <p className="truncate text-xs text-gray-400">{user.email}</p>
-                    {user.assignedPhoneNumber && (
-                      <p className="truncate text-xs text-emerald-300">{user.assignedPhoneNumber}</p>
-                    )}
+              {users.map((user) => {
+                const userId = user._id || user.id;
+                const assignedNumbers = getUserAssignedNumbers(userId);
+
+                return (
+                  <div key={userId} className="flex items-start justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white">{user.name}</p>
+                      <p className="truncate text-xs text-gray-400">{user.email}</p>
+                      {assignedNumbers.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {assignedNumbers.map((number) => {
+                            const isDefault = user.assignedPhoneNumberSid === number.sid
+                              || user.assignedPhoneNumber === number.phoneNumber;
+
+                            return (
+                              <span
+                                key={number.id || number._id || number.sid}
+                                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                                  isDefault
+                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                    : 'border-gray-700 text-gray-300'
+                                }`}
+                              >
+                                {number.phoneNumber}{isDefault ? ' default' : ''}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-xs text-gray-500">No numbers assigned</p>
+                      )}
+                    </div>
+                    <span className="shrink-0 rounded-full border border-gray-700 px-2.5 py-1 text-[11px] font-semibold capitalize text-gray-300">
+                      {user.role}
+                    </span>
                   </div>
-                  <span className="shrink-0 rounded-full border border-gray-700 px-2.5 py-1 text-[11px] font-semibold capitalize text-gray-300">
-                    {user.role}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
