@@ -1,26 +1,31 @@
 import CallLog from '../model/CallLog.js';
 import CallTranscript from '../model/CallTranscript.js';
+import { getAssignedNumberForUser } from '../utils/twilioNumbers.js';
 import '../model/User.js';
 
 export const saveCallLog = async (req, res) => {
   try {
-    const { phoneNumber, callType, duration = 0, status, callSid } = req.body;
+    const { phoneNumber, callType, duration = 0, status, callSid, localNumber } = req.body;
+    const resolvedCallType = callType || 'outbound';
     const transcriptQuery = {
       $or: [
         ...(callSid ? [{ callSid }] : []),
         {
           phoneNumber,
-          callType: callType || 'outbound',
+          callType: resolvedCallType,
           createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
         }
       ]
     };
     const transcript = await CallTranscript.findOne(transcriptQuery).sort({ updatedAt: -1 });
+    const resolvedLocalNumber = String(localNumber || transcript?.localNumber || '').trim()
+      || (resolvedCallType === 'outbound' ? await getAssignedNumberForUser(req.user.id) : '');
 
     const callLog = await CallLog.create({
       user: req.user.id,
       phoneNumber,
-      callType: callType || 'outbound',
+      localNumber: resolvedLocalNumber,
+      callType: resolvedCallType,
       duration: Number(duration) || 0,        // Ensure it's a number
       status: status || 'completed',
       callSid,

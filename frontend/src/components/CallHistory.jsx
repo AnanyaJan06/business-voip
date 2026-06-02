@@ -260,6 +260,13 @@ function CallHistory() {
     return phone.replace(/\D/g, '').length >= 7;
   };
 
+  const getLocalNumberLabel = (log) => {
+    if (!log.localNumber) return '';
+    return log.callType === 'outbound'
+      ? `From ${formatPhoneNumber(log.localNumber)}`
+      : `To ${formatPhoneNumber(log.localNumber)}`;
+  };
+
   const handleMakeCall = (phoneNumber) => {
     if (!canCallNumber(phoneNumber)) return;
 
@@ -551,6 +558,7 @@ function CallHistory() {
           const transcriptText = String(log.transcriptionText || '').trim();
           const transcriptionStatus = log.transcriptionStatus || 'not-started';
           const showTranscript = expandedTranscriptId === logId;
+          const localNumberLabel = getLocalNumberLabel(log);
 
           return (
             <div
@@ -621,6 +629,12 @@ function CallHistory() {
                     <span>{formatDuration(log.duration)}</span>
                     <span className="text-gray-600">|</span>
                     <span>{formatDateTime(getCallDate(log))}</span>
+                    {localNumberLabel && (
+                      <>
+                        <span className="text-gray-600">|</span>
+                        <span>{localNumberLabel}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

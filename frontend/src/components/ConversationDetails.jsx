@@ -89,6 +89,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
         direction: call.callType || 'call',
         status: call.status || 'completed',
         duration: Number(call.duration) || 0,
+        localNumber: call.localNumber || '',
         date: call.startedAt || call.createdAt,
         userName: call.userName || call.user?.name || ''
       }));
@@ -105,6 +106,8 @@ function ConversationDetails({ phoneNumber, onClose }) {
         status: message.status,
         errorCode: message.errorCode,
         deliveredAt: message.deliveredAt,
+        from: message.from,
+        to: message.to,
         body: message.body,
         date: message.createdAt,
         userName: message.userName || message.user?.name || ''
@@ -130,6 +133,22 @@ function ConversationDetails({ phoneNumber, onClose }) {
     const minutes = Math.floor(value / 60);
     const secs = value % 60;
     return minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
+  };
+
+  const getAllottedNumberLabel = (item) => {
+    if (item.type === 'call') {
+      if (!item.localNumber) return '';
+      return item.direction === 'outbound'
+        ? `From ${item.localNumber}`
+        : `To ${item.localNumber}`;
+    }
+
+    const allottedNumber = item.direction === 'outbound' ? item.from : item.to;
+    if (!allottedNumber) return '';
+
+    return item.direction === 'outbound'
+      ? `From ${allottedNumber}`
+      : `To ${allottedNumber}`;
   };
 
   const groupedTimeline = timeline.reduce((groups, item) => {
@@ -253,6 +272,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
               {items.map((item) => {
                 const isOutbound = item.direction === 'outbound';
                 const isCall = item.type === 'call';
+                const allottedNumberLabel = getAllottedNumberLabel(item);
 
                 return (
                   <div
@@ -278,6 +298,9 @@ function ConversationDetails({ phoneNumber, onClose }) {
                           <p className="mt-1 text-xs text-gray-300">
                             Duration {formatDuration(item.duration)}
                           </p>
+                          {allottedNumberLabel && (
+                            <p className="mt-1 text-xs text-gray-400">{allottedNumberLabel}</p>
+                          )}
                         </>
                       ) : (
                         <>
@@ -294,6 +317,9 @@ function ConversationDetails({ phoneNumber, onClose }) {
                           </p>
                           {item.errorCode && (
                             <p className="mt-1 text-xs text-red-300">Error {item.errorCode}</p>
+                          )}
+                          {allottedNumberLabel && (
+                            <p className="mt-1 text-xs text-gray-400">{allottedNumberLabel}</p>
                           )}
                         </>
                       )}

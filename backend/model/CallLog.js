@@ -14,6 +14,10 @@ const callLogSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
+  localNumber: {
+    type: String,
+    default: ''
+  },
   callType: { 
     type: String, 
     enum: ['outbound', 'inbound', 'missed'], 

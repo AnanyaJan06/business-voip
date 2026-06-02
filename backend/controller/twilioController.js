@@ -64,6 +64,10 @@ const syncTranscriptToCallLog = async (transcript) => {
     transcriptionError: transcript.error || ''
   };
 
+  if (transcript.localNumber) {
+    transcriptUpdate.localNumber = transcript.localNumber;
+  }
+
   const exactResult = await CallLog.updateMany(
     { callSid: transcript.callSid },
     transcriptUpdate
@@ -153,7 +157,7 @@ export const voiceResponse = async (req, res) => {
     if (callSid) {
       CallTranscript.findOneAndUpdate(
         { callSid },
-        { $set: { phoneNumber: to, callType: 'outbound' } },
+        { $set: { phoneNumber: to, localNumber: callerId, callType: 'outbound' } },
         { upsert: true, setDefaultsOnInsert: true }
       ).catch((error) => console.error('Failed to seed outbound transcript:', error));
     }
@@ -208,7 +212,7 @@ export const incomingVoice = async (req, res) => {
     if (callSid) {
       CallTranscript.findOneAndUpdate(
         { callSid },
-        { $set: { phoneNumber: from, callType: 'inbound' } },
+        { $set: { phoneNumber: from, localNumber: to, callType: 'inbound' } },
         { upsert: true, setDefaultsOnInsert: true }
       ).catch((error) => console.error('Failed to seed inbound transcript:', error));
     }
@@ -224,6 +228,11 @@ export const incomingVoice = async (req, res) => {
     client.parameter({
       name: 'originalFrom',
       value: from
+    });
+
+    client.parameter({
+      name: 'originalTo',
+      value: to
     });
 
     res.type('text/xml');

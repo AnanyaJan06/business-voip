@@ -9,6 +9,11 @@ const getIncomingCallerNumber = (conn) => {
   return customFrom || conn?.parameters?.originalFrom || conn?.parameters?.From || 'Unknown Number';
 };
 
+const getIncomingAllottedNumber = (conn) => {
+  const customTo = conn?.customParameters?.get?.('originalTo');
+  return customTo || conn?.parameters?.originalTo || conn?.parameters?.To || '';
+};
+
 function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
@@ -93,11 +98,13 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
         // Listen for Incoming Calls
         twilioDevice.on('incoming', (conn) => {
           const from = getIncomingCallerNumber(conn);
+          const localNumber = getIncomingAllottedNumber(conn);
           console.log("📲 Incoming call from:", from);
 
           activeCallRef.current = {
             callType: 'inbound',
             phoneNumber: from,
+            localNumber,
             callSid: conn.parameters.CallSid || '',
             accepted: false,
             logged: false
@@ -114,6 +121,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
             if (!activeCallRef.current?.accepted) {
               logCall({
                 phoneNumber: from,
+                localNumber,
                 callType: 'inbound',
                 status: 'missed',
                 duration: 0,
@@ -131,6 +139,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
             if (activeCallRef.current?.accepted) {
               handleCallEnd(conn, {
                 phoneNumber: from,
+                localNumber,
                 callType: 'inbound',
                 status: 'completed'
               });
@@ -175,7 +184,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const logCall = async ({ phoneNumber, callType, duration, status, callSid }) => {
+  const logCall = async ({ phoneNumber, localNumber, callType, duration, status, callSid }) => {
     const currentCall = activeCallRef.current;
     if (currentCall?.callSid === callSid && currentCall.logged) return;
 
@@ -192,6 +201,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
         },
         body: JSON.stringify({
           phoneNumber,
+          localNumber,
           callType,
           duration,
           status,
@@ -250,6 +260,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
 
     await logCall({
       phoneNumber: overrides.phoneNumber || activeCallRef.current?.phoneNumber || phoneNumber.trim(),
+      localNumber: overrides.localNumber || activeCallRef.current?.localNumber || '',
       callType: overrides.callType || activeCallRef.current?.callType || 'outbound',
       duration: finalDuration,
       status: overrides.status || 'completed',
@@ -342,6 +353,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
     if (connection) {
       logCall({
         phoneNumber: activeCallRef.current?.phoneNumber || incomingCall?.from || 'Unknown Number',
+        localNumber: activeCallRef.current?.localNumber || '',
         callType: 'inbound',
         status: 'rejected',
         duration: 0,

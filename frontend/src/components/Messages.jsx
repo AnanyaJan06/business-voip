@@ -133,6 +133,15 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
     message.direction === 'outbound' ? message.to : message.from
   );
 
+  const getAllottedNumberLabel = (message) => {
+    const allottedNumber = message.direction === 'outbound' ? message.from : message.to;
+    if (!allottedNumber) return '';
+
+    return message.direction === 'outbound'
+      ? `From ${allottedNumber}`
+      : `To ${allottedNumber}`;
+  };
+
   const messageThreads = useMemo(() => {
     const threads = new Map();
 
@@ -255,6 +264,11 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
                       }`}>
                         {formatMessageStatus(message.status)}
                       </span>
+                    )}
+                    {getAllottedNumberLabel(message) && (
+                      <p className="mt-1 truncate text-xs text-gray-400">
+                        {getAllottedNumberLabel(message)}
+                      </p>
                     )}
                   </div>
                   <span className="shrink-0 text-xs text-gray-500">

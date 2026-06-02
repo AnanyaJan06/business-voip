@@ -26,6 +26,10 @@ const callTranscriptSchema = new mongoose.Schema({
     type: String,
     index: true
   },
+  localNumber: {
+    type: String,
+    default: ''
+  },
   callType: {
     type: String,
     enum: ['outbound', 'inbound']
