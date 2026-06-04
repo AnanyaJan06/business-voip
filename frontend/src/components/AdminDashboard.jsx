@@ -16,7 +16,15 @@ const formatDateTime = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Never';
 
-  return date.toLocaleString();
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
 };
 
 function StatCard({ label, value, tone }) {
@@ -473,16 +481,16 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
                       <p className="truncate text-sm font-semibold text-white">{user.name}</p>
                       <p className="truncate text-xs text-gray-400">{user.email}</p>
                       <div className="mt-2 grid gap-1 text-[11px] text-gray-400 sm:grid-cols-2">
-                        <p className="truncate">
+                        <p className="break-words">
                           <span className="text-gray-500">Login IP:</span> {user.lastLoginIp || 'Not recorded'}
                         </p>
-                        <p className="truncate">
+                        <p className="break-words">
                           <span className="text-gray-500">Logout IP:</span> {user.lastLogoutIp || 'Not recorded'}
                         </p>
-                        <p className="truncate">
+                        <p className="break-words">
                           <span className="text-gray-500">Last login:</span> {formatDateTime(user.lastLoginAt)}
                         </p>
-                        <p className="truncate">
+                        <p className="break-words">
                           <span className="text-gray-500">Last logout:</span> {formatDateTime(user.lastLogoutAt)}
                         </p>
                       </div>
