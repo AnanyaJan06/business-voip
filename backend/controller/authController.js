@@ -2,6 +2,15 @@ import User from '../model/User.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
+const getClientIp = (req) => {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  const ip = Array.isArray(forwardedFor)
+    ? forwardedFor[0]
+    : forwardedFor?.split(',')[0] || req.ip || req.socket?.remoteAddress || '';
+
+  return ip.trim().replace(/^::ffff:/, '');
+};
+
 export const requireAdmin = (req, res, next) => {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ message: 'Admin access required' });
@@ -65,6 +74,10 @@ export const login = async (req, res) => {
       expiresIn: '7d' 
     });
 
+    user.lastLoginIp = getClientIp(req);
+    user.lastLoginAt = new Date();
+    await user.save();
+
     res.json({ 
       token, 
       user: { 
@@ -75,6 +88,24 @@ export const login = async (req, res) => {
         assignedPhoneNumber: user.assignedPhoneNumber || ''
       } 
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const logout = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.lastLogoutIp = getClientIp(req);
+    user.lastLogoutAt = new Date();
+    await user.save();
+
+    res.json({ message: 'Logged out successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -32,6 +32,20 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  lastLoginIp: {
+    type: String,
+    default: ''
+  },
+  lastLoginAt: {
+    type: Date
+  },
+  lastLogoutIp: {
+    type: String,
+    default: ''
+  },
+  lastLogoutAt: {
+    type: Date
+  },
   createdAt: { 
     type: Date, 
     default: Date.now 

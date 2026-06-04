@@ -10,6 +10,15 @@ const emptyForm = {
   role: 'agent'
 };
 
+const formatDateTime = (value) => {
+  if (!value) return 'Never';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Never';
+
+  return date.toLocaleString();
+};
+
 function StatCard({ label, value, tone }) {
   const tones = {
     total: 'border-emerald-500/20 bg-[#059669]/10 text-emerald-300',
@@ -463,6 +472,20 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-white">{user.name}</p>
                       <p className="truncate text-xs text-gray-400">{user.email}</p>
+                      <div className="mt-2 grid gap-1 text-[11px] text-gray-400 sm:grid-cols-2">
+                        <p className="truncate">
+                          <span className="text-gray-500">Login IP:</span> {user.lastLoginIp || 'Not recorded'}
+                        </p>
+                        <p className="truncate">
+                          <span className="text-gray-500">Logout IP:</span> {user.lastLogoutIp || 'Not recorded'}
+                        </p>
+                        <p className="truncate">
+                          <span className="text-gray-500">Last login:</span> {formatDateTime(user.lastLoginAt)}
+                        </p>
+                        <p className="truncate">
+                          <span className="text-gray-500">Last logout:</span> {formatDateTime(user.lastLogoutAt)}
+                        </p>
+                      </div>
                       {assignedNumbers.length > 0 ? (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {assignedNumbers.map((number) => {

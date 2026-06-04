@@ -286,7 +286,22 @@ function App() {
     setShowDialerModal(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const currentToken = localStorage.getItem('token');
+
+    if (currentToken) {
+      try {
+        await fetch(`${BACKEND_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${currentToken}`
+          }
+        });
+      } catch (error) {
+        console.error('Failed to record logout:', error);
+      }
+    }
+
     localStorage.removeItem('token');
     setToken(null);
     setShowLogoutModal(false);
