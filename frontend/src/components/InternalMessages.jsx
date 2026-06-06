@@ -138,9 +138,7 @@ function InternalMessages({ currentUser, onReadMessages }) {
         <div className="border-b border-gray-800 md:border-b-0 md:border-r">
           <div className="border-b border-gray-800 px-3 py-3">
             <h3 className="text-sm font-semibold text-white">Team Chat</h3>
-            <p className="text-xs text-gray-400">
-              {currentUser?.role === 'admin' ? 'Admins and agents' : 'Admins'}
-            </p>
+            <p className="text-xs text-gray-400">Admins and agents</p>
           </div>
 
           {loadingUsers ? (

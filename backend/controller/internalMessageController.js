@@ -6,22 +6,18 @@ const canMessageUser = (currentUser, otherUser) => {
     return false;
   }
 
-  if (currentUser.role === 'admin') {
-    return ['admin', 'agent'].includes(otherUser.role);
-  }
-
-  return otherUser.role === 'admin';
+  return ['admin', 'agent'].includes(currentUser.role)
+    && ['admin', 'agent'].includes(otherUser.role);
 };
 
 const userFields = 'name email role';
 
 export const getChatUsers = async (req, res) => {
   try {
-    const query = req.user.role === 'admin'
-      ? { _id: { $ne: req.user.id }, role: { $in: ['admin', 'agent'] } }
-      : { role: 'admin', _id: { $ne: req.user.id } };
-
-    const users = await User.find(query)
+    const users = await User.find({
+      _id: { $ne: req.user.id },
+      role: { $in: ['admin', 'agent'] }
+    })
       .select(userFields)
       .sort({ role: 1, name: 1 });
 
