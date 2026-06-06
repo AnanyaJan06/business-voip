@@ -1,4 +1,6 @@
 import User from '../model/User.js';
+import CallLog from '../model/CallLog.js';
+import MessageLog from '../model/MessageLog.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -129,6 +131,61 @@ export const getUsers = async (req, res) => {
       .sort({ createdAt: -1 });
 
     res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const readDateRange = (startValue, endValue) => {
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+    return null;
+  }
+
+  return { start, end };
+};
+
+export const getAdminActivityStats = async (req, res) => {
+  try {
+    const monthRange = readDateRange(req.query.monthStart, req.query.monthEnd);
+    const dateRange = readDateRange(req.query.dateStart, req.query.dateEnd);
+
+    if (!monthRange || !dateRange) {
+      return res.status(400).json({ message: 'Valid month and date ranges are required' });
+    }
+
+    const [
+      monthCalls,
+      monthMessages,
+      selectedDateCalls,
+      selectedDateMessages
+    ] = await Promise.all([
+      CallLog.countDocuments({
+        startedAt: { $gte: monthRange.start, $lt: monthRange.end }
+      }),
+      MessageLog.countDocuments({
+        createdAt: { $gte: monthRange.start, $lt: monthRange.end }
+      }),
+      CallLog.countDocuments({
+        startedAt: { $gte: dateRange.start, $lt: dateRange.end }
+      }),
+      MessageLog.countDocuments({
+        createdAt: { $gte: dateRange.start, $lt: dateRange.end }
+      })
+    ]);
+
+    res.json({
+      month: {
+        calls: monthCalls,
+        messages: monthMessages
+      },
+      selectedDate: {
+        calls: selectedDateCalls,
+        messages: selectedDateMessages
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

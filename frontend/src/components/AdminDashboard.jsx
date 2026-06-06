@@ -10,6 +10,32 @@ const emptyForm = {
   role: 'agent'
 };
 
+const getDateInputValue = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
+const getDateRangeParams = (selectedDateValue) => {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const selectedDate = selectedDateValue
+    ? new Date(`${selectedDateValue}T00:00:00`)
+    : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateEnd = new Date(selectedDate);
+  dateEnd.setDate(dateEnd.getDate() + 1);
+
+  return new URLSearchParams({
+    monthStart: monthStart.toISOString(),
+    monthEnd: monthEnd.toISOString(),
+    dateStart: selectedDate.toISOString(),
+    dateEnd: dateEnd.toISOString()
+  });
+};
+
 const formatDateTime = (value) => {
   if (!value) return 'Never';
 
@@ -47,6 +73,11 @@ function StatCard({ label, value, tone }) {
 function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = true }) {
   const [calls, setCalls] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [activityStats, setActivityStats] = useState({
+    month: { calls: 0, messages: 0 },
+    selectedDate: { calls: 0, messages: 0 }
+  });
+  const [selectedStatsDate, setSelectedStatsDate] = useState(() => getDateInputValue());
   const [users, setUsers] = useState([]);
   const [ownedNumbers, setOwnedNumbers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,39 +98,56 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       setLoading(true);
       setError('');
 
-      const requests = [
-        fetch(`${BACKEND_URL}/api/calls/logs`, { headers: authHeaders }),
-        fetch(`${BACKEND_URL}/api/messages`, { headers: authHeaders })
-      ];
+      const callsPromise = fetch(`${BACKEND_URL}/api/calls/logs`, { headers: authHeaders });
+      const messagesPromise = fetch(`${BACKEND_URL}/api/messages`, { headers: authHeaders });
+      const statsPromise = showStats
+        ? fetch(`${BACKEND_URL}/api/auth/admin-activity-stats?${getDateRangeParams(selectedStatsDate)}`, {
+            headers: authHeaders
+          })
+        : Promise.resolve(null);
+      const usersPromise = showUsers
+        ? fetch(`${BACKEND_URL}/api/auth/users`, { headers: authHeaders })
+        : Promise.resolve(null);
+      const numbersPromise = showUsers
+        ? fetch(`${BACKEND_URL}/api/phone-numbers`, { headers: authHeaders })
+        : Promise.resolve(null);
 
-      if (showUsers) {
-        requests.push(fetch(`${BACKEND_URL}/api/auth/users`, { headers: authHeaders }));
-        requests.push(fetch(`${BACKEND_URL}/api/phone-numbers`, { headers: authHeaders }));
-      }
+      const [callsRes, messagesRes, statsRes, usersRes, numbersRes] = await Promise.all([
+        callsPromise,
+        messagesPromise,
+        statsPromise,
+        usersPromise,
+        numbersPromise
+      ]);
 
-      const [callsRes, messagesRes, usersRes, numbersRes] = await Promise.all(requests);
-
-      const responses = [
+      const [callsData, messagesData, statsData, usersData, numbersData] = await Promise.all([
         callsRes.json(),
-        messagesRes.json()
-      ];
-
-      if (usersRes) {
-        responses.push(usersRes.json());
-      }
-      if (numbersRes) {
-        responses.push(numbersRes.json());
-      }
-
-      const [callsData, messagesData, usersData, numbersData] = await Promise.all(responses);
+        messagesRes.json(),
+        statsRes ? statsRes.json() : Promise.resolve(null),
+        usersRes ? usersRes.json() : Promise.resolve(null),
+        numbersRes ? numbersRes.json() : Promise.resolve(null)
+      ]);
 
       if (!callsRes.ok) throw new Error(callsData.message || 'Failed to load call totals');
       if (!messagesRes.ok) throw new Error(messagesData.message || 'Failed to load message totals');
+      if (statsRes && !statsRes.ok) throw new Error(statsData.message || 'Failed to load activity totals');
       if (usersRes && !usersRes.ok) throw new Error(usersData.message || 'Failed to load users');
       if (numbersRes && !numbersRes.ok) throw new Error(numbersData.message || 'Failed to load phone numbers');
 
       setCalls(Array.isArray(callsData) ? callsData : []);
       setMessages(Array.isArray(messagesData) ? messagesData : []);
+      if (showStats) {
+        setActivityStats({
+          month: {
+            calls: Number(statsData?.month?.calls) || 0,
+            messages: Number(statsData?.month?.messages) || 0
+          },
+          selectedDate: {
+            calls: Number(statsData?.selectedDate?.calls) || 0,
+            messages: Number(statsData?.selectedDate?.messages) || 0
+          }
+        });
+      }
       if (showUsers) {
         setUsers(Array.isArray(usersData) ? usersData : []);
         setOwnedNumbers(Array.isArray(numbersData) ? numbersData : []);
@@ -109,7 +157,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, showUsers]);
+  }, [authHeaders, selectedStatsDate, showStats, showUsers]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -303,6 +351,30 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
 
       {showStats && (
         <>
+          <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Monthly Activity</h3>
+                <p className="text-xs text-gray-400">Counts for this month and the selected date.</p>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs text-gray-400">Filter by date</label>
+                <input
+                  type="date"
+                  value={selectedStatsDate}
+                  onChange={(event) => setSelectedStatsDate(event.target.value)}
+                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-[#059669] sm:w-auto"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard label="This Month Calls" value={activityStats.month.calls} tone="total" />
+              <StatCard label="This Month Messages" value={activityStats.month.messages} tone="messages" />
+              <StatCard label="Selected Date Calls" value={activityStats.selectedDate.calls} tone="outbound" />
+              <StatCard label="Selected Date Messages" value={activityStats.selectedDate.messages} tone="messages" />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <StatCard label="Total Calls" value={totals.total} tone="total" />
             <StatCard label="Inbound Calls" value={totals.inbound} tone="inbound" />
