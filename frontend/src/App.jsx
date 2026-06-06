@@ -142,6 +142,7 @@ function App() {
     }
     if (tabId === 'team') {
       setUnreadTeamMessages(0);
+      window.dispatchEvent(new Event('refreshInternalMessages'));
     }
   }, []);
 

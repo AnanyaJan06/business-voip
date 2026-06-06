@@ -117,6 +117,25 @@ html[data-theme="day"] .conversation-sms-inbound .text-gray-400 {
   color: #64748b;
 }
 
+html[data-theme="day"] .internal-message-outbound {
+  background-color: #059669;
+  color: #ffffff;
+}
+
+html[data-theme="day"] .internal-message-inbound {
+  background-color: #eef3f8;
+  color: #172033;
+  border: 1px solid #d7e0eb;
+}
+
+html[data-theme="day"] .internal-message-outbound .internal-message-time {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+html[data-theme="day"] .internal-message-inbound .internal-message-time {
+  color: #64748b;
+}
+
 html[data-theme="day"] .dialer-panel,
 html[data-theme="day"] .dialer-panel .bg-\[\#161B28\] {
   background-color: #ffffff;

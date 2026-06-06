@@ -38,8 +38,13 @@ function InternalMessages({ currentUser, onReadMessages }) {
 
       if (!res.ok) throw new Error(data.message || 'Failed to load chat users');
 
-      setUsers(Array.isArray(data) ? data : []);
-      setSelectedUserId((current) => current || getUserId(data?.[0]) || '');
+      const chatUsers = Array.isArray(data) ? data : [];
+      setUsers(chatUsers);
+      setSelectedUserId((current) => (
+        chatUsers.some((user) => getUserId(user) === current)
+          ? current
+          : getUserId(chatUsers[0]) || ''
+      ));
     } catch (error) {
       setNotice({ text: error.message, type: 'error' });
     } finally {
@@ -160,8 +165,20 @@ function InternalMessages({ currentUser, onReadMessages }) {
                       active ? 'bg-emerald-500/10 text-white' : 'text-gray-300 hover:bg-gray-800'
                     }`}
                   >
-                    <span className="block truncate text-sm font-semibold">{user.name}</span>
-                    <span className="block truncate text-[11px] capitalize text-gray-500">{user.role}</span>
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="block min-w-0 truncate text-sm font-semibold">{user.name}</span>
+                      {user.unreadCount > 0 && (
+                        <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                          {user.unreadCount > 99 ? '99+' : user.unreadCount}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[11px] capitalize text-gray-500">{user.role}</span>
+                    {user.lastMessagePreview && (
+                      <span className="mt-1 block truncate text-xs text-gray-400">
+                        {user.lastMessagePreview}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -197,10 +214,12 @@ function InternalMessages({ currentUser, onReadMessages }) {
                 return (
                   <div key={message._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[78%] rounded-xl px-3 py-2 ${
-                      mine ? 'bg-[#059669] text-white' : 'bg-gray-800 text-gray-100'
+                      mine
+                        ? 'internal-message-outbound bg-[#059669] text-white'
+                        : 'internal-message-inbound bg-gray-800 text-white'
                     }`}>
                       <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
-                      <p className={`mt-1 text-[10px] ${mine ? 'text-emerald-50/80' : 'text-gray-500'}`}>
+                      <p className={`internal-message-time mt-1 text-[10px] ${mine ? 'text-emerald-50/80' : 'text-gray-500'}`}>
                         {formatTime(message.createdAt)}
                       </p>
                     </div>

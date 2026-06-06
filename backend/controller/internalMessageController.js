@@ -21,7 +21,44 @@ export const getChatUsers = async (req, res) => {
       .select(userFields)
       .sort({ role: 1, name: 1 });
 
-    res.json(users);
+    const usersWithUnreadCounts = await Promise.all(users.map(async (user) => {
+      const [unreadCount, lastMessage] = await Promise.all([
+        InternalMessage.countDocuments({
+          sender: user._id,
+          recipient: req.user.id,
+          readAt: { $exists: false }
+        }),
+        InternalMessage.findOne({
+          $or: [
+            { sender: req.user.id, recipient: user._id },
+            { sender: user._id, recipient: req.user.id }
+          ]
+        })
+          .select('body createdAt sender recipient')
+          .sort({ createdAt: -1 })
+      ]);
+
+      return {
+        ...user.toObject(),
+        unreadCount,
+        lastMessageAt: lastMessage?.createdAt || null,
+        lastMessagePreview: lastMessage?.body || ''
+      };
+    }));
+
+    usersWithUnreadCounts.sort((a, b) => {
+      if (b.unreadCount !== a.unreadCount) {
+        return b.unreadCount - a.unreadCount;
+      }
+
+      if (a.lastMessageAt || b.lastMessageAt) {
+        return new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0);
+      }
+
+      return a.name.localeCompare(b.name);
+    });
+
+    res.json(usersWithUnreadCounts);
   } catch (error) {
     console.error('Get Chat Users Error:', error);
     res.status(500).json({ message: error.message });
