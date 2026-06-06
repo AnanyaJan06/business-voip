@@ -6,6 +6,7 @@ import ConfirmModal from './components/ConfirmModal.jsx';
 import Contacts from './components/Contacts.jsx';
 import ConversationDetails from './components/ConversationDetails.jsx';
 import Messages from './components/Messages.jsx';
+import InternalMessages from './components/InternalMessages.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 import FollowUps from './components/FollowUps.jsx';
 import Settings from './pages/Settings.jsx';
@@ -52,6 +53,14 @@ function NavIcon({ type }) {
     messages: (
       <svg {...common}>
         <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+      </svg>
+    ),
+    team: (
+      <svg {...common}>
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
     followups: (
@@ -114,6 +123,7 @@ function App() {
   const [conversationNumber, setConversationNumber] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'night');
   const [unreadMessages, setUnreadMessages] = useState(() => Number(localStorage.getItem('unreadMessages')) || 0);
+  const [unreadTeamMessages, setUnreadTeamMessages] = useState(0);
   const [dueFollowUps, setDueFollowUps] = useState(0);
   const [followUpToast, setFollowUpToast] = useState(null);
   const [smsToast, setSmsToast] = useState(null);
@@ -129,6 +139,9 @@ function App() {
     setActiveTab(tabId);
     if (tabId === 'messages') {
       setUnreadMessages(0);
+    }
+    if (tabId === 'team') {
+      setUnreadTeamMessages(0);
     }
   }, []);
 
@@ -161,6 +174,25 @@ function App() {
   useEffect(() => {
     localStorage.setItem('unreadMessages', String(unreadMessages));
   }, [unreadMessages]);
+
+  const refreshUnreadTeamMessages = useCallback(async () => {
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/internal-messages/unread-count`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await readJsonResponse(res);
+
+      if (res.ok) {
+        setUnreadTeamMessages(Number(data.count) || 0);
+      }
+    } catch (error) {
+      console.error('Failed to refresh team message count:', error);
+    }
+  }, [token]);
 
   const refreshDueFollowUps = useCallback(async () => {
     if (!token) return;
@@ -229,6 +261,7 @@ function App() {
     };
 
     fetchCurrentUser();
+    const unreadRefreshTimer = window.setTimeout(refreshUnreadTeamMessages, 0);
 
     const socket = io(BACKEND_URL, {
       transports: ['websocket', 'polling']
@@ -256,11 +289,20 @@ function App() {
       window.dispatchEvent(new Event('refreshMessages'));
     });
 
+    socket.on('internal-message-created', (message) => {
+      window.dispatchEvent(new Event('refreshInternalMessages'));
+
+      if (String(message.recipient?._id || message.recipient?.id) === String(currentUser?.id || currentUser?._id)) {
+        refreshUnreadTeamMessages();
+      }
+    });
+
     return () => {
+      window.clearTimeout(unreadRefreshTimer);
       window.clearTimeout(smsToastTimerRef.current);
       socket.disconnect();
     };
-  }, [token]);
+  }, [currentUser, refreshUnreadTeamMessages, token]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -309,6 +351,7 @@ function App() {
     setSelectedMessageNumber('');
     setConversationNumber('');
     setUnreadMessages(0);
+    setUnreadTeamMessages(0);
     setDueFollowUps(0);
     setFollowUpToast(null);
     setCurrentUser(null);
@@ -337,6 +380,7 @@ function App() {
             { id: 'history', label: 'Calls' },
             { id: 'contacts', label: 'Contacts' },
             { id: 'messages', label: 'Messages' },
+            { id: 'team', label: 'Team Chat' },
             { id: 'followups', label: 'Follow Ups' },
             { id: 'settings', label: 'Settings' },
           ].map((item) => (
@@ -351,6 +395,11 @@ function App() {
               {item.id === 'messages' && unreadMessages > 0 && (
                 <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
                   {unreadMessages > 99 ? '99+' : unreadMessages}
+                </span>
+              )}
+              {item.id === 'team' && unreadTeamMessages > 0 && (
+                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                  {unreadTeamMessages > 99 ? '99+' : unreadTeamMessages}
                 </span>
               )}
               {item.id === 'followups' && dueFollowUps > 0 && (
@@ -398,6 +447,7 @@ function App() {
             {activeTab === 'history' && 'Call History'}
             {activeTab === 'contacts' && 'Contacts'}
             {activeTab === 'messages' && 'Messages'}
+            {activeTab === 'team' && 'Team Chat'}
             {activeTab === 'followups' && 'Follow Ups'}
             {activeTab === 'settings' && 'Settings'}
           </h2>
@@ -427,6 +477,12 @@ function App() {
             <Messages
               selectedPhoneNumber={selectedMessageNumber}
               onRecipientUsed={clearSelectedMessageNumber}
+            />
+          )}
+          {activeTab === 'team' && (
+            <InternalMessages
+              currentUser={currentUser}
+              onReadMessages={refreshUnreadTeamMessages}
             />
           )}
           {activeTab === 'followups' && (
