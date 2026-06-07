@@ -3,7 +3,7 @@ import LoadingSpinner from './LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
-const emptyForm = {
+const emptyForm = { 
   name: '',
   email: '',
   password: '',
