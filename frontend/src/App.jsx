@@ -131,6 +131,7 @@ function App() {
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
   const [currentUser, setCurrentUser] = useState(null);
   const activeTabRef = useRef(activeTab);
+  const currentUserRef = useRef(currentUser);
   const smsToastTimerRef = useRef(null);
   const followUpToastTimerRef = useRef(null);
   const isAdmin = currentUser?.role === 'admin';
@@ -171,6 +172,10 @@ function App() {
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   useEffect(() => {
     localStorage.setItem('unreadMessages', String(unreadMessages));
@@ -262,6 +267,11 @@ function App() {
     };
 
     fetchCurrentUser();
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
     const unreadRefreshTimer = window.setTimeout(refreshUnreadTeamMessages, 0);
 
     const socket = io(BACKEND_URL, {
@@ -292,8 +302,9 @@ function App() {
 
     socket.on('internal-message-created', (message) => {
       window.dispatchEvent(new Event('refreshInternalMessages'));
+      const user = currentUserRef.current;
 
-      if (String(message.recipient?._id || message.recipient?.id) === String(currentUser?.id || currentUser?._id)) {
+      if (String(message.recipient?._id || message.recipient?.id) === String(user?.id || user?._id)) {
         refreshUnreadTeamMessages();
       }
     });
@@ -303,7 +314,7 @@ function App() {
       window.clearTimeout(smsToastTimerRef.current);
       socket.disconnect();
     };
-  }, [currentUser, refreshUnreadTeamMessages, token]);
+  }, [refreshUnreadTeamMessages, token]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
