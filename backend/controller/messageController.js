@@ -168,9 +168,10 @@ export const receiveMessage = async (req, res) => {
     const body = req.body.Body || '';
     const messageSid = req.body.MessageSid || req.body.SmsSid || '';
     const assignedNumber = await TwilioNumber.findOne({ phoneNumber: to });
+    const assignedTo = assignedNumber?.assignedTo ? String(assignedNumber.assignedTo) : '';
 
     const messageLog = await MessageLog.create({
-      user: assignedNumber?.assignedTo || undefined,
+      user: assignedTo || undefined,
       phoneNumber: from,
       from,
       to,
@@ -187,6 +188,7 @@ export const receiveMessage = async (req, res) => {
         to,
         body,
         messageSid,
+        assignedTo,
         createdAt: messageLog.createdAt
       });
     }

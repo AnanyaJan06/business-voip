@@ -15,6 +15,9 @@ import './App.css';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
+const getUserId = (user) => String(user?.id || user?._id || '');
+const getUnreadMessagesKey = (userId) => `unreadMessages:${userId}`;
+
 const readJsonResponse = async (res) => {
   const text = await res.text();
   try {
@@ -122,7 +125,7 @@ function App() {
   const [selectedMessageNumber, setSelectedMessageNumber] = useState('');
   const [conversationNumber, setConversationNumber] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'night');
-  const [unreadMessages, setUnreadMessages] = useState(() => Number(localStorage.getItem('unreadMessages')) || 0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadTeamMessages, setUnreadTeamMessages] = useState(0);
   const [dueFollowUps, setDueFollowUps] = useState(0);
   const [followUpToast, setFollowUpToast] = useState(null);
@@ -178,8 +181,21 @@ function App() {
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('unreadMessages', String(unreadMessages));
-  }, [unreadMessages]);
+    const userId = getUserId(currentUser);
+    if (!userId) {
+      setUnreadMessages(0);
+      return;
+    }
+
+    setUnreadMessages(Number(localStorage.getItem(getUnreadMessagesKey(userId))) || 0);
+  }, [currentUser]);
+
+  useEffect(() => {
+    const userId = getUserId(currentUser);
+    if (!userId) return;
+
+    localStorage.setItem(getUnreadMessagesKey(userId), String(unreadMessages));
+  }, [currentUser, unreadMessages]);
 
   const refreshUnreadTeamMessages = useCallback(async () => {
     if (!token) return;
@@ -279,6 +295,11 @@ function App() {
     });
 
     socket.on('incoming-message', (message) => {
+      const assignedTo = String(message.assignedTo || '');
+      const currentUserId = getUserId(currentUserRef.current);
+
+      if (!assignedTo || assignedTo !== currentUserId) return;
+
       window.dispatchEvent(new Event('refreshMessages'));
       setSmsToast(message);
 
