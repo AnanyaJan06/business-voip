@@ -18,10 +18,18 @@ const getDateInputValue = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const getDateRangeParams = (selectedDateValue) => {
+const getMonthInputValue = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+
+  return `${year}-${month}`;
+};
+
+const getDateRangeParams = (selectedMonthValue, selectedDateValue) => {
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const [monthYear, monthNumber] = (selectedMonthValue || getMonthInputValue()).split('-').map(Number);
+  const monthStart = new Date(monthYear || now.getFullYear(), (monthNumber || now.getMonth() + 1) - 1, 1);
+  const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
   const selectedDate = selectedDateValue
     ? new Date(`${selectedDateValue}T00:00:00`)
     : new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -77,7 +85,11 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     month: { calls: 0, messages: 0 },
     selectedDate: { calls: 0, messages: 0 }
   });
-  const [selectedStatsDate, setSelectedStatsDate] = useState(() => getDateInputValue());
+  const [statsMonthInput, setStatsMonthInput] = useState(() => getMonthInputValue());
+  const [statsDateInput, setStatsDateInput] = useState(() => getDateInputValue());
+  const [appliedStatsMonth, setAppliedStatsMonth] = useState(() => getMonthInputValue());
+  const [appliedStatsDate, setAppliedStatsDate] = useState(() => getDateInputValue());
+  const [statsRefreshKey, setStatsRefreshKey] = useState(0);
   const [users, setUsers] = useState([]);
   const [ownedNumbers, setOwnedNumbers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,10 +110,13 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       setLoading(true);
       setError('');
 
+      const statsParams = getDateRangeParams(appliedStatsMonth, appliedStatsDate);
+      statsParams.set('refreshKey', String(statsRefreshKey));
+
       const callsPromise = fetch(`${BACKEND_URL}/api/calls/logs`, { headers: authHeaders });
       const messagesPromise = fetch(`${BACKEND_URL}/api/messages`, { headers: authHeaders });
       const statsPromise = showStats
-        ? fetch(`${BACKEND_URL}/api/auth/admin-activity-stats?${getDateRangeParams(selectedStatsDate)}`, {
+        ? fetch(`${BACKEND_URL}/api/auth/admin-activity-stats?${statsParams}`, {
             headers: authHeaders
           })
         : Promise.resolve(null);
@@ -157,7 +172,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     } finally {
       setLoading(false);
     }
-  }, [authHeaders, selectedStatsDate, showStats, showUsers]);
+  }, [appliedStatsDate, appliedStatsMonth, authHeaders, showStats, showUsers, statsRefreshKey]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -211,6 +226,12 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       ...current,
       [name]: value
     }));
+  };
+
+  const refreshActivityStats = () => {
+    setAppliedStatsMonth(statsMonthInput);
+    setAppliedStatsDate(statsDateInput);
+    setStatsRefreshKey((current) => current + 1);
   };
 
   const createUser = async (event) => {
@@ -355,21 +376,39 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-sm font-semibold text-white">Monthly Activity</h3>
-                <p className="text-xs text-gray-400">Counts for this month and the selected date.</p>
+                <p className="text-xs text-gray-400">Choose a month and date, then refresh the counts.</p>
               </div>
-              <div>
-                <label className="mb-1.5 block text-xs text-gray-400">Filter by date</label>
-                <input
-                  type="date"
-                  value={selectedStatsDate}
-                  onChange={(event) => setSelectedStatsDate(event.target.value)}
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-[#059669] sm:w-auto"
-                />
+              <div className="grid gap-2 sm:grid-cols-[auto_auto_auto] sm:items-end">
+                <div>
+                  <label className="mb-1.5 block text-xs text-gray-400">Filter by month</label>
+                  <input
+                    type="month"
+                    value={statsMonthInput}
+                    onChange={(event) => setStatsMonthInput(event.target.value)}
+                    className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-[#059669] sm:w-auto"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs text-gray-400">Filter by date</label>
+                  <input
+                    type="date"
+                    value={statsDateInput}
+                    onChange={(event) => setStatsDateInput(event.target.value)}
+                    className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-[#059669] sm:w-auto"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={refreshActivityStats}
+                  className="rounded-xl bg-[#059669] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#047857]"
+                >
+                  Refresh
+                </button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <StatCard label="This Month Calls" value={activityStats.month.calls} tone="total" />
-              <StatCard label="This Month Messages" value={activityStats.month.messages} tone="messages" />
+              <StatCard label="Selected Month Calls" value={activityStats.month.calls} tone="total" />
+              <StatCard label="Selected Month Messages" value={activityStats.month.messages} tone="messages" />
               <StatCard label="Selected Date Calls" value={activityStats.selectedDate.calls} tone="outbound" />
               <StatCard label="Selected Date Messages" value={activityStats.selectedDate.messages} tone="messages" />
             </div>
