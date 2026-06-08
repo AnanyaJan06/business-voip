@@ -17,6 +17,7 @@ dotenv.config();
 const AccessToken = twilio.jwt.AccessToken;
 const VoiceGrant = AccessToken.VoiceGrant;
 const BROWSER_CLIENT_IDENTITY = process.env.TWILIO_CLIENT_IDENTITY || 'browser-client';
+const MISSED_DIAL_STATUSES = new Set(['busy', 'canceled', 'failed', 'no-answer']);
 
 const addTranscription = (twiml, labels = { inbound: 'caller', outbound: 'agent' }) => {
   const baseUrl = getPublicBaseUrl();
@@ -84,6 +85,26 @@ const syncTranscriptToCallLog = async (transcript) => {
     transcriptUpdate,
     { sort: { startedAt: -1 } }
   );
+};
+
+const buildWebhookUrl = (path, params = {}) => {
+  const baseUrl = getPublicBaseUrl();
+  if (!baseUrl) return '';
+
+  const url = new URL(path, baseUrl);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  });
+
+  return url.toString();
+};
+
+const sendEmptyVoiceResponse = (res) => {
+  const twiml = new twilio.twiml.VoiceResponse();
+  res.type('text/xml');
+  res.send(twiml.toString());
 };
 
 // getToken
@@ -220,10 +241,23 @@ export const incomingVoice = async (req, res) => {
     const twiml = new twilio.twiml.VoiceResponse();
     addTranscription(twiml, { inbound: 'customer', outbound: 'agent' });
 
-    const client = twiml.dial({
+    const dialOptions = {
       answerOnBridge: true,
       callerId: to || process.env.TWILIO_PHONE_NUMBER
-    }).client(identity);
+    };
+
+    const statusUrl = buildWebhookUrl('/api/twilio/incoming-status', {
+      userId: assignedUser?._id,
+      from,
+      to
+    });
+
+    if (statusUrl) {
+      dialOptions.action = statusUrl;
+      dialOptions.method = 'POST';
+    }
+
+    const client = twiml.dial(dialOptions).client(identity);
 
     client.parameter({
       name: 'originalFrom',
@@ -244,6 +278,54 @@ export const incomingVoice = async (req, res) => {
     twiml.say("Sorry, we are unable to connect the call right now.");
     res.type('text/xml');
     res.send(twiml.toString());
+  }
+};
+
+export const incomingCallStatus = async (req, res) => {
+  try {
+    const dialStatus = String(req.body.DialCallStatus || '').toLowerCase();
+    const userId = req.query.userId || req.body.userId;
+
+    if (!userId || !MISSED_DIAL_STATUSES.has(dialStatus)) {
+      return sendEmptyVoiceResponse(res);
+    }
+
+    const phoneNumber = req.query.from || req.body.From || 'Unknown';
+    const localNumber = req.query.to || req.body.To || '';
+    const callSid = req.body.DialCallSid || req.body.CallSid || '';
+
+    await CallLog.findOneAndUpdate(
+      callSid ? { callSid } : {
+        user: userId,
+        phoneNumber,
+        callType: 'inbound',
+        startedAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) }
+      },
+      {
+        $setOnInsert: {
+          user: userId,
+          phoneNumber,
+          localNumber,
+          callType: 'inbound',
+          duration: 0,
+          status: 'missed',
+          callSid,
+          startedAt: new Date(),
+          endedAt: new Date()
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('refresh-call-history');
+    }
+
+    sendEmptyVoiceResponse(res);
+  } catch (error) {
+    console.error('Incoming Call Status Error:', error);
+    res.status(500).json({ message: error.message });
   }
 };
 

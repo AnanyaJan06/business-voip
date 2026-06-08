@@ -1,5 +1,5 @@
 import express from 'express';
-import { getToken, makeCall, voiceResponse, incomingVoice, transcriptionStatus } from '../controller/twilioController.js';
+import { getToken, makeCall, voiceResponse, incomingVoice, incomingCallStatus, transcriptionStatus } from '../controller/twilioController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -14,6 +14,8 @@ router.post('/make-call', authMiddleware, makeCall);
 router.post('/voice', voiceResponse);
 
 router.post('/incoming', incomingVoice);
+
+router.post('/incoming-status', incomingCallStatus);
 
 router.post('/transcription', transcriptionStatus);
 

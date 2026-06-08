@@ -296,6 +296,10 @@ function App() {
       window.dispatchEvent(new Event('refreshCallHistory'));
     });
 
+    socket.on('refresh-call-history', () => {
+      window.dispatchEvent(new Event('refreshCallHistory'));
+    });
+
     socket.on('message-status-updated', () => {
       window.dispatchEvent(new Event('refreshMessages'));
     });
