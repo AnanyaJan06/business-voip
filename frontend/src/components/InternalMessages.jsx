@@ -43,7 +43,7 @@ function InternalMessages({ currentUser, onReadMessages }) {
       setSelectedUserId((current) => (
         chatUsers.some((user) => getUserId(user) === current)
           ? current
-          : getUserId(chatUsers[0]) || ''
+          : ''
       ));
     } catch (error) {
       setNotice({ text: error.message, type: 'error' });
@@ -160,7 +160,10 @@ function InternalMessages({ currentUser, onReadMessages }) {
                   <button
                     key={userId}
                     type="button"
-                    onClick={() => setSelectedUserId(userId)}
+                    onClick={() => {
+                      setSelectedUserId(userId);
+                      setNotice({ text: '', type: '' });
+                    }}
                     className={`block w-full px-3 py-3 text-left transition ${
                       active ? 'bg-emerald-500/10 text-white' : 'text-gray-300 hover:bg-gray-800'
                     }`}
