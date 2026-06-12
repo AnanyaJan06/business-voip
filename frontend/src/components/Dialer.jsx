@@ -118,7 +118,8 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
           setConnection(conn);
 
           const logMissedCall = () => {
-            if (!activeCallRef.current?.accepted) {
+            const currentCall = activeCallRef.current;
+            if (!currentCall?.accepted && !currentCall?.logged) {
               logCall({
                 phoneNumber: from,
                 localNumber,

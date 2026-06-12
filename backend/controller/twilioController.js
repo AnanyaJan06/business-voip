@@ -295,11 +295,17 @@ export const incomingCallStatus = async (req, res) => {
     const callSid = req.body.DialCallSid || req.body.CallSid || '';
 
     await CallLog.findOneAndUpdate(
-      callSid ? { callSid } : {
-        user: userId,
-        phoneNumber,
-        callType: 'inbound',
-        startedAt: { $gte: new Date(Date.now() - 10 * 60 * 1000) }
+      {
+        $or: [
+          ...(callSid ? [{ callSid }] : []),
+          {
+            user: userId,
+            phoneNumber,
+            localNumber,
+            callType: 'inbound',
+            startedAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }
+          }
+        ]
       },
       {
         $setOnInsert: {

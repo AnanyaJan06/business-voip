@@ -7,6 +7,7 @@ export const saveCallLog = async (req, res) => {
   try {
     const { phoneNumber, callType, duration = 0, status, callSid, localNumber } = req.body;
     const resolvedCallType = callType || 'outbound';
+    const startedAt = new Date();
     const transcriptQuery = {
       $or: [
         ...(callSid ? [{ callSid }] : []),
@@ -21,7 +22,7 @@ export const saveCallLog = async (req, res) => {
     const resolvedLocalNumber = String(localNumber || transcript?.localNumber || '').trim()
       || (resolvedCallType === 'outbound' ? await getAssignedNumberForUser(req.user.id) : '');
 
-    const callLog = await CallLog.create({
+    const callLogData = {
       user: req.user.id,
       phoneNumber,
       localNumber: resolvedLocalNumber,
@@ -34,9 +35,30 @@ export const saveCallLog = async (req, res) => {
       transcriptionSid: transcript?.transcriptionSid || '',
       transcriptionSegments: transcript?.segments || [],
       transcriptionError: transcript?.error || '',
-      startedAt: new Date(),
-      endedAt: new Date()
-    });
+      startedAt,
+      endedAt: startedAt
+    };
+
+    const duplicateQuery = {
+      $or: [
+        ...(callSid ? [{ callSid }] : []),
+        {
+          user: req.user.id,
+          phoneNumber,
+          localNumber: resolvedLocalNumber,
+          callType: resolvedCallType,
+          startedAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }
+        }
+      ]
+    };
+
+    const callLog = callSid || resolvedCallType === 'inbound'
+      ? await CallLog.findOneAndUpdate(
+          duplicateQuery,
+          { $set: callLogData },
+          { new: true, upsert: true, setDefaultsOnInsert: true }
+        )
+      : await CallLog.create(callLogData);
     console.log("Call Log",callLog);
     
 
