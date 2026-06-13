@@ -48,7 +48,7 @@ function Login() {
               📞
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-white">VoIP Pro</h1>
+          <h1 className="text-3xl font-bold text-white">Dialio</h1>
           <p className="text-gray-400 mt-2 text-sm">Professional Business Phone System</p>
         </div>
 
