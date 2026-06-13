@@ -80,6 +80,7 @@ const syncTranscriptToCallLog = async (transcript) => {
     {
       phoneNumber: transcript.phoneNumber,
       callType: transcript.callType,
+      status: { $nin: ['missed', 'rejected', 'failed', 'busy', 'no-answer'] },
       startedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
     },
     transcriptUpdate,
