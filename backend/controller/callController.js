@@ -39,18 +39,16 @@ export const saveCallLog = async (req, res) => {
       endedAt: startedAt
     };
 
-    const duplicateQuery = {
-      $or: [
-        ...(callSid ? [{ callSid }] : []),
-        {
+    const duplicateQuery = callSid
+      ? { callSid }
+      : {
           user: req.user.id,
           phoneNumber,
           localNumber: resolvedLocalNumber,
           callType: resolvedCallType,
+          status: status || 'completed',
           startedAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) }
-        }
-      ]
-    };
+        };
 
     const callLog = callSid || resolvedCallType === 'inbound'
       ? await CallLog.findOneAndUpdate(
