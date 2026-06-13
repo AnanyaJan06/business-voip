@@ -151,18 +151,6 @@ function ConversationDetails({ phoneNumber, onClose }) {
       : `To ${allottedNumber}`;
   };
 
-  const getPartyBadge = (item) => {
-    const isUser = item.direction === 'outbound';
-
-    return {
-      label: isUser ? 'User' : 'Client',
-      detail: isUser ? item.userName || 'User' : 'Client',
-      className: isUser
-        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-        : 'border-sky-500/30 bg-sky-500/10 text-sky-200'
-    };
-  };
-
   const groupedTimeline = timeline.reduce((groups, item) => {
     const key = formatDate(item.date);
     groups[key] = groups[key] || [];
@@ -285,7 +273,6 @@ function ConversationDetails({ phoneNumber, onClose }) {
                 const isOutbound = item.direction === 'outbound';
                 const isCall = item.type === 'call';
                 const allottedNumberLabel = getAllottedNumberLabel(item);
-                const partyBadge = getPartyBadge(item);
 
                 return (
                   <div
@@ -299,15 +286,6 @@ function ConversationDetails({ phoneNumber, onClose }) {
                           ? 'conversation-sms-outbound bg-[#1E293B] text-white'
                           : 'conversation-sms-inbound bg-[#4B5563] text-white'
                     }`}>
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${partyBadge.className}`}>
-                          {partyBadge.label}
-                        </span>
-                        <span className="min-w-0 truncate text-xs text-gray-400">
-                          {partyBadge.detail}
-                        </span>
-                      </div>
-
                       {isCall ? (
                         <>
                           <p className={`text-sm font-semibold capitalize ${

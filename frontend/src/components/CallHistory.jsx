@@ -48,6 +48,11 @@ const callStyles = {
   }
 };
 
+const speakerBadgeStyles = {
+  agent: 'text-emerald-300',
+  client: 'text-sky-300'
+};
+
 function DirectionIcon({ type }) {
   const common = {
     className: 'w-4 h-4',
@@ -420,6 +425,38 @@ function CallHistory() {
     return 'Unknown User';
   };
 
+  const getTranscriptSpeaker = (segment, log) => {
+    const track = String(segment.track || '').toLowerCase();
+    const callType = String(log.callType || '').toLowerCase();
+
+    if (track.includes('agent') || track.includes('user')) {
+      return {
+        label: 'Agent',
+        className: speakerBadgeStyles.agent
+      };
+    }
+
+    if (track.includes('customer') || track.includes('client') || track.includes('caller')) {
+      return {
+        label: 'Client',
+        className: speakerBadgeStyles.client
+      };
+    }
+
+    const isUserTrack = callType === 'outbound'
+      ? track.includes('inbound')
+      : track.includes('outbound');
+
+    return {
+      label: isUserTrack ? 'Agent' : 'Client',
+      className: isUserTrack ? speakerBadgeStyles.agent : speakerBadgeStyles.client
+    };
+  };
+
+  const getSortedTranscriptSegments = (log) => [...(log.transcriptionSegments || [])]
+    .filter((segment) => String(segment.text || '').trim())
+    .sort((a, b) => (a.sequenceId || 0) - (b.sequenceId || 0));
+
 
   const visibleLogs = useMemo(() => {
     return logs
@@ -556,6 +593,7 @@ function CallHistory() {
           const meta = getCallMeta(log);
           const logId = log._id || log.callSid;
           const transcriptText = String(log.transcriptionText || '').trim();
+          const transcriptSegments = getSortedTranscriptSegments(log);
           const transcriptionStatus = log.transcriptionStatus || 'not-started';
           const showTranscript = expandedTranscriptId === logId;
           const localNumberLabel = getLocalNumberLabel(log);
@@ -656,7 +694,29 @@ function CallHistory() {
 
                   {showTranscript && (
                     <div className="mt-2 rounded-lg border border-gray-800 bg-[#0F141F] p-3 text-sm leading-6 text-gray-300">
-                      {transcriptText || 'Transcript is not available yet.'}
+                      {transcriptSegments.length > 0 ? (
+                        <div className="space-y-2.5">
+                          {transcriptSegments.map((segment, index) => {
+                            const speaker = getTranscriptSpeaker(segment, log);
+
+                            return (
+                              <div
+                                key={`${segment.sequenceId || index}-${segment.track || 'track'}`}
+                                className="grid grid-cols-[54px_1fr] gap-3"
+                              >
+                                <span className={`pt-0.5 text-[11px] font-semibold uppercase tracking-wide ${speaker.className}`}>
+                                  {speaker.label}
+                                </span>
+                                <p className="whitespace-pre-wrap text-sm leading-6 text-gray-200">
+                                  {segment.text}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        transcriptText || 'Transcript is not available yet.'
+                      )}
                     </div>
                   )}
                 </div>
