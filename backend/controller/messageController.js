@@ -1,8 +1,23 @@
 import twilio from 'twilio';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import MessageLog from '../model/MessageLog.js';
 import TwilioNumber from '../model/TwilioNumber.js';
 import { getAssignedNumberForUser, getAssignedNumbersForUser } from '../utils/twilioNumbers.js';
 import '../model/User.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsRoot = path.resolve(__dirname, '..', 'uploads');
+const messageUploadsDir = path.join(uploadsRoot, 'messages');
+const allowedImageTypes = new Map([
+  ['image/jpeg', 'jpg'],
+  ['image/png', 'png'],
+  ['image/gif', 'gif'],
+  ['image/webp', 'webp']
+]);
+const maxImageBytes = 5 * 1024 * 1024;
 
 const getTwilioClient = () => {
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
@@ -31,18 +46,65 @@ const getSenderConfig = async (userId) => {
 
 const getPublicBaseUrl = () => (process.env.BASE_URL || '').replace(/\/$/, '');
 
+const normalizeMediaUrls = (mediaUrls) => {
+  if (!Array.isArray(mediaUrls)) return [];
+
+  return mediaUrls
+    .map((url) => String(url || '').trim())
+    .filter(Boolean)
+    .slice(0, 10);
+};
+
+export const uploadMessageImage = async (req, res) => {
+  try {
+    const contentType = String(req.headers['content-type'] || '').split(';')[0].toLowerCase();
+    const extension = allowedImageTypes.get(contentType);
+    const baseUrl = getPublicBaseUrl();
+
+    if (!extension) {
+      return res.status(400).json({ message: 'Upload a JPG, PNG, GIF, or WebP image.' });
+    }
+
+    if (!baseUrl) {
+      return res.status(500).json({ message: 'BASE_URL is required before image messages can be sent.' });
+    }
+
+    if (!req.body?.length) {
+      return res.status(400).json({ message: 'Image file is required.' });
+    }
+
+    if (req.body.length > maxImageBytes) {
+      return res.status(400).json({ message: 'Image must be 5MB or smaller.' });
+    }
+
+    await fs.mkdir(messageUploadsDir, { recursive: true });
+
+    const fileName = `${Date.now()}-${req.user.id}-${Math.random().toString(36).slice(2)}.${extension}`;
+    const filePath = path.join(messageUploadsDir, fileName);
+    await fs.writeFile(filePath, req.body);
+
+    res.status(201).json({
+      mediaUrl: `${baseUrl}/uploads/messages/${fileName}`
+    });
+  } catch (error) {
+    console.error('Upload Message Image Error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const sendMessage = async (req, res) => {
   try {
     const { to, body } = req.body;
     const trimmedTo = String(to || '').trim();
     const trimmedBody = String(body || '').trim();
+    const mediaUrls = normalizeMediaUrls(req.body.mediaUrls);
 
     if (!trimmedTo || trimmedTo.replace(/\D/g, '').length < 7) {
       return res.status(400).json({ message: 'A valid recipient phone number is required' });
     }
 
-    if (!trimmedBody) {
-      return res.status(400).json({ message: 'Message body is required' });
+    if (!trimmedBody && mediaUrls.length === 0) {
+      return res.status(400).json({ message: 'Message body or image is required' });
     }
 
     if (trimmedBody.length > 1600) {
@@ -56,7 +118,8 @@ export const sendMessage = async (req, res) => {
     const twilioMessage = await client.messages.create({
       ...senderConfig,
       to: trimmedTo,
-      body: trimmedBody,
+      ...(trimmedBody ? { body: trimmedBody } : {}),
+      ...(mediaUrls.length > 0 ? { mediaUrl: mediaUrls } : {}),
       ...(baseUrl ? { statusCallback: `${baseUrl}/api/messages/status` } : {})
     });
 
@@ -67,6 +130,7 @@ export const sendMessage = async (req, res) => {
       from: sender,
       to: trimmedTo,
       body: trimmedBody,
+      mediaUrls,
       direction: 'outbound',
       status: twilioMessage.status,
       messageSid: twilioMessage.sid
@@ -167,6 +231,9 @@ export const receiveMessage = async (req, res) => {
     const to = req.body.To || process.env.TWILIO_PHONE_NUMBER || 'Unknown';
     const body = req.body.Body || '';
     const messageSid = req.body.MessageSid || req.body.SmsSid || '';
+    const mediaCount = Number(req.body.NumMedia) || 0;
+    const mediaUrls = Array.from({ length: mediaCount }, (_, index) => req.body[`MediaUrl${index}`])
+      .filter(Boolean);
     const assignedNumber = await TwilioNumber.findOne({ phoneNumber: to });
     const assignedTo = assignedNumber?.assignedTo ? String(assignedNumber.assignedTo) : '';
 
@@ -176,6 +243,7 @@ export const receiveMessage = async (req, res) => {
       from,
       to,
       body,
+      mediaUrls,
       direction: 'inbound',
       status: req.body.SmsStatus || 'received',
       messageSid
@@ -187,6 +255,7 @@ export const receiveMessage = async (req, res) => {
         from,
         to,
         body,
+        mediaUrls,
         messageSid,
         assignedTo,
         createdAt: messageLog.createdAt

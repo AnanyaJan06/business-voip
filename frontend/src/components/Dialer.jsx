@@ -574,7 +574,6 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
           </div>
         </>
       )}
-      
               </div>
             </div>
           </div>
@@ -585,3 +584,4 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
 }
 
 export default Dialer;
+

@@ -27,6 +27,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
   const [messages, setMessages] = useState([]);
   const [recipient, setRecipient] = useState(selectedPhoneNumber);
   const [body, setBody] = useState('');
+  const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState({ text: '', type: '' });
@@ -73,14 +74,35 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
   const sendMessage = async (event) => {
     event.preventDefault();
 
-    if (!recipient.trim() || !body.trim()) {
-      setNotice({ text: 'Add a recipient and message before sending.', type: 'error' });
+    if (!recipient.trim() || (!body.trim() && !imageFile)) {
+      setNotice({ text: 'Add a recipient and message or image before sending.', type: 'error' });
       return;
     }
 
     try {
       setSending(true);
       setNotice({ text: '', type: '' });
+
+      let mediaUrls = [];
+
+      if (imageFile) {
+        const uploadRes = await fetch(`${BACKEND_URL}/api/messages/upload-image`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': imageFile.type,
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
+          body: imageFile
+        });
+
+        const uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.message || 'Failed to upload image');
+        }
+
+        mediaUrls = [uploadData.mediaUrl];
+      }
 
       const res = await fetch(`${BACKEND_URL}/api/messages/send`, {
         method: 'POST',
@@ -90,7 +112,8 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
         },
         body: JSON.stringify({
           to: recipient.trim(),
-          body: body.trim()
+          body: body.trim(),
+          mediaUrls
         })
       });
 
@@ -103,7 +126,8 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
       }
 
       setBody('');
-      setNotice({ text: 'Message queued successfully.', type: 'success' });
+      setImageFile(null);
+      setNotice({ text: imageFile ? 'Image message queued successfully.' : 'Message queued successfully.', type: 'success' });
       fetchMessages();
     } catch (error) {
       setNotice({ text: error.message, type: 'error' });
@@ -216,6 +240,37 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
             className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
           />
           <div className="mt-1 text-right text-[11px] text-gray-500">{body.length}/1600</div>
+        </div>
+
+        <div className="mb-3 rounded-xl border border-dashed border-gray-700 bg-gray-800/60 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-300">Image</p>
+              <p className="mt-1 truncate text-[11px] text-gray-500">
+                {imageFile ? imageFile.name : 'Attach a JPG, PNG, GIF, or WebP image'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {imageFile && (
+                <button
+                  type="button"
+                  onClick={() => setImageFile(null)}
+                  className="rounded-lg border border-gray-700 px-3 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-700 hover:text-white"
+                >
+                  Remove
+                </button>
+              )}
+              <label className="cursor-pointer rounded-lg bg-gray-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-600">
+                Choose Image
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="sr-only"
+                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+          </div>
         </div>
 
         {notice.text && (

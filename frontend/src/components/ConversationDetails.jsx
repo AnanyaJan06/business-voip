@@ -26,6 +26,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
   const [calls, setCalls] = useState([]);
   const [messages, setMessages] = useState([]);
   const [messageBody, setMessageBody] = useState('');
+  const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState('');
@@ -109,6 +110,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
         from: message.from,
         to: message.to,
         body: message.body,
+        mediaUrls: message.mediaUrls || [],
         date: message.createdAt,
         userName: message.userName || message.user?.name || ''
       }));
@@ -173,11 +175,32 @@ function ConversationDetails({ phoneNumber, onClose }) {
   const sendMessage = async (event) => {
     event.preventDefault();
     const trimmedBody = messageBody.trim();
-    if (!trimmedBody) return;
+    if (!trimmedBody && !imageFile) return;
 
     try {
       setSending(true);
       setNotice('');
+
+      let mediaUrls = [];
+
+      if (imageFile) {
+        const uploadRes = await fetch(`${BACKEND_URL}/api/messages/upload-image`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': imageFile.type,
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
+          body: imageFile
+        });
+
+        const uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok) {
+          throw new Error(uploadData.message || 'Failed to upload image');
+        }
+
+        mediaUrls = [uploadData.mediaUrl];
+      }
 
       const res = await fetch(`${BACKEND_URL}/api/messages/send`, {
         method: 'POST',
@@ -187,7 +210,8 @@ function ConversationDetails({ phoneNumber, onClose }) {
         },
         body: JSON.stringify({
           to: phoneNumber,
-          body: trimmedBody
+          body: trimmedBody,
+          mediaUrls
         })
       });
 
@@ -195,6 +219,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
       if (!res.ok) throw new Error(data.message || 'Failed to send message');
 
       setMessageBody('');
+      setImageFile(null);
       fetchConversation();
       window.dispatchEvent(new Event('refreshMessages'));
     } catch (error) {
@@ -304,9 +329,22 @@ function ConversationDetails({ phoneNumber, onClose }) {
                         </>
                       ) : (
                         <>
-                          <p className="whitespace-pre-wrap text-sm leading-6">{item.body}</p>
+                          {item.mediaUrls?.length > 0 && (
+                            <div className="mb-2 space-y-2">
+                              {item.mediaUrls.map((mediaUrl) => (
+                                <a key={mediaUrl} href={mediaUrl} target="_blank" rel="noreferrer">
+                                  <img
+                                    src={mediaUrl}
+                                    alt="Message attachment"
+                                    className="max-h-64 rounded-xl object-contain"
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                          {item.body && <p className="whitespace-pre-wrap text-sm leading-6">{item.body}</p>}
                           <p className="mt-2 text-xs uppercase tracking-wide text-gray-300">
-                            SMS
+                            {item.mediaUrls?.length > 0 ? 'MMS' : 'SMS'}
                             {isOutbound && (
                               <span className={`ml-2 capitalize ${
                                 messageStatusStyles[item.status] || messageStatusStyles.queued
@@ -348,11 +386,38 @@ function ConversationDetails({ phoneNumber, onClose }) {
           placeholder="Write a message..."
           className="w-full resize-none rounded-2xl border border-gray-700 bg-[#0F1322] px-4 py-3 text-sm text-white focus:border-[#059669]"
         />
+        <div className="mt-2 rounded-xl border border-dashed border-gray-700 bg-[#0F1322] px-3 py-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-xs text-gray-400">
+              {imageFile ? imageFile.name : 'Attach an image'}
+            </span>
+            <div className="flex items-center gap-2">
+              {imageFile && (
+                <button
+                  type="button"
+                  onClick={() => setImageFile(null)}
+                  className="rounded-lg border border-gray-700 px-2.5 py-1.5 text-xs text-gray-300 transition hover:bg-gray-800 hover:text-white"
+                >
+                  Remove
+                </button>
+              )}
+              <label className="cursor-pointer rounded-lg bg-gray-700 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-gray-600">
+                Choose Image
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="sr-only"
+                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+          </div>
+        </div>
         <div className="mt-2 flex items-center justify-between">
           <span className="text-xs text-gray-500">{messageBody.length}/1600</span>
           <button
             type="submit"
-            disabled={sending || !messageBody.trim()}
+            disabled={sending || (!messageBody.trim() && !imageFile)}
             className="rounded-xl bg-[#059669] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:bg-gray-700 disabled:text-gray-400"
           >
             {sending ? <LoadingSpinner label="Sending..." size="sm" tone="white" inline /> : 'Send'}
