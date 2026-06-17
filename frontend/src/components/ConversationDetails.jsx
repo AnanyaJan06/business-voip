@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import LoadingSpinner from './LoadingSpinner.jsx';
+import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
+import InlineLoader from './ui/InlineLoader.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -21,6 +22,53 @@ const messageStatusStyles = {
 const formatMessageStatus = (status = '') => (
   status ? status.replace('-', ' ') : 'queued'
 );
+
+function ConversationDetailsSkeleton() {
+  return (
+    <AppSkeletonTheme>
+      <div role="status" aria-label="Loading conversation">
+      <div className="mb-5 flex justify-center">
+        <Skeleton width={96} height={24} borderRadius={999} />
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex justify-start">
+          <div className="w-[68%] rounded-2xl bg-[#1C2333] px-4 py-3 shadow-lg">
+            <Skeleton width={118} height={16} />
+            <Skeleton width="72%" height={12} className="mt-2 block" />
+            <div className="mt-3 flex items-center justify-between gap-4">
+              <Skeleton width={72} height={12} />
+              <Skeleton width={48} height={12} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <div className="w-[74%] rounded-2xl bg-[#1E293B] px-4 py-3 shadow-lg">
+            <Skeleton width="88%" height={14} />
+            <Skeleton width="64%" height={14} className="mt-2 block" />
+            <div className="mt-3 flex items-center justify-between gap-4">
+              <Skeleton width={48} height={12} />
+              <Skeleton width={52} height={12} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-start">
+          <div className="w-[62%] rounded-2xl bg-[#1C2333] px-4 py-3 shadow-lg">
+            <Skeleton width={104} height={16} />
+            <Skeleton width="58%" height={12} className="mt-2 block" />
+            <div className="mt-3 flex items-center justify-between gap-4">
+              <Skeleton width={64} height={12} />
+              <Skeleton width={44} height={12} />
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </AppSkeletonTheme>
+  );
+}
 
 function ConversationDetails({ phoneNumber, onClose }) {
   const [calls, setCalls] = useState([]);
@@ -254,7 +302,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
       </div>
 
       <div className="thin-scrollbar min-h-0 flex-1 overflow-auto px-5 py-4">
-        {loading && <LoadingSpinner label="Loading conversation..." tone="emerald" />}
+        {loading && <ConversationDetailsSkeleton />}
 
         {!loading && timeline.length === 0 && (
           <p className="py-10 text-center text-sm text-gray-400">No calls or messages found for this number.</p>
@@ -355,7 +403,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
             disabled={sending || !messageBody.trim()}
             className="rounded-xl bg-[#059669] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:bg-gray-700 disabled:text-gray-400"
           >
-            {sending ? <LoadingSpinner label="Sending..." size="sm" tone="white" inline /> : 'Send'}
+            {sending ? <InlineLoader label="Sending..." /> : 'Send'}
           </button>
         </div>
       </form>

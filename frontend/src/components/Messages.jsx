@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import LoadingSpinner from './LoadingSpinner.jsx';
+import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
+import InlineLoader from './ui/InlineLoader.jsx';
+import { showErrorToast, showSuccessToast } from '../utils/toast.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -8,6 +10,9 @@ const normalizePhone = (phone) => {
   return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
 };
 
+const getUserId = (user) => String(user?.id || user?._id || '');
+const getUnreadSmsThreadsKey = (userId) => `unreadSmsThreads:${userId || 'unknown'}`;
+
 const messageStatusStyles = {
   delivered: 'bg-emerald-500/15 text-emerald-300',
   sent: 'bg-sky-500/15 text-sky-300',
@@ -15,21 +20,75 @@ const messageStatusStyles = {
   sending: 'bg-amber-500/15 text-amber-300',
   accepted: 'bg-amber-500/15 text-amber-300',
   undelivered: 'bg-red-500/15 text-red-300',
-  failed: 'bg-red-500/15 text-red-300',
-  received: 'bg-gray-700 text-gray-300'
+  failed: 'bg-red-500/15 text-red-300'
 };
 
 const formatMessageStatus = (status = '') => (
   status ? status.replace('-', ' ') : 'queued'
 );
 
-function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
+function MessagesSkeleton() {
+  return (
+    <AppSkeletonTheme>
+      <div role="status" aria-label="Loading messages">
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-3">
+              <Skeleton width={54} height={10} className="mx-auto block" />
+              <Skeleton width={28} height={20} className="mx-auto mt-2 block" />
+            </div>
+          ))}
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
+          <div className="border-b border-gray-800 px-4 py-3">
+            <Skeleton width={126} height={16} />
+          </div>
+          <div className="divide-y divide-gray-800">
+            {Array.from({ length: 7 }, (_, index) => (
+              <div key={index} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Skeleton width={132} height={16} />
+                    <Skeleton width="84%" height={12} className="mt-2 block" />
+                    <Skeleton width={86} height={18} className="mt-2 block" borderRadius={999} />
+                  </div>
+                  <Skeleton width={58} height={12} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </AppSkeletonTheme>
+  );
+}
+
+function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [recipient, setRecipient] = useState(selectedPhoneNumber);
   const [body, setBody] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [notice, setNotice] = useState({ text: '', type: '' });
+  const [showCompose, setShowCompose] = useState(Boolean(selectedPhoneNumber));
+  const [unreadThreadKeys, setUnreadThreadKeys] = useState([]);
+
+  const unreadStorageKey = getUnreadSmsThreadsKey(getUserId(currentUser));
+
+  const readUnreadThreadKeys = useCallback(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem(unreadStorageKey) || '[]');
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  }, [unreadStorageKey]);
+
+  const writeUnreadThreadKeys = useCallback((keys) => {
+    const uniqueKeys = [...new Set(keys.filter(Boolean))];
+    localStorage.setItem(unreadStorageKey, JSON.stringify(uniqueKeys));
+    setUnreadThreadKeys(uniqueKeys);
+  }, [unreadStorageKey]);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -41,31 +100,43 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
       });
       const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to load messages');
-      }
-
-      setMessages(data);
+      if (!res.ok) throw new Error(data.message || 'Failed to load messages');
+      setMessages(Array.isArray(data) ? data : []);
     } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
+      showErrorToast(error.message || 'Failed to load messages');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    setUnreadThreadKeys(readUnreadThreadKeys());
+  }, [readUnreadThreadKeys]);
+
+  useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
 
   useEffect(() => {
-    const handleIncomingMessage = () => fetchMessages();
+    const handleIncomingMessage = (event) => {
+      const incomingMessage = event.detail?.message;
+      if (incomingMessage?.direction !== 'outbound') {
+        const phoneNumber = incomingMessage?.from || incomingMessage?.phoneNumber;
+        const threadKey = normalizePhone(phoneNumber) || phoneNumber;
+        writeUnreadThreadKeys([...readUnreadThreadKeys(), threadKey]);
+      }
+
+      fetchMessages();
+    };
+
     window.addEventListener('refreshMessages', handleIncomingMessage);
     return () => window.removeEventListener('refreshMessages', handleIncomingMessage);
-  }, [fetchMessages]);
+  }, [fetchMessages, readUnreadThreadKeys, writeUnreadThreadKeys]);
 
   useEffect(() => {
     if (selectedPhoneNumber) {
       setRecipient(selectedPhoneNumber);
+      setShowCompose(true);
       onRecipientUsed?.();
     }
   }, [selectedPhoneNumber, onRecipientUsed]);
@@ -74,13 +145,12 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
     event.preventDefault();
 
     if (!recipient.trim() || !body.trim()) {
-      setNotice({ text: 'Add a recipient and message before sending.', type: 'error' });
+      showErrorToast('Add a recipient and message before sending.');
       return;
     }
 
     try {
       setSending(true);
-      setNotice({ text: '', type: '' });
 
       const res = await fetch(`${BACKEND_URL}/api/messages/send`, {
         method: 'POST',
@@ -103,10 +173,10 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
       }
 
       setBody('');
-      setNotice({ text: 'Message queued successfully.', type: 'success' });
+      showSuccessToast('Message queued successfully');
       fetchMessages();
     } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
+      showErrorToast(error.message || 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -123,12 +193,6 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
     })}`;
   };
 
-  const openConversation = (phoneNumber) => {
-    window.dispatchEvent(new CustomEvent('openConversation', {
-      detail: { phoneNumber }
-    }));
-  };
-
   const getThreadNumber = (message) => (
     message.direction === 'outbound' ? message.to : message.from
   );
@@ -142,6 +206,14 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
       : `To ${allottedNumber}`;
   };
 
+  const openConversation = (phoneNumber) => {
+    const threadKey = normalizePhone(phoneNumber) || phoneNumber;
+    writeUnreadThreadKeys(unreadThreadKeys.filter((key) => key !== threadKey));
+    window.dispatchEvent(new CustomEvent('openConversation', {
+      detail: { phoneNumber }
+    }));
+  };
+
   const messageThreads = useMemo(() => {
     const threads = new Map();
 
@@ -153,7 +225,8 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
       if (!existing || new Date(message.createdAt) > new Date(existing.createdAt)) {
         threads.set(key, {
           ...message,
-          phoneNumber
+          phoneNumber,
+          threadKey: key
         });
       }
     });
@@ -176,107 +249,151 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed }) {
     outbound: 0
   }), [messages]);
 
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <MessagesSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto">
-      {!loading && (
-        <div className="mb-4 grid grid-cols-3 gap-2">
-          {[
-            ['Total', messageTotals.total],
-            ['Inbound', messageTotals.inbound],
-            ['Outbound', messageTotals.outbound]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-3 text-center">
-              <p className="text-[10px] font-semibold uppercase text-gray-500">{label}</p>
-              <p className="mt-1 text-lg font-bold text-white">{value}</p>
-            </div>
-          ))}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-white">Messages</h2>
+          <p className="mt-0.5 text-xs text-gray-400">Recent SMS conversations</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowCompose((current) => !current)}
+          className="rounded-xl bg-[#059669] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
+        >
+          {showCompose ? 'Close SMS' : 'Create SMS'}
+        </button>
+      </div>
+
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        {[
+          ['Total', messageTotals.total],
+          ['Inbound', messageTotals.inbound],
+          ['Outbound', messageTotals.outbound]
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-3 text-center">
+            <p className="text-[10px] font-semibold uppercase text-gray-500">{label}</p>
+            <p className="mt-1 text-lg font-bold text-white">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {showCompose && (
+        <form onSubmit={sendMessage} className="mb-4 rounded-2xl border border-gray-700 bg-gray-900 p-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div>
+              <label className="mb-1.5 block text-xs text-gray-400">To</label>
+              <input
+                type="tel"
+                value={recipient}
+                onChange={(event) => setRecipient(event.target.value)}
+                placeholder="+1..."
+                className="h-10 w-full rounded-xl border border-gray-700 bg-gray-800 px-3 text-sm text-white focus:border-[#059669]"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={sending}
+              className="self-end rounded-xl bg-[#059669] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
+            >
+              {sending ? <InlineLoader label="Sending..." /> : 'Send SMS'}
+            </button>
+          </div>
+
+          <div className="mt-3">
+            <label className="mb-1.5 block text-xs text-gray-400">Message</label>
+            <textarea
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              rows={2}
+              maxLength={1600}
+              placeholder="Write a message..."
+              className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-[#059669]"
+            />
+            <div className="mt-1 text-right text-[11px] text-gray-500">{body.length}/1600</div>
+          </div>
+        </form>
       )}
 
-      <form onSubmit={sendMessage} className="rounded-2xl border border-gray-700 bg-gray-900 p-4">
-        <div className="mb-3">
-          <label className="mb-1.5 block text-xs text-gray-400">To</label>
-          <input
-            type="tel"
-            value={recipient}
-            onChange={(event) => setRecipient(event.target.value)}
-            placeholder="+1..."
-            className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-          />
-        </div>
-
-        <div className="mb-3">
-          <label className="mb-1.5 block text-xs text-gray-400">Message</label>
-          <textarea
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            rows={4}
-            maxLength={1600}
-            placeholder="Write a message..."
-            className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-          />
-          <div className="mt-1 text-right text-[11px] text-gray-500">{body.length}/1600</div>
-        </div>
-
-        {notice.text && (
-          <div className={`mb-3 rounded-xl px-3 py-2 text-xs text-white ${
-            notice.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
-          }`}>
-            {notice.text}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={sending}
-          className="w-full rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
-        >
-          {sending ? <LoadingSpinner label="Sending..." size="sm" tone="white" inline /> : 'Send SMS'}
-        </button>
-      </form>
-
-      <div className="mt-4 overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
-        <div className="border-b border-gray-800 px-4 py-3">
+      <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
+        <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
           <h3 className="text-sm font-semibold text-white">Recent Messages</h3>
+          {unreadThreadKeys.length > 0 && (
+            <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold text-red-300">
+              {unreadThreadKeys.length} unread
+            </span>
+          )}
         </div>
 
-        {loading ? (
-          <LoadingSpinner label="Loading messages..." />
-        ) : messageThreads.length === 0 ? (
+        {messageThreads.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No messages yet.</p>
         ) : (
           <div className="divide-y divide-gray-800">
-            {messageThreads.map((message) => (
-              <div key={message._id || message.messageSid} className="px-4 py-3 hover:bg-[#1F2533]">
-                <div className="mb-1 flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => openConversation(message.phoneNumber)}
-                      className="block max-w-full truncate text-left text-sm font-semibold text-white transition hover:text-emerald-300"
-                      title="Open conversation"
-                    >
-                      {message.phoneNumber}
-                    </button>
-                    {message.direction === 'outbound' && (
-                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
-                        messageStatusStyles[message.status] || messageStatusStyles.queued
+            {messageThreads.map((message) => {
+              const isUnread = unreadThreadKeys.includes(message.threadKey);
+              const lastMessage = String(message.body || '').trim() || 'No message text';
+
+              return (
+                <button
+                  key={message._id || message.messageSid}
+                  type="button"
+                  onClick={() => openConversation(message.phoneNumber)}
+                  className="block w-full px-4 py-3 text-left transition hover:bg-[#1F2533]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {isUnread && (
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-label="Unread message" />
+                        )}
+                        <span className={`truncate text-sm font-semibold ${
+                          isUnread ? 'text-white' : 'text-gray-200'
+                        }`}>
+                          {message.phoneNumber}
+                        </span>
+                      </div>
+
+                      <p className={`mt-1 line-clamp-1 text-xs ${
+                        isUnread ? 'font-semibold text-gray-200' : 'text-gray-400'
                       }`}>
-                        {formatMessageStatus(message.status)}
-                      </span>
-                    )}
-                    {getAllottedNumberLabel(message) && (
-                      <p className="mt-1 truncate text-xs text-gray-400">
-                        {getAllottedNumberLabel(message)}
+                        {message.direction === 'outbound' ? 'You: ' : ''}
+                        {lastMessage}
                       </p>
-                    )}
+
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {message.direction === 'outbound' ? (
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
+                            messageStatusStyles[message.status] || messageStatusStyles.queued
+                          }`}>
+                            {formatMessageStatus(message.status)}
+                          </span>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-gray-700 px-2 py-0.5 text-[11px] font-semibold text-gray-300">
+                            Received
+                          </span>
+                        )}
+                        {getAllottedNumberLabel(message) && (
+                          <span className="truncate text-xs text-gray-500">
+                            {getAllottedNumberLabel(message)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-xs text-gray-500">
+                      {formatDateTime(message.createdAt)}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs text-gray-500">
-                    {formatDateTime(message.createdAt)}
-                  </span>
-                </div>
-              </div>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

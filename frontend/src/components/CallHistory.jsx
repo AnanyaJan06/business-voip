@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
+import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import LoadingSpinner from './LoadingSpinner.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -184,6 +185,59 @@ function TranscriptIcon() {
       <path d="M8 13h8" />
       <path d="M8 17h6" />
     </svg>
+  );
+}
+
+function CallHistorySkeleton() {
+  const rows = Array.from({ length: 7 }, (_, index) => index);
+
+  return (
+    <AppSkeletonTheme>
+      <div role="status" aria-label="Loading call history">
+      <div className="sticky top-0 z-10 bg-[#161B26]/95 px-2 py-2 backdrop-blur border-b border-gray-800">
+        <div className="mb-2 grid grid-cols-4 gap-1">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={index} className="rounded-lg border border-gray-800 bg-[#0F141F] px-2 py-2">
+              <Skeleton width={40} height={8} className="mx-auto mb-2 block" />
+              <Skeleton width={24} height={16} className="mx-auto block" />
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-4 gap-1 rounded-xl bg-[#0F141F] p-1">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} height={32} borderRadius={8} />
+          ))}
+        </div>
+
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+          <Skeleton height={36} borderRadius={8} />
+          <Skeleton height={36} borderRadius={8} />
+          <Skeleton width={64} height={36} borderRadius={8} className="hidden sm:block" />
+        </div>
+      </div>
+
+      <div className="divide-y divide-gray-800">
+        {rows.map((row) => (
+          <div key={row} className="px-3 py-3.5 sm:px-4">
+            <div className="flex items-start gap-3">
+              <Skeleton width={36} height={36} borderRadius={12} className="shrink-0" />
+              <div className="min-w-0 flex-1">
+                <Skeleton width={144} height={16} />
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Skeleton width={56} height={12} />
+                  <Skeleton width={64} height={12} />
+                  <Skeleton width={40} height={12} />
+                  <Skeleton width={96} height={12} />
+                </div>
+              </div>
+            </div>
+            <Skeleton width={80} height={12} className="ml-auto mt-2 block" />
+          </div>
+        ))}
+      </div>
+      </div>
+    </AppSkeletonTheme>
   );
 }
 
@@ -500,7 +554,7 @@ function CallHistory() {
 
   return (
     <div className="flex-1 overflow-auto thin-scrollbar">
-      {loading && <LoadingSpinner label="Loading call history..." />}
+      {loading && <CallHistorySkeleton />}
       {error && <p className="text-sm text-red-400 text-center py-10">{error}</p>}
 
       {!loading && !error && logs.length > 0 && (

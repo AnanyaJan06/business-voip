@@ -9,14 +9,21 @@ import Messages from './components/Messages.jsx';
 import InternalMessages from './components/InternalMessages.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 import FollowUps from './components/FollowUps.jsx';
+import AppToaster from './components/ui/AppToaster.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
+import { showIncomingSmsToast } from './utils/toast.js';
 import './App.css';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
 const getUserId = (user) => String(user?.id || user?._id || '');
 const getUnreadMessagesKey = (userId) => `unreadMessages:${userId}`;
+const getUnreadSmsThreadsKey = (userId) => `unreadSmsThreads:${userId}`;
+const normalizePhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+};
 
 const readJsonResponse = async (res) => {
   const text = await res.text();
@@ -129,13 +136,11 @@ function App() {
   const [unreadTeamMessages, setUnreadTeamMessages] = useState(0);
   const [dueFollowUps, setDueFollowUps] = useState(0);
   const [followUpToast, setFollowUpToast] = useState(null);
-  const [smsToast, setSmsToast] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
   const [currentUser, setCurrentUser] = useState(null);
   const activeTabRef = useRef(activeTab);
   const currentUserRef = useRef(currentUser);
-  const smsToastTimerRef = useRef(null);
   const followUpToastTimerRef = useRef(null);
   const isAdmin = currentUser?.role === 'admin';
 
@@ -300,17 +305,30 @@ function App() {
 
       if (!assignedTo || assignedTo !== currentUserId) return;
 
-      window.dispatchEvent(new Event('refreshMessages'));
-      setSmsToast(message);
+      const threadKey = normalizePhone(message.from) || message.from;
+      if (threadKey && activeTabRef.current !== 'messages') {
+        const unreadKey = getUnreadSmsThreadsKey(currentUserId);
+        const unreadThreads = JSON.parse(localStorage.getItem(unreadKey) || '[]');
+        localStorage.setItem(unreadKey, JSON.stringify([...new Set([...unreadThreads, threadKey])]));
+      }
+
+      window.dispatchEvent(new CustomEvent('refreshMessages', {
+        detail: { message }
+      }));
 
       if (activeTabRef.current !== 'messages') {
         setUnreadMessages((count) => count + 1);
       }
 
-      window.clearTimeout(smsToastTimerRef.current);
-      smsToastTimerRef.current = window.setTimeout(() => {
-        setSmsToast(null);
-      }, 5000);
+      showIncomingSmsToast({
+        from: message.from,
+        body: message.body,
+        onClick: () => {
+          setSelectedMessageNumber(message.from);
+          setConversationNumber(message.from);
+          openTab('messages');
+        }
+      });
     });
 
     socket.on('call-transcription-updated', () => {
@@ -336,10 +354,9 @@ function App() {
 
     return () => {
       window.clearTimeout(unreadRefreshTimer);
-      window.clearTimeout(smsToastTimerRef.current);
       socket.disconnect();
     };
-  }, [refreshUnreadTeamMessages, token]);
+  }, [openTab, refreshUnreadTeamMessages, token]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -398,7 +415,14 @@ function App() {
     setTheme((current) => current === 'night' ? 'day' : 'night');
   };
 
-  if (!token) return <Login />;
+  if (!token) {
+    return (
+      <>
+        <Login />
+        <AppToaster />
+      </>
+    );
+  }
 
   return (
     <div className="app-shell flex h-screen flex-col bg-[#0A0C14] text-white overflow-hidden md:flex-row">
@@ -514,6 +538,7 @@ function App() {
             <Messages
               selectedPhoneNumber={selectedMessageNumber}
               onRecipientUsed={clearSelectedMessageNumber}
+              currentUser={currentUser}
             />
           )}
           {activeTab === 'team' && (
@@ -559,32 +584,6 @@ function App() {
         onConfirm={handleLogout}
       />
 
-      {smsToast && (
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedMessageNumber(smsToast.from);
-            setConversationNumber(smsToast.from);
-            openTab('messages');
-            setSmsToast(null);
-          }}
-          className="sms-toast fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-emerald-500/25 bg-[#151B28] p-4 text-left shadow-2xl transition hover:border-emerald-400"
-        >
-          <div className="mb-2 flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
-              <NavIcon type="messages" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-white">New SMS</span>
-              <span className="block truncate text-xs text-gray-400">{smsToast.from || 'Unknown number'}</span>
-            </span>
-          </div>
-          <p className="line-clamp-2 text-sm text-gray-300">
-            {smsToast.body || 'New message received'}
-          </p>
-        </button>
-      )}
-
       {followUpToast && (
         <button
           type="button"
@@ -608,6 +607,7 @@ function App() {
           </p>
         </button>
       )}
+      <AppToaster />
     </div>
   );
 }
