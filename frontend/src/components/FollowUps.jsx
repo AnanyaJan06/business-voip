@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import LoadingSpinner from './LoadingSpinner.jsx';
+import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
+import InlineLoader from './ui/InlineLoader.jsx';
+import { confirmAction } from '../utils/confirmDialog.js';
+import { showErrorToast, showSuccessToast } from '../utils/toast.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -24,34 +27,73 @@ const readJsonResponse = async (res) => {
   }
 };
 
+function FollowUpsSkeleton() {
+  return (
+    <AppSkeletonTheme>
+      <div role="status" aria-label="Loading follow-ups">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <Skeleton width={110} height={18} />
+            <Skeleton width={150} height={12} className="mt-2 block" />
+          </div>
+          <Skeleton width={118} height={36} borderRadius={12} />
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900">
+          <div className="border-b border-gray-800 px-4 py-3">
+            <Skeleton width={92} height={16} />
+          </div>
+          <div className="divide-y divide-gray-800">
+            {Array.from({ length: 6 }, (_, index) => (
+              <div key={index} className="px-4 py-3">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <Skeleton width={140} height={16} />
+                    <Skeleton width={112} height={12} className="mt-2 block" />
+                    <Skeleton width={168} height={12} className="mt-2 block" />
+                  </div>
+                  <Skeleton width={54} height={24} borderRadius={999} />
+                </div>
+                <Skeleton width="86%" height={14} />
+                <div className="mt-3 flex gap-2">
+                  <Skeleton width={76} height={30} borderRadius={8} />
+                  <Skeleton width={58} height={30} borderRadius={8} />
+                  <Skeleton width={58} height={30} borderRadius={8} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </AppSkeletonTheme>
+  );
+}
+
 function FollowUps({ onDueCountChange }) {
   const [followUps, setFollowUps] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState({ text: '', type: '' });
+  const [showForm, setShowForm] = useState(false);
 
   const authHeaders = useMemo(() => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`
   }), []);
 
-  const fetchFollowUps = useCallback(async () => {
+  const fetchFollowUps = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await fetch(`${BACKEND_URL}/api/followups`, {
         headers: authHeaders
       });
       const data = await readJsonResponse(res);
 
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to load follow-ups');
-      }
-
+      if (!res.ok) throw new Error(data.message || 'Failed to load follow-ups');
       setFollowUps(Array.isArray(data) ? data : []);
     } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
+      showErrorToast(error.message || 'Failed to load follow-ups');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [authHeaders]);
 
@@ -81,14 +123,12 @@ function FollowUps({ onDueCountChange }) {
     event.preventDefault();
 
     if (!form.name.trim() || !form.note.trim() || !form.followUpDate) {
-      setNotice({ text: 'Add a name, note, and follow-up date.', type: 'error' });
+      showErrorToast('Add a name, note, and follow-up date.');
       return;
     }
 
     try {
       setSaving(true);
-      setNotice({ text: '', type: '' });
-
       const res = await fetch(`${BACKEND_URL}/api/followups`, {
         method: 'POST',
         headers: {
@@ -107,11 +147,12 @@ function FollowUps({ onDueCountChange }) {
       if (!res.ok) throw new Error(data.message || 'Failed to create follow-up');
 
       setForm(emptyForm);
-      setNotice({ text: 'Follow-up saved.', type: 'success' });
+      setShowForm(false);
+      showSuccessToast('Follow-up saved');
       window.dispatchEvent(new Event('refreshFollowUps'));
-      fetchFollowUps();
+      fetchFollowUps({ silent: true });
     } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
+      showErrorToast(error.message || 'Failed to create follow-up');
     } finally {
       setSaving(false);
     }
@@ -134,13 +175,24 @@ function FollowUps({ onDueCountChange }) {
       setFollowUps((current) => current.map((item) => (
         item._id === followUp._id ? data.followUp : item
       )));
+      showSuccessToast(completed ? 'Follow-up completed' : 'Follow-up reopened');
       window.dispatchEvent(new Event('refreshFollowUps'));
     } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
+      showErrorToast(error.message || 'Failed to update follow-up');
     }
   };
 
   const deleteFollowUp = async (followUp) => {
+    const confirmed = await confirmAction({
+      title: 'Delete follow-up?',
+      text: 'This follow-up will be removed permanently.',
+      confirmButtonText: 'Delete',
+      icon: 'warning',
+      confirmButtonColor: '#DC2626'
+    });
+
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`${BACKEND_URL}/api/followups/${followUp._id}`, {
         method: 'DELETE',
@@ -151,9 +203,21 @@ function FollowUps({ onDueCountChange }) {
       if (!res.ok) throw new Error(data.message || 'Failed to delete follow-up');
 
       setFollowUps((current) => current.filter((item) => item._id !== followUp._id));
+      showSuccessToast('Follow-up deleted');
       window.dispatchEvent(new Event('refreshFollowUps'));
     } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
+      showErrorToast(error.message || 'Failed to delete follow-up');
+    }
+  };
+
+  const copyPhone = async (phone) => {
+    if (!phone) return;
+
+    try {
+      await navigator.clipboard.writeText(phone);
+      showSuccessToast('Phone number copied');
+    } catch {
+      showErrorToast('Failed to copy phone number');
     }
   };
 
@@ -166,86 +230,100 @@ function FollowUps({ onDueCountChange }) {
     minute: '2-digit'
   });
 
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <FollowUpsSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <form onSubmit={createFollowUp} className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-        <h3 className="mb-4 text-base font-semibold text-white">New Follow-up</h3>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-xs text-gray-400">Name</label>
-            <input
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="Customer name"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs text-gray-400">Phone</label>
-            <input
-              name="phone"
-              value={form.phone}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="+1..."
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="mb-1.5 block text-xs text-gray-400">Date and Time</label>
-            <input
-              type="datetime-local"
-              name="followUpDate"
-              value={form.followUpDate}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              required
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="mb-1.5 block text-xs text-gray-400">Note</label>
-            <textarea
-              name="note"
-              value={form.note}
-              onChange={handleChange}
-              rows={3}
-              className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="What should be followed up?"
-              required
-            />
-          </div>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-white">Follow Ups</h2>
+          <p className="mt-0.5 text-xs text-gray-400">Track reminders and pending callbacks.</p>
         </div>
-
-        {notice.text && (
-          <div className={`mt-4 rounded-xl px-3 py-2 text-xs text-white ${
-            notice.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
-          }`}>
-            {notice.text}
-          </div>
-        )}
-
         <button
-          type="submit"
-          disabled={saving}
-          className="mt-4 w-full rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
+          type="button"
+          onClick={() => setShowForm((current) => !current)}
+          className="rounded-xl bg-[#059669] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#047857]"
         >
-          {saving ? <LoadingSpinner label="Saving..." size="sm" tone="white" inline /> : 'Save Follow-up'}
+          {showForm ? 'Close' : 'Save Follow-up'}
         </button>
-      </form>
+      </div>
+
+      {showForm && (
+        <form onSubmit={createFollowUp} className="rounded-xl border border-gray-800 bg-gray-900 p-4">
+          <h3 className="mb-4 text-base font-semibold text-white">New Follow-up</h3>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs text-gray-400">Name</label>
+              <input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
+                placeholder="Customer name"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs text-gray-400">Phone</label>
+              <input
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
+                placeholder="+1..."
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1.5 block text-xs text-gray-400">Date and Time</label>
+              <input
+                type="datetime-local"
+                name="followUpDate"
+                value={form.followUpDate}
+                onChange={handleChange}
+                className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
+                required
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-1.5 block text-xs text-gray-400">Note</label>
+              <textarea
+                name="note"
+                value={form.note}
+                onChange={handleChange}
+                rows={3}
+                className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
+                placeholder="What should be followed up?"
+                required
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="mt-4 w-full rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
+          >
+            {saving ? <InlineLoader label="Saving..." /> : 'Save Follow-up'}
+          </button>
+        </form>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900">
         <div className="border-b border-gray-800 px-4 py-3">
           <h3 className="text-sm font-semibold text-white">Follow-ups</h3>
         </div>
 
-        {loading ? (
-          <LoadingSpinner label="Loading follow-ups..." />
-        ) : sortedFollowUps.length === 0 ? (
+        {sortedFollowUps.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-400">No follow-ups yet.</p>
         ) : (
           <div className="divide-y divide-gray-800">
@@ -277,7 +355,16 @@ function FollowUps({ onDueCountChange }) {
 
                   <p className="text-sm text-gray-300">{followUp.note}</p>
 
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {followUp.phone && (
+                      <button
+                        type="button"
+                        onClick={() => copyPhone(followUp.phone)}
+                        className="rounded-lg border border-gray-600 px-3 py-1.5 text-xs font-semibold text-gray-300 transition hover:bg-gray-700 hover:text-white"
+                      >
+                        Copy Phone
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => updateCompleted(followUp, !followUp.completed)}
