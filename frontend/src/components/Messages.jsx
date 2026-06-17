@@ -27,6 +27,22 @@ const formatMessageStatus = (status = '') => (
   status ? status.replace('-', ' ') : 'queued'
 );
 
+const upsertMessage = (messages, message) => {
+  if (!message?._id && !message?.messageSid) return messages;
+
+  const messageId = String(message._id || message.messageSid);
+  const exists = messages.some((item) => String(item._id || item.messageSid) === messageId);
+
+  return exists ? messages : [message, ...messages];
+};
+
+const normalizeIncomingMessage = (message) => ({
+  ...message,
+  phoneNumber: message.phoneNumber || message.from,
+  direction: message.direction || 'inbound',
+  status: message.status || 'received'
+});
+
 function MessagesSkeleton() {
   return (
     <AppSkeletonTheme>
@@ -91,9 +107,9 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
     setUnreadThreadKeys(uniqueKeys);
   }, [unreadStorageKey]);
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await fetch(`${BACKEND_URL}/api/messages`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -127,7 +143,12 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
         writeUnreadThreadKeys([...readUnreadThreadKeys(), threadKey]);
       }
 
-      fetchMessages();
+      if (incomingMessage) {
+        setMessages((current) => upsertMessage(current, normalizeIncomingMessage(incomingMessage)));
+        return;
+      }
+
+      fetchMessages({ silent: true });
     };
 
     window.addEventListener('refreshMessages', handleIncomingMessage);
@@ -192,7 +213,11 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
       setBody('');
       setImageFile(null);
       showSuccessToast(imageFile ? 'Image message queued successfully' : 'Message queued successfully');
-      fetchMessages();
+      if (data.messageLog) {
+        setMessages((current) => upsertMessage(current, data.messageLog));
+      } else {
+        fetchMessages({ silent: true });
+      }
     } catch (error) {
       showErrorToast(error.message || 'Failed to send message');
     } finally {

@@ -127,9 +127,11 @@ export const sendInternalMessage = async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.emit('internal-message-created', {
+        _id: populatedMessage._id,
         messageId: populatedMessage._id,
         sender: populatedMessage.sender,
         recipient: populatedMessage.recipient,
+        body: populatedMessage.body,
         createdAt: populatedMessage.createdAt
       });
     }

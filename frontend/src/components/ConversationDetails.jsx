@@ -23,6 +23,22 @@ const formatMessageStatus = (status = '') => (
   status ? status.replace('-', ' ') : 'queued'
 );
 
+const upsertMessage = (messages, message) => {
+  if (!message?._id && !message?.messageSid) return messages;
+
+  const messageId = String(message._id || message.messageSid);
+  const exists = messages.some((item) => String(item._id || item.messageSid) === messageId);
+
+  return exists ? messages : [...messages, message];
+};
+
+const normalizeIncomingMessage = (message) => ({
+  ...message,
+  phoneNumber: message.phoneNumber || message.from,
+  direction: message.direction || 'inbound',
+  status: message.status || 'received'
+});
+
 function ConversationDetailsSkeleton() {
   return (
     <AppSkeletonTheme>
@@ -82,11 +98,11 @@ function ConversationDetails({ phoneNumber, onClose }) {
 
   const selectedDigits = normalizePhone(phoneNumber);
 
-  const fetchConversation = useCallback(async () => {
+  const fetchConversation = useCallback(async ({ silent = false } = {}) => {
     if (!phoneNumber) return;
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const headers = {
         Authorization: `Bearer ${localStorage.getItem('token')}`
       };
@@ -109,7 +125,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
     } catch (error) {
       setNotice(error.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [phoneNumber]);
 
@@ -118,14 +134,27 @@ function ConversationDetails({ phoneNumber, onClose }) {
   }, [fetchConversation]);
 
   useEffect(() => {
-    const refresh = () => fetchConversation();
-    window.addEventListener('refreshCallHistory', refresh);
-    window.addEventListener('refreshMessages', refresh);
-    return () => {
-      window.removeEventListener('refreshCallHistory', refresh);
-      window.removeEventListener('refreshMessages', refresh);
+    const refreshCalls = () => fetchConversation({ silent: true });
+    const refreshMessages = (event) => {
+      const message = event.detail?.message;
+      if (!message) {
+        fetchConversation({ silent: true });
+        return;
+      }
+
+      const values = [message.phoneNumber, message.from, message.to].map(normalizePhone);
+      if (!values.includes(selectedDigits)) return;
+
+      setMessages((current) => upsertMessage(current, normalizeIncomingMessage(message)));
     };
-  }, [fetchConversation]);
+
+    window.addEventListener('refreshCallHistory', refreshCalls);
+    window.addEventListener('refreshMessages', refreshMessages);
+    return () => {
+      window.removeEventListener('refreshCallHistory', refreshCalls);
+      window.removeEventListener('refreshMessages', refreshMessages);
+    };
+  }, [fetchConversation, selectedDigits]);
 
   const timeline = useMemo(() => {
     if (!selectedDigits) return [];
@@ -268,8 +297,15 @@ function ConversationDetails({ phoneNumber, onClose }) {
 
       setMessageBody('');
       setImageFile(null);
-      fetchConversation();
-      window.dispatchEvent(new Event('refreshMessages'));
+      if (data.messageLog) {
+        setMessages((current) => upsertMessage(current, data.messageLog));
+        window.dispatchEvent(new CustomEvent('refreshMessages', {
+          detail: { message: data.messageLog }
+        }));
+      } else {
+        fetchConversation({ silent: true });
+        window.dispatchEvent(new Event('refreshMessages'));
+      }
     } catch (error) {
       setNotice(error.message);
     } finally {

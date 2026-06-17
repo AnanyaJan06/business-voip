@@ -11,6 +11,15 @@ const formatTime = (date) => new Date(date).toLocaleTimeString([], {
   minute: '2-digit'
 });
 
+const upsertMessage = (messages, message) => {
+  if (!message?._id && !message?.messageId) return messages;
+
+  const messageId = String(message._id || message.messageId);
+  const exists = messages.some((item) => String(item._id || item.messageId) === messageId);
+
+  return exists ? messages : [...messages, message];
+};
+
 function TeamUsersSkeleton() {
   return (
     <AppSkeletonTheme>
@@ -72,9 +81,9 @@ function InternalMessages({
     Authorization: `Bearer ${localStorage.getItem('token')}`
   }), []);
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoadingUsers(true);
+      if (!silent) setLoadingUsers(true);
       const res = await fetch(`${BACKEND_URL}/api/internal-messages/users`, {
         headers: authHeaders
       });
@@ -85,7 +94,7 @@ function InternalMessages({
     } catch (error) {
       showErrorToast(error.message || 'Failed to load chat users');
     } finally {
-      setLoadingUsers(false);
+      if (!silent) setLoadingUsers(false);
     }
   }, [authHeaders]);
 
@@ -95,7 +104,7 @@ function InternalMessages({
 
   useEffect(() => {
     const refresh = () => {
-      fetchUsers();
+      fetchUsers({ silent: true });
       onReadMessages?.();
     };
 
@@ -180,14 +189,14 @@ function InternalMessageDetails({
     Authorization: `Bearer ${localStorage.getItem('token')}`
   }), []);
 
-  const fetchConversation = useCallback(async () => {
+  const fetchConversation = useCallback(async ({ silent = false } = {}) => {
     if (!selectedUserId) {
       setMessages([]);
       return;
     }
 
     try {
-      setLoadingMessages(true);
+      if (!silent) setLoadingMessages(true);
       const res = await fetch(`${BACKEND_URL}/api/internal-messages/${selectedUserId}`, {
         headers: authHeaders
       });
@@ -200,7 +209,7 @@ function InternalMessageDetails({
     } catch (error) {
       showErrorToast(error.message || 'Failed to load conversation');
     } finally {
-      setLoadingMessages(false);
+      if (!silent) setLoadingMessages(false);
     }
   }, [authHeaders, onReadMessages, selectedUserId]);
 
@@ -215,7 +224,15 @@ function InternalMessageDetails({
       const recipientId = getUserId(message?.recipient);
 
       if (!selectedUserId || (senderId !== selectedUserId && recipientId !== selectedUserId)) return;
-      fetchConversation();
+
+      if (message?.body) {
+        setMessages((current) => upsertMessage(current, message));
+        onReadMessages?.();
+        window.dispatchEvent(new Event('refreshInternalMessages'));
+        return;
+      }
+
+      fetchConversation({ silent: true });
     };
 
     window.addEventListener('refreshInternalMessages', refresh);
@@ -254,8 +271,10 @@ function InternalMessageDetails({
 
       if (!res.ok) throw new Error(data.message || 'Failed to send message');
       setBody('');
-      setMessages((current) => [...current, data]);
-      window.dispatchEvent(new Event('refreshInternalMessages'));
+      setMessages((current) => upsertMessage(current, data));
+      window.dispatchEvent(new CustomEvent('refreshInternalMessages', {
+        detail: data
+      }));
     } catch (error) {
       showErrorToast(error.message || 'Failed to send message');
     } finally {
