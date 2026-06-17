@@ -6,13 +6,13 @@ import ConfirmModal from './components/ConfirmModal.jsx';
 import Contacts from './components/Contacts.jsx';
 import ConversationDetails from './components/ConversationDetails.jsx';
 import Messages from './components/Messages.jsx';
-import InternalMessages from './components/InternalMessages.jsx';
+import InternalMessages, { InternalMessageDetails } from './components/InternalMessages.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 import FollowUps from './components/FollowUps.jsx';
 import AppToaster from './components/ui/AppToaster.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
-import { showIncomingSmsToast } from './utils/toast.js';
+import { showIncomingSmsToast, showTeamMessageToast } from './utils/toast.js';
 import './App.css';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -130,6 +130,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('history');
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState('');
   const [selectedMessageNumber, setSelectedMessageNumber] = useState('');
+  const [selectedTeamUser, setSelectedTeamUser] = useState(null);
   const [conversationNumber, setConversationNumber] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'night');
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -141,11 +142,15 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const activeTabRef = useRef(activeTab);
   const currentUserRef = useRef(currentUser);
+  const selectedTeamUserRef = useRef(selectedTeamUser);
   const followUpToastTimerRef = useRef(null);
   const isAdmin = currentUser?.role === 'admin';
 
   const openTab = useCallback((tabId) => {
     setActiveTab(tabId);
+    if (tabId !== 'team') {
+      setSelectedTeamUser(null);
+    }
     if (tabId === 'messages') {
       setUnreadMessages(0);
     }
@@ -184,6 +189,10 @@ function App() {
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  useEffect(() => {
+    selectedTeamUserRef.current = selectedTeamUser;
+  }, [selectedTeamUser]);
 
   useEffect(() => {
     const userId = getUserId(currentUser);
@@ -344,11 +353,29 @@ function App() {
     });
 
     socket.on('internal-message-created', (message) => {
-      window.dispatchEvent(new Event('refreshInternalMessages'));
+      window.dispatchEvent(new CustomEvent('refreshInternalMessages', {
+        detail: message
+      }));
       const user = currentUserRef.current;
+      const currentUserId = getUserId(user);
+      const senderId = getUserId(message.sender);
+      const recipientId = getUserId(message.recipient);
 
-      if (String(message.recipient?._id || message.recipient?.id) === String(user?.id || user?._id)) {
+      if (recipientId === currentUserId) {
         refreshUnreadTeamMessages();
+
+        const selectedTeamUserId = getUserId(selectedTeamUserRef.current);
+        const isOpenConversation = activeTabRef.current === 'team' && selectedTeamUserId === senderId;
+
+        if (!isOpenConversation) {
+          showTeamMessageToast({
+            senderName: message.sender?.name,
+            onClick: () => {
+              setSelectedTeamUser(message.sender);
+              openTab('team');
+            }
+          });
+        }
       }
     });
 
@@ -403,6 +430,7 @@ function App() {
     setShowLogoutModal(false);
     setSelectedPhoneNumber('');
     setSelectedMessageNumber('');
+    setSelectedTeamUser(null);
     setConversationNumber('');
     setUnreadMessages(0);
     setUnreadTeamMessages(0);
@@ -544,6 +572,8 @@ function App() {
           {activeTab === 'team' && (
             <InternalMessages
               currentUser={currentUser}
+              selectedUserId={getUserId(selectedTeamUser)}
+              onSelectUser={setSelectedTeamUser}
               onReadMessages={refreshUnreadTeamMessages}
             />
           )}
@@ -560,6 +590,12 @@ function App() {
           <div className="h-full overflow-auto p-4 thin-scrollbar">
             <AdminDashboard showUsers={false} />
           </div>
+        ) : activeTab === 'team' ? (
+          <InternalMessageDetails
+            currentUser={currentUser}
+            selectedUser={selectedTeamUser}
+            onReadMessages={refreshUnreadTeamMessages}
+          />
         ) : (
           <ConversationDetails
             phoneNumber={conversationNumber}

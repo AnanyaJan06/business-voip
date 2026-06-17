@@ -49,5 +49,23 @@ const showIncomingSmsToast = ({ from, body, onClick }) => toast.custom((t) => cr
   duration: 5000,
   position: 'top-right'
 });
+const showTeamMessageToast = ({ senderName, onClick }) => toast.custom((t) => createElement(
+  'button',
+  {
+    type: 'button',
+    onClick: () => {
+      toast.dismiss(t.id);
+      onClick?.();
+    },
+    className: `w-[min(340px,calc(100vw-2rem))] rounded-2xl border border-sky-500/25 bg-[#151B28] p-4 text-left text-white shadow-2xl transition hover:border-sky-400 ${
+      t.visible ? 'opacity-100' : 'opacity-0'
+    }`
+  },
+  createElement('span', { className: 'mb-1 block text-sm font-semibold' }, 'New team message'),
+  createElement('span', { className: 'block truncate text-xs text-gray-400' }, senderName || 'Team member')
+), {
+  duration: 5000,
+  position: 'top-right'
+});
 
-export { showErrorToast, showIncomingSmsToast, showSuccessToast, toastOptions };
+export { showErrorToast, showIncomingSmsToast, showSuccessToast, showTeamMessageToast, toastOptions };

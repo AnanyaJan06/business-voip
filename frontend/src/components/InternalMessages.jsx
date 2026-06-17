@@ -1,32 +1,76 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BACKEND_URL } from '../config/api.js';
-import LoadingSpinner from './LoadingSpinner.jsx';
+import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
+import InlineLoader from './ui/InlineLoader.jsx';
+import { showErrorToast } from '../utils/toast.js';
 
-const getUserId = (user) => user?._id || user?.id || '';
+const getUserId = (user) => String(user?._id || user?.id || '');
 
 const formatTime = (date) => new Date(date).toLocaleTimeString([], {
   hour: '2-digit',
   minute: '2-digit'
 });
 
-function InternalMessages({ currentUser, onReadMessages }) {
+function TeamUsersSkeleton() {
+  return (
+    <AppSkeletonTheme>
+      <div className="space-y-2" role="status" aria-label="Loading team users">
+        {Array.from({ length: 7 }, (_, index) => (
+          <div key={index} className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <Skeleton width={132} height={16} />
+                <Skeleton width={74} height={12} className="mt-2 block" />
+                <Skeleton width="82%" height={12} className="mt-2 block" />
+              </div>
+              <Skeleton width={10} height={10} borderRadius={999} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </AppSkeletonTheme>
+  );
+}
+
+function TeamConversationSkeleton() {
+  return (
+    <AppSkeletonTheme>
+      <div className="space-y-3" role="status" aria-label="Loading team conversation">
+        <div className="flex justify-start">
+          <div className="w-[58%] rounded-xl bg-gray-800 px-3 py-2">
+            <Skeleton width="86%" height={14} />
+            <Skeleton width={52} height={10} className="mt-2 block" />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="w-[68%] rounded-xl bg-emerald-700/50 px-3 py-2">
+            <Skeleton width="92%" height={14} />
+            <Skeleton width={48} height={10} className="ml-auto mt-2 block" />
+          </div>
+        </div>
+        <div className="flex justify-start">
+          <div className="w-[50%] rounded-xl bg-gray-800 px-3 py-2">
+            <Skeleton width="78%" height={14} />
+            <Skeleton width={44} height={10} className="mt-2 block" />
+          </div>
+        </div>
+      </div>
+    </AppSkeletonTheme>
+  );
+}
+
+function InternalMessages({
+  currentUser,
+  selectedUserId = '',
+  onSelectUser,
+  onReadMessages
+}) {
   const [users, setUsers] = useState([]);
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [messages, setMessages] = useState([]);
-  const [body, setBody] = useState('');
   const [loadingUsers, setLoadingUsers] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [notice, setNotice] = useState({ text: '', type: '' });
-  const listRef = useRef(null);
 
   const authHeaders = useMemo(() => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`
   }), []);
-
-  const selectedUser = useMemo(() => (
-    users.find((user) => getUserId(user) === selectedUserId)
-  ), [selectedUserId, users]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -37,62 +81,146 @@ function InternalMessages({ currentUser, onReadMessages }) {
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.message || 'Failed to load chat users');
-
-      const chatUsers = Array.isArray(data) ? data : [];
-      setUsers(chatUsers);
-      setSelectedUserId((current) => (
-        chatUsers.some((user) => getUserId(user) === current)
-          ? current
-          : ''
-      ));
+      setUsers(Array.isArray(data) ? data : []);
     } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
+      showErrorToast(error.message || 'Failed to load chat users');
     } finally {
       setLoadingUsers(false);
     }
   }, [authHeaders]);
-
-  const fetchConversation = useCallback(async (userId = selectedUserId) => {
-    if (!userId) {
-      setMessages([]);
-      return;
-    }
-
-    try {
-      setLoadingMessages(true);
-      const res = await fetch(`${BACKEND_URL}/api/internal-messages/${userId}`, {
-        headers: authHeaders
-      });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message || 'Failed to load conversation');
-
-      setMessages(Array.isArray(data) ? data : []);
-      onReadMessages?.();
-    } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, [authHeaders, onReadMessages, selectedUserId]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
   useEffect(() => {
-    fetchConversation(selectedUserId);
-  }, [fetchConversation, selectedUserId]);
-
-  useEffect(() => {
     const refresh = () => {
       fetchUsers();
-      fetchConversation(selectedUserId);
+      onReadMessages?.();
     };
 
     window.addEventListener('refreshInternalMessages', refresh);
     return () => window.removeEventListener('refreshInternalMessages', refresh);
-  }, [fetchConversation, fetchUsers, selectedUserId]);
+  }, [fetchUsers, onReadMessages]);
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-4">
+        <h2 className="text-base font-semibold text-white">Team Chat</h2>
+        <p className="mt-0.5 text-xs text-gray-400">Select a teammate to open the conversation on the right.</p>
+      </div>
+
+      {loadingUsers ? (
+        <TeamUsersSkeleton />
+      ) : users.length === 0 ? (
+        <p className="rounded-2xl border border-gray-800 bg-gray-900 py-10 text-center text-sm text-gray-400">
+          No users available.
+        </p>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
+          <div className="divide-y divide-gray-800">
+            {users.map((user) => {
+              const userId = getUserId(user);
+              const active = userId === selectedUserId;
+              const hasUnread = Number(user.unreadCount) > 0;
+
+              return (
+                <button
+                  key={userId}
+                  type="button"
+                  onClick={() => onSelectUser?.(user)}
+                  className={`block w-full px-4 py-3 text-left transition ${
+                    active ? 'bg-emerald-500/10' : 'hover:bg-[#1F2533]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        {hasUnread && (
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-label="Unread team messages" />
+                        )}
+                        <span className="truncate text-sm font-semibold text-white">{user.name}</span>
+                      </div>
+                      <p className="mt-0.5 truncate text-[11px] capitalize text-gray-500">{user.role}</p>
+                      {user.lastMessagePreview && (
+                        <p className={`mt-1 line-clamp-1 text-xs ${hasUnread ? 'font-semibold text-gray-200' : 'text-gray-400'}`}>
+                          {user.lastMessagePreview}
+                        </p>
+                      )}
+                    </div>
+                    {hasUnread && (
+                      <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                        {user.unreadCount > 99 ? '99+' : user.unreadCount}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InternalMessageDetails({
+  currentUser,
+  selectedUser,
+  onReadMessages
+}) {
+  const selectedUserId = getUserId(selectedUser);
+  const [messages, setMessages] = useState([]);
+  const [body, setBody] = useState('');
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sending, setSending] = useState(false);
+  const listRef = useRef(null);
+
+  const authHeaders = useMemo(() => ({
+    Authorization: `Bearer ${localStorage.getItem('token')}`
+  }), []);
+
+  const fetchConversation = useCallback(async () => {
+    if (!selectedUserId) {
+      setMessages([]);
+      return;
+    }
+
+    try {
+      setLoadingMessages(true);
+      const res = await fetch(`${BACKEND_URL}/api/internal-messages/${selectedUserId}`, {
+        headers: authHeaders
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Failed to load conversation');
+      setMessages(Array.isArray(data) ? data : []);
+      onReadMessages?.();
+      window.dispatchEvent(new Event('refreshInternalMessages'));
+    } catch (error) {
+      showErrorToast(error.message || 'Failed to load conversation');
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [authHeaders, onReadMessages, selectedUserId]);
+
+  useEffect(() => {
+    fetchConversation();
+  }, [fetchConversation]);
+
+  useEffect(() => {
+    const refresh = (event) => {
+      const message = event.detail;
+      const senderId = getUserId(message?.sender);
+      const recipientId = getUserId(message?.recipient);
+
+      if (!selectedUserId || (senderId !== selectedUserId && recipientId !== selectedUserId)) return;
+      fetchConversation();
+    };
+
+    window.addEventListener('refreshInternalMessages', refresh);
+    return () => window.removeEventListener('refreshInternalMessages', refresh);
+  }, [fetchConversation, selectedUserId]);
 
   useEffect(() => {
     listRef.current?.scrollTo({
@@ -105,14 +233,12 @@ function InternalMessages({ currentUser, onReadMessages }) {
     event.preventDefault();
 
     if (!selectedUserId || !body.trim()) {
-      setNotice({ text: 'Choose a user and write a message.', type: 'error' });
+      showErrorToast('Choose a user and write a message.');
       return;
     }
 
     try {
       setSending(true);
-      setNotice({ text: '', type: '' });
-
       const res = await fetch(`${BACKEND_URL}/api/internal-messages`, {
         method: 'POST',
         headers: {
@@ -127,136 +253,81 @@ function InternalMessages({ currentUser, onReadMessages }) {
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.message || 'Failed to send message');
-
       setBody('');
       setMessages((current) => [...current, data]);
+      window.dispatchEvent(new Event('refreshInternalMessages'));
     } catch (error) {
-      setNotice({ text: error.message, type: 'error' });
+      showErrorToast(error.message || 'Failed to send message');
     } finally {
       setSending(false);
     }
   };
 
-  return (
-    <div className="mx-auto flex h-full max-w-4xl flex-col">
-      <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border border-gray-800 bg-gray-900 md:grid-cols-[180px_1fr]">
-        <div className="border-b border-gray-800 md:border-b-0 md:border-r">
-          <div className="border-b border-gray-800 px-3 py-3">
-            <h3 className="text-sm font-semibold text-white">Team Chat</h3>
-            <p className="text-xs text-gray-400">Admins and agents</p>
-          </div>
-
-          {loadingUsers ? (
-            <LoadingSpinner label="Loading users..." />
-          ) : users.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-gray-400">No users available.</p>
-          ) : (
-            <div className="max-h-52 divide-y divide-gray-800 overflow-auto md:max-h-none">
-              {users.map((user) => {
-                const userId = getUserId(user);
-                const active = userId === selectedUserId;
-
-                return (
-                  <button
-                    key={userId}
-                    type="button"
-                    onClick={() => {
-                      setSelectedUserId(userId);
-                      setNotice({ text: '', type: '' });
-                    }}
-                    className={`block w-full px-3 py-3 text-left transition ${
-                      active ? 'bg-emerald-500/10 text-white' : 'text-gray-300 hover:bg-gray-800'
-                    }`}
-                  >
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="block min-w-0 truncate text-sm font-semibold">{user.name}</span>
-                      {user.unreadCount > 0 && (
-                        <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                          {user.unreadCount > 99 ? '99+' : user.unreadCount}
-                        </span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 block truncate text-[11px] capitalize text-gray-500">{user.role}</span>
-                    {user.lastMessagePreview && (
-                      <span className="mt-1 block truncate text-xs text-gray-400">
-                        {user.lastMessagePreview}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="flex min-h-0 flex-col">
-          <div className="border-b border-gray-800 px-4 py-3">
-            <p className="truncate text-sm font-semibold text-white">
-              {selectedUser ? selectedUser.name : 'Select a conversation'}
-            </p>
-            <p className="truncate text-xs text-gray-400">{selectedUser?.email || 'Messages stay inside the app'}</p>
-          </div>
-
-          {notice.text && (
-            <div className={`m-3 rounded-xl px-3 py-2 text-xs text-white ${
-              notice.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
-            }`}>
-              {notice.text}
-            </div>
-          )}
-
-          <div ref={listRef} className="min-h-[280px] flex-1 space-y-3 overflow-auto p-4 thin-scrollbar">
-            {loadingMessages ? (
-              <LoadingSpinner label="Loading conversation..." />
-            ) : messages.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400">No team messages yet.</p>
-            ) : (
-              messages.map((message) => {
-                const mine = getUserId(message.sender) === getUserId(currentUser);
-
-                return (
-                  <div key={message._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[78%] rounded-xl px-3 py-2 ${
-                      mine
-                        ? 'internal-message-outbound bg-[#059669] text-white'
-                        : 'internal-message-inbound bg-gray-800 text-white'
-                    }`}>
-                      <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
-                      <p className={`internal-message-time mt-1 text-[10px] ${mine ? 'text-emerald-50/80' : 'text-gray-500'}`}>
-                        {formatTime(message.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          <form onSubmit={sendMessage} className="border-t border-gray-800 p-3">
-            <textarea
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              rows={3}
-              maxLength={2000}
-              disabled={!selectedUserId}
-              placeholder={selectedUserId ? 'Write a team message...' : 'Select a user first'}
-              className="w-full resize-none rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669] disabled:opacity-60"
-            />
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <span className="text-[11px] text-gray-500">{body.length}/2000</span>
-              <button
-                type="submit"
-                disabled={sending || !selectedUserId}
-                className="rounded-xl bg-[#059669] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
-              >
-                {sending ? 'Sending...' : 'Send'}
-              </button>
-            </div>
-          </form>
-        </div>
+  if (!selectedUserId) {
+    return (
+      <div className="flex h-full items-center justify-center px-8 text-center text-sm text-gray-500">
+        Select a teammate from Team Chat to view the conversation.
       </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-[#0F1322]">
+      <div className="border-b border-gray-800 bg-[#161B28] px-5 py-4">
+        <p className="truncate text-sm font-semibold text-white">{selectedUser.name}</p>
+        <p className="truncate text-xs text-gray-400">{selectedUser.email || 'Team conversation'}</p>
+      </div>
+
+      <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-auto p-5 thin-scrollbar">
+        {loadingMessages ? (
+          <TeamConversationSkeleton />
+        ) : messages.length === 0 ? (
+          <p className="py-10 text-center text-sm text-gray-400">No team messages yet.</p>
+        ) : (
+          messages.map((message) => {
+            const mine = getUserId(message.sender) === getUserId(currentUser);
+
+            return (
+              <div key={message._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[78%] rounded-xl px-3 py-2 ${
+                  mine
+                    ? 'internal-message-outbound bg-[#059669] text-white'
+                    : 'internal-message-inbound bg-gray-800 text-white'
+                }`}>
+                  <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
+                  <p className={`internal-message-time mt-1 text-[10px] ${mine ? 'text-emerald-50/80' : 'text-gray-500'}`}>
+                    {formatTime(message.createdAt)}
+                  </p>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <form onSubmit={sendMessage} className="border-t border-gray-800 bg-[#161B28] p-4">
+        <textarea
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="Write a team message..."
+          className="w-full resize-none rounded-xl border border-gray-700 bg-[#0F1322] px-4 py-3 text-sm text-white focus:border-[#059669]"
+        />
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span className="text-[11px] text-gray-500">{body.length}/2000</span>
+          <button
+            type="submit"
+            disabled={sending || !body.trim()}
+            className="rounded-xl bg-[#059669] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
+          >
+            {sending ? <InlineLoader label="Sending..." /> : 'Send'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
 
+export { InternalMessageDetails };
 export default InternalMessages;
