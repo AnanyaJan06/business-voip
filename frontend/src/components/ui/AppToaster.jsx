@@ -5,6 +5,7 @@ function AppToaster() {
   return (
     <Toaster
       position="top-right"
+      reverseOrder={false}
       toastOptions={toastOptions}
     />
   );
