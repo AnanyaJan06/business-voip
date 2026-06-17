@@ -1,5 +1,7 @@
 import express from 'express';
 import http from 'http';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -14,6 +16,9 @@ import phoneNumberRoutes from './routes/phoneNumberRoutes.js';
 import internalMessageRoutes from './routes/internalMessageRoutes.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 connectDB();
 
@@ -51,6 +56,7 @@ app.set('io', io);
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/calls', callRoutes);

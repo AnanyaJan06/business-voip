@@ -68,6 +68,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [recipient, setRecipient] = useState(selectedPhoneNumber);
   const [body, setBody] = useState('');
+  const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [showCompose, setShowCompose] = useState(Boolean(selectedPhoneNumber));
@@ -144,13 +145,29 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
   const sendMessage = async (event) => {
     event.preventDefault();
 
-    if (!recipient.trim() || !body.trim()) {
-      showErrorToast('Add a recipient and message before sending.');
+    if (!recipient.trim() || (!body.trim() && !imageFile)) {
+      showErrorToast('Add a recipient and message or image before sending.');
       return;
     }
 
     try {
       setSending(true);
+      let mediaUrls = [];
+
+      if (imageFile) {
+        const uploadRes = await fetch(`${BACKEND_URL}/api/messages/upload-image`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': imageFile.type,
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
+          body: imageFile
+        });
+        const uploadData = await uploadRes.json();
+
+        if (!uploadRes.ok) throw new Error(uploadData.message || 'Failed to upload image');
+        mediaUrls = [uploadData.mediaUrl];
+      }
 
       const res = await fetch(`${BACKEND_URL}/api/messages/send`, {
         method: 'POST',
@@ -160,10 +177,10 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
         },
         body: JSON.stringify({
           to: recipient.trim(),
-          body: body.trim()
+          body: body.trim(),
+          mediaUrls
         })
       });
-
       const data = await res.json();
 
       if (!res.ok) {
@@ -173,7 +190,8 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
       }
 
       setBody('');
-      showSuccessToast('Message queued successfully');
+      setImageFile(null);
+      showSuccessToast(imageFile ? 'Image message queued successfully' : 'Message queued successfully');
       fetchMessages();
     } catch (error) {
       showErrorToast(error.message || 'Failed to send message');
@@ -320,6 +338,37 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
             />
             <div className="mt-1 text-right text-[11px] text-gray-500">{body.length}/1600</div>
           </div>
+
+          <div className="mt-3 rounded-xl border border-dashed border-gray-700 bg-gray-800/60 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-300">Image</p>
+                <p className="mt-1 truncate text-[11px] text-gray-500">
+                  {imageFile ? imageFile.name : 'Attach JPG, PNG, GIF, or WebP'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {imageFile && (
+                  <button
+                    type="button"
+                    onClick={() => setImageFile(null)}
+                    className="rounded-lg border border-gray-700 px-3 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-700 hover:text-white"
+                  >
+                    Remove
+                  </button>
+                )}
+                <label className="cursor-pointer rounded-lg bg-gray-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-gray-600">
+                  Choose Image
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    className="sr-only"
+                    onChange={(event) => setImageFile(event.target.files?.[0] || null)}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
         </form>
       )}
 
@@ -339,7 +388,8 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
           <div className="divide-y divide-gray-800">
             {messageThreads.map((message) => {
               const isUnread = unreadThreadKeys.includes(message.threadKey);
-              const lastMessage = String(message.body || '').trim() || 'No message text';
+              const lastMessage = String(message.body || '').trim()
+                || (message.mediaUrls?.length ? 'Image message' : 'No message text');
 
               return (
                 <button

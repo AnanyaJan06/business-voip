@@ -19,7 +19,11 @@ const messageLogSchema = new mongoose.Schema({
   },
   body: {
     type: String,
-    required: true
+    default: ''
+  },
+  mediaUrls: {
+    type: [String],
+    default: []
   },
   direction: {
     type: String,
