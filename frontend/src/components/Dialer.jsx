@@ -3,6 +3,14 @@ import { Device } from '@twilio/voice-sdk';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 const DIALER_ANIMATION_MS = 220;
+const INCOMING_ALERT_TITLE = 'Incoming call';
+const INCOMING_ALERT_BODY = 'Open Dialio to answer or reject.';
+
+const canUseNotifications = () => (
+  typeof window !== 'undefined'
+  && window.isSecureContext
+  && 'Notification' in window
+);
 
 const getIncomingCallerNumber = (conn) => {
   const customFrom = conn?.customParameters?.get?.('originalFrom');
@@ -35,12 +43,159 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
   const timerRef = useRef(null);
   const activeCallRef = useRef(null);
   const dialerAnimationRef = useRef(null);
+  const incomingNotificationRef = useRef(null);
+  const titleAlertRef = useRef(null);
+  const originalTitleRef = useRef(typeof document !== 'undefined' ? document.title : '');
+  const ringtoneAudioRef = useRef(null);
   const shouldShowFullDialer = (isOpen || isCalling) && !isMinimized;
+
+  const formatIncomingAlertText = (from) => from || 'Unknown Number';
+
+  const stopIncomingAlerts = () => {
+    incomingNotificationRef.current?.close?.();
+    incomingNotificationRef.current = null;
+
+    if (titleAlertRef.current) {
+      window.clearInterval(titleAlertRef.current);
+      titleAlertRef.current = null;
+      document.title = originalTitleRef.current;
+    }
+
+    if (ringtoneAudioRef.current) {
+      ringtoneAudioRef.current.pause();
+      try {
+        ringtoneAudioRef.current.currentTime = 0;
+      } catch {
+        // Some browsers do not allow seeking a MediaStream-backed audio element.
+      }
+    }
+  };
+
+  const createRingtoneAudio = () => {
+    if (ringtoneAudioRef.current) return ringtoneAudioRef.current;
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) return null;
+
+    const audioContext = new AudioContextCtor();
+    const duration = 1.8;
+    const sampleRate = audioContext.sampleRate;
+    const frameCount = sampleRate * duration;
+    const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
+    const channel = buffer.getChannelData(0);
+
+    for (let i = 0; i < frameCount; i += 1) {
+      const time = i / sampleRate;
+      const isTone = (time % 0.9) < 0.55;
+      const tone = Math.sin(2 * Math.PI * 440 * time) + Math.sin(2 * Math.PI * 554.37 * time);
+      channel[i] = isTone ? tone * 0.18 : 0;
+    }
+
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const destination = audioContext.createMediaStreamDestination();
+    source.connect(destination);
+    source.start();
+
+    const audio = new Audio();
+    audio.srcObject = destination.stream;
+    audio.loop = true;
+    ringtoneAudioRef.current = audio;
+    return audio;
+  };
+
+  const playIncomingRingtone = async () => {
+    try {
+      const audio = createRingtoneAudio();
+      if (!audio) return;
+
+      await audio.play();
+    } catch (err) {
+      console.info('Incoming call ringtone was blocked by the browser:', err);
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if (!canUseNotifications() || Notification.permission !== 'default') return;
+
+    try {
+      await Notification.requestPermission();
+    } catch (err) {
+      console.info('Notification permission request failed:', err);
+    }
+  };
+
+  const startTitleAlert = (from) => {
+    if (titleAlertRef.current) return;
+
+    let showAlert = true;
+    const alertTitle = `${INCOMING_ALERT_TITLE}: ${formatIncomingAlertText(from)}`;
+    originalTitleRef.current = document.title;
+    document.title = alertTitle;
+
+    titleAlertRef.current = window.setInterval(() => {
+      document.title = showAlert ? alertTitle : originalTitleRef.current;
+      showAlert = !showAlert;
+    }, 1000);
+  };
+
+  const showNativeIncomingNotification = async (from) => {
+    if (!canUseNotifications()) return;
+
+    if (Notification.permission === 'default') {
+      await requestNotificationPermission();
+    }
+
+    if (Notification.permission !== 'granted') return;
+
+    incomingNotificationRef.current?.close?.();
+    incomingNotificationRef.current = new Notification(INCOMING_ALERT_TITLE, {
+      body: `${formatIncomingAlertText(from)}\n${INCOMING_ALERT_BODY}`,
+      tag: 'dialio-incoming-call',
+      requireInteraction: true
+    });
+
+    incomingNotificationRef.current.onclick = () => {
+      window.focus();
+      setIsIncomingMinimized(false);
+      incomingNotificationRef.current?.close?.();
+    };
+  };
+
+  const startIncomingAlerts = (from) => {
+    startTitleAlert(from);
+    playIncomingRingtone();
+
+    if (navigator.vibrate) {
+      navigator.vibrate([300, 120, 300, 120, 300]);
+    }
+
+    if (document.hidden || !document.hasFocus()) {
+      showNativeIncomingNotification(from);
+    }
+  };
 
   // Auto-fill from Contacts
   useEffect(() => {
     if (isOpen) setPhoneNumber(selectedPhoneNumber || '');
   }, [isOpen, selectedPhoneNumber]);
+
+  useEffect(() => {
+    const unlockAlerts = () => {
+      requestNotificationPermission();
+      createRingtoneAudio();
+    };
+
+    window.addEventListener('pointerdown', unlockAlerts, { once: true });
+    window.addEventListener('keydown', unlockAlerts, { once: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockAlerts);
+      window.removeEventListener('keydown', unlockAlerts);
+      stopIncomingAlerts();
+    };
+  }, []);
 
   useEffect(() => {
     clearTimeout(dialerAnimationRef.current);
@@ -116,6 +271,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
           });
           setIsIncomingMinimized(false);
           setConnection(conn);
+          startIncomingAlerts(from);
 
           const logMissedCall = () => {
             const currentCall = activeCallRef.current;
@@ -132,6 +288,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
             setIncomingCall(null);
             setIsIncomingMinimized(false);
             setConnection(null);
+            stopIncomingAlerts();
             resetCall();
           };
 
@@ -152,6 +309,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
             setIncomingCall(null);
             setIsIncomingMinimized(false);
             setConnection(null);
+            stopIncomingAlerts();
             resetCall();
           });
           conn.on('error', logMissedCall);
@@ -339,6 +497,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
         ...(activeCallRef.current || {}),
         accepted: true
       };
+      stopIncomingAlerts();
       setIncomingCall(null);
       setIsIncomingMinimized(false);
       setIsMinimized(false);
@@ -362,6 +521,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
       });
       connection.reject();
     }
+    stopIncomingAlerts();
     setIncomingCall(null);
     setIsIncomingMinimized(false);
     setConnection(null);
