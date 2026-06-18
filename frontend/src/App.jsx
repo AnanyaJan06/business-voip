@@ -2,7 +2,6 @@ import { useCallback, useRef, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import Dialer from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
-import ConfirmModal from './components/ConfirmModal.jsx';
 import Contacts from './components/Contacts.jsx';
 import ConversationDetails from './components/ConversationDetails.jsx';
 import Messages from './components/Messages.jsx';
@@ -12,6 +11,7 @@ import FollowUps from './components/FollowUps.jsx';
 import AppToaster from './components/ui/AppToaster.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
+import { confirmAction } from './utils/confirmDialog.js';
 import { showIncomingSmsToast, showTeamMessageToast } from './utils/toast.js';
 import './App.css';
 
@@ -137,7 +137,6 @@ function App() {
   const [unreadTeamMessages, setUnreadTeamMessages] = useState(0);
   const [dueFollowUps, setDueFollowUps] = useState(0);
   const [followUpToast, setFollowUpToast] = useState(null);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
   const [currentUser, setCurrentUser] = useState(null);
   const activeTabRef = useRef(activeTab);
@@ -427,7 +426,6 @@ function App() {
 
     localStorage.removeItem('token');
     setToken(null);
-    setShowLogoutModal(false);
     setSelectedPhoneNumber('');
     setSelectedMessageNumber('');
     setSelectedTeamUser(null);
@@ -437,6 +435,17 @@ function App() {
     setDueFollowUps(0);
     setFollowUpToast(null);
     setCurrentUser(null);
+  };
+
+  const confirmLogout = () => {
+    confirmAction({
+      title: 'Logout?',
+      text: 'Are you sure you want to logout?',
+      confirmButtonText: 'Logout',
+      icon: 'warning',
+      confirmButtonColor: '#DC2626',
+      onConfirm: handleLogout
+    });
   };
 
   const toggleTheme = () => {
@@ -520,7 +529,7 @@ function App() {
             {theme === 'night' ? 'Day' : 'Night'}
           </button>
           <button 
-            onClick={() => setShowLogoutModal(true)}
+            onClick={confirmLogout}
             className="w-full py-2.5 text-sm text-red-400 hover:bg-red-950/30 rounded-xl transition font-medium"
           >
             Logout
@@ -549,7 +558,7 @@ function App() {
             <span className="block w-5"><NavIcon type={theme === 'night' ? 'sun' : 'moon'} /></span>
           </button>
           <button
-            onClick={() => setShowLogoutModal(true)}
+            onClick={confirmLogout}
             className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-950/30 md:hidden"
           >
             Logout
@@ -608,16 +617,6 @@ function App() {
         selectedPhoneNumber={selectedPhoneNumber}
         isOpen={showDialerModal}
         onClose={() => setShowDialerModal(false)}
-      />
-
-      <ConfirmModal
-        open={showLogoutModal}
-        title="Logout?"
-        message="Are you sure you want to logout from VoIP Pro?"
-        confirmText="Yes, Logout"
-        variant="danger"
-        onCancel={() => setShowLogoutModal(false)}
-        onConfirm={handleLogout}
       />
 
       {followUpToast && (
