@@ -235,10 +235,10 @@ export const receiveMessage = async (req, res) => {
     const mediaUrls = Array.from({ length: mediaCount }, (_, index) => req.body[`MediaUrl${index}`])
       .filter(Boolean);
     const assignedNumber = await TwilioNumber.findOne({ phoneNumber: to });
-    const assignedTo = assignedNumber?.assignedTo ? String(assignedNumber.assignedTo) : '';
+    const assignedUserIds = (assignedNumber?.assignedUsers || []).map((userId) => String(userId));
 
     const messageLog = await MessageLog.create({
-      user: assignedTo || undefined,
+      user: assignedUserIds[0] || undefined,
       phoneNumber: from,
       from,
       to,
@@ -257,7 +257,7 @@ export const receiveMessage = async (req, res) => {
         body,
         mediaUrls,
         messageSid,
-        assignedTo,
+        assignedTo: assignedUserIds,
         createdAt: messageLog.createdAt
       });
     }

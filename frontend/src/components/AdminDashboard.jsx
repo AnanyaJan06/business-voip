@@ -299,7 +299,16 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     }
   };
 
-  const assignNumber = async (numberId, userId) => {
+  const getAssignedUserIds = (number) => {
+    if (Array.isArray(number.assignedUsers) && number.assignedUsers.length > 0) {
+      return number.assignedUsers.map((user) => user?._id || user?.id || user).filter(Boolean);
+    }
+
+    const legacyUserId = number.assignedTo?._id || number.assignedTo?.id || number.assignedTo || '';
+    return legacyUserId ? [legacyUserId] : [];
+  };
+
+  const assignNumber = async (numberId, userIds) => {
     try {
       setAssigningNumber(numberId);
       setNotice({ text: '', type: '' });
@@ -310,13 +319,19 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
           'Content-Type': 'application/json',
           ...authHeaders
         },
-        body: JSON.stringify({ userId })
+        body: JSON.stringify({ userIds })
       });
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.message || 'Failed to assign phone number');
 
-      setNotice({ text: userId ? `${data.phoneNumber} assigned successfully.` : `${data.phoneNumber} unassigned.`, type: 'success' });
+      const assignedCount = Array.isArray(userIds) ? userIds.length : 0;
+      setNotice({
+        text: assignedCount > 0
+          ? `${data.phoneNumber} assigned to ${assignedCount} user${assignedCount === 1 ? '' : 's'}.`
+          : `${data.phoneNumber} unassigned.`,
+        type: 'success'
+      });
       fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
@@ -325,20 +340,38 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     }
   };
 
-  const setDefaultNumber = async (numberId) => {
+  const toggleNumberAssignment = (number, userId) => {
+    const numberId = number.id || number._id;
+    const currentUserIds = getAssignedUserIds(number).map((id) => String(id));
+    const nextUserIds = currentUserIds.includes(String(userId))
+      ? currentUserIds.filter((id) => id !== String(userId))
+      : [...currentUserIds, String(userId)];
+
+    assignNumber(numberId, nextUserIds);
+  };
+
+  const setDefaultNumber = async (numberId, userId) => {
     try {
       setSettingDefaultNumber(numberId);
       setNotice({ text: '', type: '' });
 
       const res = await fetch(`${BACKEND_URL}/api/phone-numbers/${numberId}/default`, {
         method: 'PATCH',
-        headers: authHeaders
+        headers: {
+          'Content-Type': 'application/json',
+          ...authHeaders
+        },
+        body: JSON.stringify({ userId })
       });
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.message || 'Failed to set default phone number');
 
-      setNotice({ text: `${data.phoneNumber} is now the default sender.`, type: 'success' });
+      const selectedUser = users.find((user) => String(user._id || user.id) === String(userId));
+      setNotice({
+        text: `${data.phoneNumber} is now the default sender for ${selectedUser?.name || 'the selected user'}.`,
+        type: 'success'
+      });
       fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
@@ -347,10 +380,9 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     }
   };
 
-  const getUserAssignedNumbers = (userId) => ownedNumbers.filter((number) => {
-    const assignedId = number.assignedTo?._id || number.assignedTo?.id || number.assignedTo || '';
-    return String(assignedId) === String(userId);
-  });
+  const getUserAssignedNumbers = (userId) => ownedNumbers.filter((number) => (
+    getAssignedUserIds(number).some((assignedId) => String(assignedId) === String(userId))
+  ));
 
   if (loading) return <LoadingSpinner label="Loading admin dashboard..." />;
 
@@ -505,7 +537,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold text-white">Twilio Numbers</h3>
-              <p className="text-xs text-gray-400">Sync purchased Twilio numbers, assign multiple numbers, and choose each user's default sender.</p>
+              <p className="text-xs text-gray-400">Sync purchased Twilio numbers, assign the same number to multiple users, and choose each user's default sender.</p>
             </div>
             <button
               type="button"
@@ -527,42 +559,81 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
               <div className="divide-y divide-gray-800">
                 {ownedNumbers.map((number) => {
                   const numberId = number.id || number._id;
-                  const assignedId = number.assignedTo?._id || number.assignedTo?.id || number.assignedTo || '';
-                  const assignedUser = users.find((user) => String(user._id || user.id) === String(assignedId));
-                  const isDefault = assignedUser?.assignedPhoneNumberSid === number.sid
-                    || assignedUser?.assignedPhoneNumber === number.phoneNumber;
+                  const assignedUserIds = getAssignedUserIds(number).map((id) => String(id));
 
                   return (
-                    <div key={numberId || number.sid} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1.2fr_auto] md:items-center">
+                    <div key={numberId || number.sid} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1.4fr] md:items-start">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-white">{number.phoneNumber}</p>
                         <p className="truncate text-xs text-gray-400">{number.friendlyName || number.sid}</p>
+                        <p className="mt-1 text-[11px] text-gray-500">
+                          {assignedUserIds.length > 0
+                            ? `${assignedUserIds.length} user${assignedUserIds.length === 1 ? '' : 's'} assigned`
+                            : 'No users assigned'}
+                        </p>
                       </div>
-                      <select
-                        value={assignedId}
-                        onChange={(event) => assignNumber(numberId, event.target.value)}
-                        disabled={assigningNumber === numberId}
-                        className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669] disabled:opacity-60"
-                      >
-                        <option value="">Unassigned</option>
-                        {users.map((user) => (
-                          <option key={user._id || user.id} value={user._id || user.id}>
-                            {user.name} ({user.email})
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setDefaultNumber(numberId)}
-                        disabled={!assignedId || isDefault || settingDefaultNumber === numberId || assigningNumber === numberId}
-                        className={`rounded-xl px-4 py-3 text-xs font-semibold transition disabled:opacity-60 ${
-                          isDefault
-                            ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                            : 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-emerald-500/60 hover:text-white'
-                        }`}
-                      >
-                        {isDefault ? 'Default' : settingDefaultNumber === numberId ? 'Saving...' : 'Set Default'}
-                      </button>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {users.map((user) => {
+                            const userId = String(user._id || user.id);
+                            const isAssigned = assignedUserIds.includes(userId);
+                            const isDefault = isAssigned && (
+                              user.assignedPhoneNumberSid === number.sid
+                              || user.assignedPhoneNumber === number.phoneNumber
+                            );
+
+                            return (
+                              <label
+                                key={userId}
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition ${
+                                  isAssigned
+                                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+                                    : 'border-gray-700 bg-gray-800 text-gray-300'
+                                } ${assigningNumber === numberId ? 'opacity-60' : 'cursor-pointer hover:border-emerald-500/60'}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isAssigned}
+                                  disabled={assigningNumber === numberId}
+                                  onChange={() => toggleNumberAssignment(number, userId)}
+                                  className="h-3.5 w-3.5 rounded border-gray-600 bg-gray-900 text-[#059669] focus:ring-[#059669]"
+                                />
+                                <span>{user.name}</span>
+                                {isDefault && <span className="text-[10px] uppercase tracking-wide text-emerald-300">default</span>}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {assignedUserIds.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {assignedUserIds.map((userId) => {
+                              const assignedUser = users.find((user) => String(user._id || user.id) === userId);
+                              const isDefault = assignedUser?.assignedPhoneNumberSid === number.sid
+                                || assignedUser?.assignedPhoneNumber === number.phoneNumber;
+
+                              return (
+                                <button
+                                  key={`${numberId}-${userId}`}
+                                  type="button"
+                                  onClick={() => setDefaultNumber(numberId, userId)}
+                                  disabled={isDefault || settingDefaultNumber === numberId || assigningNumber === numberId}
+                                  className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition disabled:opacity-60 ${
+                                    isDefault
+                                      ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                      : 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-emerald-500/60 hover:text-white'
+                                  }`}
+                                >
+                                  {isDefault
+                                    ? `${assignedUser?.name || 'User'} default`
+                                    : settingDefaultNumber === numberId
+                                      ? 'Saving...'
+                                      : `Set default for ${assignedUser?.name || 'user'}`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

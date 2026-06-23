@@ -308,10 +308,12 @@ function App() {
     });
 
     socket.on('incoming-message', (message) => {
-      const assignedTo = String(message.assignedTo || '');
+      const assignedRecipients = Array.isArray(message.assignedTo)
+        ? message.assignedTo.map((value) => String(value))
+        : [String(message.assignedTo || '')].filter(Boolean);
       const currentUserId = getUserId(currentUserRef.current);
 
-      if (!assignedTo || assignedTo !== currentUserId) return;
+      if (!assignedRecipients.includes(currentUserId)) return;
 
       const threadKey = normalizePhone(message.from) || message.from;
       if (threadKey && activeTabRef.current !== 'messages') {

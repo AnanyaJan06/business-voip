@@ -213,10 +213,9 @@ export const incomingVoice = async (req, res) => {
     const to = req.body.To || '';
     const callSid = req.body.CallSid;
     const assignedNumber = to
-      ? await TwilioNumber.findOne({ phoneNumber: to }).populate('assignedTo', 'twilioIdentity assignedPhoneNumber')
+      ? await TwilioNumber.findOne({ phoneNumber: to }).populate('assignedUsers', 'twilioIdentity assignedPhoneNumber')
       : null;
-    const assignedUser = assignedNumber?.assignedTo || null;
-    const identity = assignedUser ? await ensureVoiceIdentity(assignedUser) : BROWSER_CLIENT_IDENTITY;
+    const assignedUsers = assignedNumber?.assignedUsers || [];
 
     console.log(`📲 Incoming call from: ${from} | SID: ${callSid}`);
 
@@ -225,7 +224,7 @@ export const incomingVoice = async (req, res) => {
       io.emit('incoming-call', {
         from: from,
         to,
-        assignedTo: assignedUser?._id,
+        assignedTo: assignedUsers.map((user) => user._id),
         callSid: callSid,
         timestamp: new Date().toISOString()
       });
@@ -248,7 +247,7 @@ export const incomingVoice = async (req, res) => {
     };
 
     const statusUrl = buildWebhookUrl('/api/twilio/incoming-status', {
-      userId: assignedUser?._id,
+      userIds: assignedUsers.map((user) => user._id).join(','),
       from,
       to
     });
@@ -258,17 +257,36 @@ export const incomingVoice = async (req, res) => {
       dialOptions.method = 'POST';
     }
 
-    const client = twiml.dial(dialOptions).client(identity);
+    const dial = twiml.dial(dialOptions);
 
-    client.parameter({
-      name: 'originalFrom',
-      value: from
-    });
+    if (assignedUsers.length > 0) {
+      for (const assignedUser of assignedUsers) {
+        const identity = await ensureVoiceIdentity(assignedUser);
+        const client = dial.client(identity);
 
-    client.parameter({
-      name: 'originalTo',
-      value: to
-    });
+        client.parameter({
+          name: 'originalFrom',
+          value: from
+        });
+
+        client.parameter({
+          name: 'originalTo',
+          value: to
+        });
+      }
+    } else {
+      const client = dial.client(BROWSER_CLIENT_IDENTITY);
+
+      client.parameter({
+        name: 'originalFrom',
+        value: from
+      });
+
+      client.parameter({
+        name: 'originalTo',
+        value: to
+      });
+    }
 
     res.type('text/xml');
     res.send(twiml.toString());
@@ -285,9 +303,16 @@ export const incomingVoice = async (req, res) => {
 export const incomingCallStatus = async (req, res) => {
   try {
     const dialStatus = String(req.body.DialCallStatus || '').toLowerCase();
-    const userId = req.query.userId || req.body.userId;
+    const userIds = String(req.query.userIds || req.body.userIds || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const legacyUserId = req.query.userId || req.body.userId;
+    const targetUserIds = userIds.length > 0
+      ? userIds
+      : (legacyUserId ? [String(legacyUserId)] : []);
 
-    if (!userId || !MISSED_DIAL_STATUSES.has(dialStatus)) {
+    if (targetUserIds.length === 0 || !MISSED_DIAL_STATUSES.has(dialStatus)) {
       return sendEmptyVoiceResponse(res);
     }
 
@@ -295,10 +320,10 @@ export const incomingCallStatus = async (req, res) => {
     const localNumber = req.query.to || req.body.To || '';
     const callSid = req.body.DialCallSid || req.body.CallSid || '';
 
-    await CallLog.findOneAndUpdate(
+    await Promise.all(targetUserIds.map((userId) => CallLog.findOneAndUpdate(
       {
         $or: [
-          ...(callSid ? [{ callSid }] : []),
+          ...(callSid ? [{ callSid, user: userId }] : []),
           {
             user: userId,
             phoneNumber,
@@ -322,7 +347,7 @@ export const incomingCallStatus = async (req, res) => {
         }
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    )));
 
     const io = req.app.get('io');
     if (io) {

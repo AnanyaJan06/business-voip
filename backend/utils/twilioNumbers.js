@@ -33,10 +33,19 @@ export const normalizeClientIdentity = (value = '') => String(value).replace(/^c
 
 export const normalizePhoneNumber = (value = '') => String(value).trim();
 
+export const userIsAssignedToNumber = (number, userId) => {
+  if (!number || !userId) return false;
+
+  return (number.assignedUsers || []).some((assignedUser) => {
+    const assignedId = assignedUser?._id || assignedUser?.id || assignedUser;
+    return String(assignedId) === String(userId);
+  });
+};
+
 export const getAssignedNumbersForUser = async (userId) => {
   if (!userId) return [];
 
-  const numbers = await TwilioNumber.find({ assignedTo: userId }).sort({ phoneNumber: 1 });
+  const numbers = await TwilioNumber.find({ assignedUsers: userId }).sort({ phoneNumber: 1 });
   return numbers.map((number) => number.phoneNumber).filter(Boolean);
 };
 
@@ -48,7 +57,7 @@ export const getAssignedNumberForUser = async (userId) => {
   if (user?.assignedPhoneNumberSid) {
     const defaultBySid = await TwilioNumber.findOne({
       sid: user.assignedPhoneNumberSid,
-      assignedTo: userId
+      assignedUsers: userId
     });
     if (defaultBySid?.phoneNumber) return defaultBySid.phoneNumber;
   }
@@ -56,12 +65,12 @@ export const getAssignedNumberForUser = async (userId) => {
   if (user?.assignedPhoneNumber) {
     const defaultByNumber = await TwilioNumber.findOne({
       phoneNumber: user.assignedPhoneNumber,
-      assignedTo: userId
+      assignedUsers: userId
     });
     if (defaultByNumber?.phoneNumber) return defaultByNumber.phoneNumber;
   }
 
-  const assigned = await TwilioNumber.findOne({ assignedTo: userId }).sort({ phoneNumber: 1 });
+  const assigned = await TwilioNumber.findOne({ assignedUsers: userId }).sort({ phoneNumber: 1 });
   if (assigned?.phoneNumber) {
     if (user) {
       user.assignedPhoneNumber = assigned.phoneNumber;

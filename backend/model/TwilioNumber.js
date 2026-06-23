@@ -24,12 +24,11 @@ const twilioNumberSchema = new mongoose.Schema({
     sms: { type: Boolean, default: false },
     mms: { type: Boolean, default: false }
   },
-  assignedTo: {
+  assignedUsers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    default: null,
     index: true
-  }
+  }]
 }, {
   timestamps: true
 });
