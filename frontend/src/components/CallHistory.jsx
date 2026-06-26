@@ -32,6 +32,11 @@ const callStyles = {
     iconClass: 'bg-red-500/10 text-red-300 ring-red-500/20',
     statusClass: 'bg-red-500/10 text-red-300 border-red-500/20'
   },
+  'answered-by-teammate': {
+    label: 'Handled by teammate',
+    iconClass: 'bg-sky-500/10 text-sky-300 ring-sky-500/20',
+    statusClass: 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+  },
   rejected: {
     label: 'Rejected',
     iconClass: 'bg-amber-500/10 text-amber-300 ring-amber-500/20',
@@ -76,7 +81,7 @@ function DirectionIcon({ type }) {
     );
   }
 
-  if (type === 'missed' || type === 'rejected' || type === 'failed') {
+  if (type === 'missed' || type === 'rejected' || type === 'failed' || type === 'answered-by-teammate') {
     return (
       <svg {...common}>
         <path d="M16 2v6h6" />
@@ -460,14 +465,19 @@ function CallHistory() {
   const getCallMeta = (log) => {
     const status = log.status?.toLowerCase();
     const callType = log.callType?.toLowerCase();
-    const visualType = ['missed', 'rejected', 'failed'].includes(status)
+    const visualType = ['missed', 'rejected', 'failed', 'answered-by-teammate'].includes(status)
       ? status
       : callType || 'default';
+    const answeredByName = log.answeredByName
+      || (typeof log.answeredBy === 'object' ? log.answeredBy?.name : '')
+      || '';
 
     return {
       ...(callStyles[visualType] || callStyles.default),
       visualType,
-      statusLabel: (status || 'unknown').replace('-', ' '),
+      statusLabel: status === 'answered-by-teammate' && answeredByName
+        ? `Answered by ${answeredByName}`
+        : (status || 'unknown').replace(/-/g, ' '),
       directionLabel: callStyles[callType]?.label || callStyles.default.label
     };
   };

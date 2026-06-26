@@ -22,7 +22,9 @@ const getIncomingAllottedNumber = (conn) => {
   return customTo || conn?.parameters?.originalTo || conn?.parameters?.To || '';
 };
 
-function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
+const getUserId = (user) => String(user?.id || user?._id || '');
+
+function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser = null }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
   const [connection, setConnection] = useState(null);
@@ -42,6 +44,8 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
   const activeCallRef = useRef(null);
+  const currentUserRef = useRef(currentUser);
+  const resolveInboundCallEndRef = useRef(async () => {});
   const dialerAnimationRef = useRef(null);
   const incomingNotificationRef = useRef(null);
   const titleAlertRef = useRef(null);
@@ -176,10 +180,48 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
     }
   };
 
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
   // Auto-fill from Contacts
   useEffect(() => {
     if (isOpen) setPhoneNumber(selectedPhoneNumber || '');
   }, [isOpen, selectedPhoneNumber]);
+
+  useEffect(() => {
+    const handleTeammateAnswered = (event) => {
+      const {
+        callSid,
+        answeredBy,
+        answeredByName,
+        assignedUserIds = []
+      } = event.detail || {};
+      const currentUserId = getUserId(currentUserRef.current);
+
+      if (!callSid || !currentUserId) return;
+      if (!assignedUserIds.map(String).includes(currentUserId)) return;
+      if (String(answeredBy) === currentUserId) return;
+
+      const currentCall = activeCallRef.current;
+      if (!currentCall || currentCall.callSid !== callSid || currentCall.accepted) return;
+
+      activeCallRef.current = {
+        ...currentCall,
+        teammateAnswered: true,
+        answeredBy,
+        answeredByName
+      };
+
+      stopIncomingAlerts();
+      setIncomingCall(null);
+      setIsIncomingMinimized(false);
+      setConnection(null);
+    };
+
+    window.addEventListener('callAnsweredByTeammate', handleTeammateAnswered);
+    return () => window.removeEventListener('callAnsweredByTeammate', handleTeammateAnswered);
+  }, []);
 
   useEffect(() => {
     const unlockAlerts = () => {
@@ -273,26 +315,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
           setConnection(conn);
           startIncomingAlerts(from);
 
-          const logMissedCall = () => {
-            const currentCall = activeCallRef.current;
-            if (!currentCall?.accepted && !currentCall?.logged) {
-              logCall({
-                phoneNumber: from,
-                localNumber,
-                callType: 'inbound',
-                status: 'missed',
-                duration: 0,
-                callSid: conn.parameters.CallSid || ''
-              });
-            }
-            setIncomingCall(null);
-            setIsIncomingMinimized(false);
-            setConnection(null);
-            stopIncomingAlerts();
-            resetCall();
-          };
-
-          conn.on('cancel', logMissedCall);
+          conn.on('cancel', () => resolveInboundCallEndRef.current());
           conn.on('disconnect', () => {
             if (activeCallRef.current?.accepted) {
               handleCallEnd(conn, {
@@ -302,17 +325,18 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
                 status: 'completed'
               });
             } else {
-              logMissedCall();
+              resolveInboundCallEndRef.current();
             }
           });
           conn.on('reject', () => {
-            setIncomingCall(null);
-            setIsIncomingMinimized(false);
-            setConnection(null);
-            stopIncomingAlerts();
-            resetCall();
+            if (activeCallRef.current) {
+              activeCallRef.current = {
+                ...activeCallRef.current,
+                rejected: true
+              };
+            }
           });
-          conn.on('error', logMissedCall);
+          conn.on('error', () => resolveInboundCallEndRef.current());
         });
 
         twilioDevice.on('registered', () => setCallStatus('Ready'));
@@ -343,7 +367,30 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const logCall = async ({ phoneNumber, localNumber, callType, duration, status, callSid }) => {
+  const fetchInboundSession = async (callSid, attempts = 3) => {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/calls/session/${encodeURIComponent(callSid)}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+
+        if (res.ok) {
+          const session = await res.json();
+          if (session.status === 'answered' || attempt === attempts - 1) {
+            return session;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch inbound session:', err);
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+    }
+
+    return null;
+  };
+
+  const logCall = async ({ phoneNumber, localNumber, callType, duration, status, callSid, answeredBy }) => {
     const currentCall = activeCallRef.current;
     if (currentCall?.callSid === callSid && currentCall.logged) return;
 
@@ -364,7 +411,8 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
           callType,
           duration,
           status,
-          callSid
+          callSid,
+          answeredBy
         })
       });
 
@@ -373,6 +421,83 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
       console.error(err);
     }
   };
+
+  const clearIncomingCallState = () => {
+    setIncomingCall(null);
+    setIsIncomingMinimized(false);
+    setConnection(null);
+    stopIncomingAlerts();
+    resetCall();
+  };
+
+  const resolveInboundCallEnd = async () => {
+    const currentCall = activeCallRef.current;
+    if (!currentCall || currentCall.callType !== 'inbound') {
+      clearIncomingCallState();
+      return;
+    }
+
+    if (currentCall.accepted) {
+      clearIncomingCallState();
+      return;
+    }
+
+    if (currentCall.logged) {
+      clearIncomingCallState();
+      return;
+    }
+
+    const {
+      phoneNumber,
+      localNumber,
+      callSid,
+      rejected,
+      teammateAnswered,
+      answeredBy: teammateAnsweredBy
+    } = currentCall;
+    const currentUserId = getUserId(currentUserRef.current);
+
+    if (teammateAnswered && teammateAnsweredBy && String(teammateAnsweredBy) !== currentUserId) {
+      await logCall({
+        phoneNumber,
+        localNumber,
+        callType: 'inbound',
+        status: 'answered-by-teammate',
+        duration: 0,
+        callSid,
+        answeredBy: teammateAnsweredBy
+      });
+      clearIncomingCallState();
+      return;
+    }
+
+    const session = callSid ? await fetchInboundSession(callSid) : null;
+    if (session?.status === 'answered' && session.answeredBy && String(session.answeredBy) !== currentUserId) {
+      await logCall({
+        phoneNumber,
+        localNumber,
+        callType: 'inbound',
+        status: 'answered-by-teammate',
+        duration: 0,
+        callSid,
+        answeredBy: session.answeredBy
+      });
+      clearIncomingCallState();
+      return;
+    }
+
+    await logCall({
+      phoneNumber,
+      localNumber,
+      callType: 'inbound',
+      status: rejected ? 'rejected' : 'missed',
+      duration: 0,
+      callSid
+    });
+    clearIncomingCallState();
+  };
+
+  resolveInboundCallEndRef.current = resolveInboundCallEnd;
 
   const makeCall = async () => {
     if (!device || !phoneNumber.trim()) return alert("Please enter a valid number");
@@ -489,14 +614,35 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
 
   const sendDTMF = (digit) => connection && connection.sendDigits(digit);
 
+  const markCallAnswered = async (callSid) => {
+    if (!callSid) return;
+
+    try {
+      await fetch(`${BACKEND_URL}/api/calls/answer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ callSid })
+      });
+    } catch (err) {
+      console.error('Failed to mark call answered:', err);
+    }
+  };
+
   // Accept Incoming Call
-  const acceptIncomingCall = () => {
+  const acceptIncomingCall = async () => {
     if (connection) {
+      const callSid = activeCallRef.current?.callSid || connection.parameters?.CallSid || '';
+
       connection.accept();
       activeCallRef.current = {
         ...(activeCallRef.current || {}),
         accepted: true
       };
+
+      await markCallAnswered(callSid);
       stopIncomingAlerts();
       setIncomingCall(null);
       setIsIncomingMinimized(false);
@@ -511,14 +657,10 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose }) {
   // Reject Incoming Call
   const rejectIncomingCall = () => {
     if (connection) {
-      logCall({
-        phoneNumber: activeCallRef.current?.phoneNumber || incomingCall?.from || 'Unknown Number',
-        localNumber: activeCallRef.current?.localNumber || '',
-        callType: 'inbound',
-        status: 'rejected',
-        duration: 0,
-        callSid: activeCallRef.current?.callSid || connection?.parameters?.CallSid || ''
-      });
+      activeCallRef.current = {
+        ...(activeCallRef.current || {}),
+        rejected: true
+      };
       connection.reject();
     }
     stopIncomingAlerts();

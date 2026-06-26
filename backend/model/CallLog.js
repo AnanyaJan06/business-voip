@@ -6,6 +6,10 @@ const callLogSchema = new mongoose.Schema({
     ref: 'User', 
     required: true 
   },
+  answeredBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   contact: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'Contact' 
@@ -25,7 +29,7 @@ const callLogSchema = new mongoose.Schema({
   },
   status: { 
     type: String, 
-    enum: ['completed', 'missed', 'rejected', 'failed', 'busy', 'no-answer'], 
+    enum: ['completed', 'missed', 'answered-by-teammate', 'rejected', 'failed', 'busy', 'no-answer'], 
     default: 'completed' 
   },
   duration: { 

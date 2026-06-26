@@ -349,6 +349,13 @@ function App() {
       window.dispatchEvent(new Event('refreshCallHistory'));
     });
 
+    socket.on('call-answered-by-teammate', (payload) => {
+      window.dispatchEvent(new CustomEvent('callAnsweredByTeammate', {
+        detail: payload
+      }));
+      window.dispatchEvent(new Event('refreshCallHistory'));
+    });
+
     socket.on('message-status-updated', () => {
       window.dispatchEvent(new Event('refreshMessages'));
     });
@@ -619,6 +626,7 @@ function App() {
         selectedPhoneNumber={selectedPhoneNumber}
         isOpen={showDialerModal}
         onClose={() => setShowDialerModal(false)}
+        currentUser={currentUser}
       />
 
       {followUpToast && (

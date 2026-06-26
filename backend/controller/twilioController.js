@@ -2,6 +2,7 @@ import twilio from 'twilio';
 import dotenv from 'dotenv';
 import CallLog from '../model/CallLog.js';
 import CallTranscript from '../model/CallTranscript.js';
+import InboundCallSession from '../model/InboundCallSession.js';
 import TwilioNumber from '../model/TwilioNumber.js';
 import {
   ensureVoiceIdentity,
@@ -80,7 +81,7 @@ const syncTranscriptToCallLog = async (transcript) => {
     {
       phoneNumber: transcript.phoneNumber,
       callType: transcript.callType,
-      status: { $nin: ['missed', 'rejected', 'failed', 'busy', 'no-answer'] },
+      status: { $nin: ['missed', 'answered-by-teammate', 'rejected', 'failed', 'busy', 'no-answer'] },
       startedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
     },
     transcriptUpdate,
@@ -236,6 +237,20 @@ export const incomingVoice = async (req, res) => {
         { $set: { phoneNumber: from, localNumber: to, callType: 'inbound' } },
         { upsert: true, setDefaultsOnInsert: true }
       ).catch((error) => console.error('Failed to seed inbound transcript:', error));
+
+      InboundCallSession.findOneAndUpdate(
+        { callSid },
+        {
+          $setOnInsert: {
+            callSid,
+            phoneNumber: from,
+            localNumber: to,
+            assignedUserIds: assignedUsers.map((user) => user._id),
+            status: 'ringing'
+          }
+        },
+        { upsert: true, setDefaultsOnInsert: true }
+      ).catch((error) => console.error('Failed to seed inbound call session:', error));
     }
 
     const twiml = new twilio.twiml.VoiceResponse();
@@ -312,13 +327,28 @@ export const incomingCallStatus = async (req, res) => {
       ? userIds
       : (legacyUserId ? [String(legacyUserId)] : []);
 
-    if (targetUserIds.length === 0 || !MISSED_DIAL_STATUSES.has(dialStatus)) {
-      return sendEmptyVoiceResponse(res);
-    }
-
     const phoneNumber = req.query.from || req.body.From || 'Unknown';
     const localNumber = req.query.to || req.body.To || '';
     const callSid = req.body.DialCallSid || req.body.CallSid || '';
+
+    if (callSid) {
+      const session = await InboundCallSession.findOne({ callSid }).select('status answeredBy');
+
+      if (session?.status === 'answered' || session?.answeredBy) {
+        return sendEmptyVoiceResponse(res);
+      }
+
+      if (MISSED_DIAL_STATUSES.has(dialStatus)) {
+        await InboundCallSession.findOneAndUpdate(
+          { callSid, status: 'ringing' },
+          { $set: { status: 'missed' } }
+        );
+      }
+    }
+
+    if (targetUserIds.length === 0 || !MISSED_DIAL_STATUSES.has(dialStatus)) {
+      return sendEmptyVoiceResponse(res);
+    }
 
     await Promise.all(targetUserIds.map((userId) => CallLog.findOneAndUpdate(
       {
