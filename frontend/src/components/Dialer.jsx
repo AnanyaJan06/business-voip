@@ -1,7 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
 import { Device } from '@twilio/voice-sdk';
-
-const BACKEND_URL = 'https://business-voip.onrender.com';
+import { BACKEND_URL } from '../config/api.js';
+ 
+const DEVICE_STATES = {
+  INITIALIZING: 'initializing',
+  REGISTERING: 'registering',
+  REFRESHING: 'refreshing',
+  READY: 'ready',
+  OFFLINE: 'offline',
+  ERROR: 'error',
+};
+ 
+const fetchTwilioToken = async () => {
+  const authToken = localStorage.getItem('token');
+  if (!authToken) {
+    throw new Error('Not signed in');
+  }
+ 
+  const res = await fetch(`${BACKEND_URL}/api/twilio/token`, {
+    headers: { Authorization: `Bearer ${authToken}` }
+  });
+  const data = await res.json();
+ 
+  if (!res.ok || !data.token) {
+    throw new Error(data.message || 'Unable to get Twilio token');
+  }
+ 
+  return data.token;
+};
 const DIALER_ANIMATION_MS = 220;
 const INCOMING_ALERT_TITLE = 'Incoming call';
 const INCOMING_ALERT_BODY = 'Open Dialio to answer or reject.';
@@ -33,7 +59,9 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
   const [connection, setConnection] = useState(null);
-  const [callStatus, setCallStatus] = useState('Ready');
+ const [callStatus, setCallStatus] = useState('Ready');
+  const [deviceState, setDeviceState] = useState(DEVICE_STATES.INITIALIZING);
+  const [deviceError, setDeviceError] = useState('');
   const [isCalling, setIsCalling] = useState(false);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
@@ -56,7 +84,14 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   const titleAlertRef = useRef(null);
   const originalTitleRef = useRef(typeof document !== 'undefined' ? document.title : '');
   const ringtoneAudioRef = useRef(null);
+    const deviceRef = useRef(null);
+  const tokenRefreshRef = useRef(null);
+  const retryDeviceRegistrationRef = useRef(async () => {});
   const shouldShowFullDialer = (isOpen || isCalling) && !isMinimized;
+   const isDeviceReady = deviceState === DEVICE_STATES.READY;
+
+    const retryDeviceRegistration = () => 
+      retryDeviceRegistrationRef.current();
 
   const formatIncomingAlertText = (from) => from || 'Unknown Number';
 
@@ -280,27 +315,95 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     }
     return () => clearInterval(timerRef.current);
   }, [isCalling]);
-
   // Initialize Twilio Device + Incoming Call Listener
   useEffect(() => {
     let twilioDevice;
-
+    let disposed = false;
+ 
+    const refreshDeviceToken = async (activeDevice, { silent = false } = {}) => {
+      if (!activeDevice || tokenRefreshRef.current) return false;
+ 
+  tokenRefreshRef.current = true;
+      if (!silent) {
+        setDeviceState(DEVICE_STATES.REFRESHING);
+        setDeviceError('');
+      }
+    
+ try {
+        const token = await fetchTwilioToken();
+        activeDevice.updateToken(token);
+        return true;
+      } catch (err) {
+        console.error('Twilio token refresh failed:', err);
+        setDeviceState(DEVICE_STATES.ERROR);
+        setDeviceError(err.message || 'Unable to refresh phone connection');
+        return false;
+      } finally {
+        tokenRefreshRef.current = false;
+      }
+    };
+    
+   const retryDeviceRegistration = async () => {
+      const activeDevice = deviceRef.current;
+      if (!activeDevice) return;
+  
+   setDeviceState(DEVICE_STATES.REGISTERING);
+      setDeviceError('');
+    
+  try {
+        const token = await fetchTwilioToken();
+        activeDevice.updateToken(token);
+        await activeDevice.register();
+      } catch (err) {
+        console.error('Twilio device retry failed:', err);
+        setDeviceState(DEVICE_STATES.OFFLINE);
+        setDeviceError(err.message || 'Unable to connect phone service');
+      }
+    };
+    
+ retryDeviceRegistrationRef.current = retryDeviceRegistration;
+  
+ 
+    const handleVisibilityChange = () => {
+      if (disposed || document.visibilityState !== 'visible' || !twilioDevice) return;
+      if (twilioDevice.state === Device.State.Registered) return;
+ 
+      retryDeviceRegistration();
+    };
+ 
     const initDevice = async () => {
+      setDeviceState(DEVICE_STATES.INITIALIZING);
+      setDeviceError('');
+ 
       try {
-        const res = await fetch(`${BACKEND_URL}/api/twilio/token`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        const data = await res.json();
-
-        if (!res.ok || !data.token) {
-          throw new Error(data.message || 'Unable to get Twilio token');
-        }
-
-        twilioDevice = new Device(data.token, {
+        const token = await fetchTwilioToken();
+        if (disposed) return;
+ 
+        twilioDevice = new Device(token, {
           edge: ['singapore', 'tokyo'],
           logLevel: 'warn',
         });
-
+        deviceRef.current = twilioDevice;
+ 
+        twilioDevice.on('registering', () => {
+          setDeviceState(DEVICE_STATES.REGISTERING);
+        });
+ 
+        twilioDevice.on('registered', () => {
+          setDeviceState(DEVICE_STATES.READY);
+          setDeviceError('');
+           setCallStatus('Ready');
+        });
+ 
+        twilioDevice.on('unregistered', () => {
+          setDeviceState(DEVICE_STATES.OFFLINE);
+          setDeviceError('Phone service disconnected');
+        });
+ 
+        twilioDevice.on('tokenWillExpire', () => {
+          refreshDeviceToken(twilioDevice);
+        });
+ 
         // Listen for Incoming Calls
         twilioDevice.on('incoming', (conn) => {
           const from = getIncomingCallerNumber(conn);
@@ -350,25 +453,42 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
           conn.on('error', () => resolveInboundCallEndRef.current());
         });
 
-        twilioDevice.on('registered', () => setCallStatus('Ready'));
-        twilioDevice.on('error', (err) => {
+              twilioDevice.on('error', (err) => {
           console.error('Twilio Device Error:', err);
+          setDeviceState(DEVICE_STATES.ERROR);
+          setDeviceError(err.message || 'Phone service error');
           setCallStatus('Device error');
+ 
+          if (err.code === 20104 || err.code === 31205 || err.code === 31204) {
+            refreshDeviceToken(twilioDevice).then((refreshed) => {
+              if (refreshed && !disposed) {
+                twilioDevice.register().catch(() => {});
+              }
+            });
+          }
         });
-
+ 
+        setDeviceState(DEVICE_STATES.REGISTERING);
         await twilioDevice.register();
+        if (disposed) return;
+ 
         setDevice(twilioDevice);
-
-        console.log("✅ Twilio Device Registered");
+        console.log('Twilio Device Registered');
       } catch (err) {
-        console.error("Device Initialization Error:", err);
+        console.error('Device Initialization Error:', err);
+        setDeviceState(DEVICE_STATES.OFFLINE);
+        setDeviceError(err.message || 'Unable to connect phone service');
         setCallStatus('Device offline');
       }
     };
-
+ 
     initDevice();
-
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+ 
     return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      deviceRef.current = null;
       if (twilioDevice) {
         twilioDevice.destroy();
       }
@@ -376,7 +496,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     // The Twilio Device should be created once for this mounted dialer.
     // Event handlers read current call data from refs to avoid re-registering.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+   }, []);
 
   const fetchInboundSession = async ({ callSid, phoneNumber, localNumber }, attempts = 3) => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -520,7 +640,10 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   resolveInboundCallEndRef.current = resolveInboundCallEnd;
 
   const makeCall = async () => {
-    if (!device || !phoneNumber.trim()) return alert("Please enter a valid number");
+       if (!phoneNumber.trim()) return alert('Please enter a valid number');
+    if (!device || !isDeviceReady) {
+      return alert('Phone service is not ready yet. Wait for Ready status or tap Retry on the connection banner.');
+    }
 
     setIsMinimized(false);
     setIsCalling(true);
@@ -574,9 +697,9 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     resetCall();
   };
 
-  const resetCall = () => {
+   const resetCall = () => {
     setIsCalling(false);
-    setCallStatus('Call Ended');
+    setCallStatus(isDeviceReady ? 'Ready' : 'Device offline');
     setDuration(0);
     setConnection(null);
     setIsMuted(false);
@@ -763,7 +886,42 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
           </button>
         </div>
       )}
-
+   {!isCalling && !incomingCall && deviceState !== DEVICE_STATES.READY && (
+        <div
+          className={`fixed bottom-4 left-4 z-[60] w-[min(360px,calc(100vw-2rem))] rounded-xl border px-4 py-3 shadow-2xl ${
+            deviceState === DEVICE_STATES.ERROR || deviceState === DEVICE_STATES.OFFLINE
+              ? 'border-amber-500/30 bg-[#1A1410]'
+              : 'border-sky-500/25 bg-[#101A28]'
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">
+                {deviceState === DEVICE_STATES.ERROR || deviceState === DEVICE_STATES.OFFLINE
+                  ? 'Not receiving calls'
+                  : 'Connecting phone service'}
+              </p>
+              <p className="mt-1 text-xs text-gray-300">
+                {deviceError || (
+                  deviceState === DEVICE_STATES.REFRESHING
+                    ? 'Refreshing connection so shared numbers keep ringing.'
+                    : 'Stay on this page to receive inbound calls on shared numbers.'
+                )}
+              </p>
+            </div>
+            {(deviceState === DEVICE_STATES.ERROR || deviceState === DEVICE_STATES.OFFLINE) && (
+              <button
+                type="button"
+                onClick={retryDeviceRegistration}
+                className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-[#1A1410] hover:bg-amber-400"
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+ 
       {isCalling && isMinimized && (
         <button
           onClick={restoreDialer}
@@ -794,6 +952,25 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
             <div className="p-4">
               <div className="w-full max-w-[270px] mx-auto">
 
+        <div className={`mb-4 rounded-xl border px-3 py-2 text-center text-xs ${
+        isDeviceReady
+          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+          : 'border-amber-500/25 bg-amber-500/10 text-amber-200'
+      }`}>
+        <span className="font-medium">
+          {isDeviceReady
+            ? 'Ready to receive calls'
+            : deviceState === DEVICE_STATES.REFRESHING
+              ? 'Refreshing phone connection…'
+              : deviceState === DEVICE_STATES.REGISTERING || deviceState === DEVICE_STATES.INITIALIZING
+                ? 'Connecting phone service…'
+                : 'Not receiving calls'}
+        </span>
+        {!isDeviceReady && deviceError && (
+          <span className="mt-1 block text-[11px] text-amber-100/80">{deviceError}</span>
+        )}
+      </div>
+ 
       {/* Number Display */}
       <div className="bg-[#161B28] border border-gray-700 rounded-2xl p-4 mb-5 text-center">
         <p className="text-emerald-400 text-[11px] font-medium tracking-widest mb-1.5">UNITED STATES • +1</p>
