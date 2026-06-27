@@ -22,6 +22,11 @@ const getIncomingAllottedNumber = (conn) => {
   return customTo || conn?.parameters?.originalTo || conn?.parameters?.To || '';
 };
 
+const getParentCallSid = (conn) => {
+  const customSid = conn?.customParameters?.get?.('parentCallSid');
+  return customSid || conn?.parameters?.parentCallSid || conn?.parameters?.CallSid || '';
+};
+
 const getUserId = (user) => String(user?.id || user?._id || '');
 
 function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser = null }) {
@@ -193,30 +198,34 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     const handleTeammateAnswered = (event) => {
       const {
         callSid,
+        parentCallSid,
         answeredBy,
         answeredByName,
         assignedUserIds = []
       } = event.detail || {};
+      const sessionCallSid = parentCallSid || callSid;
       const currentUserId = getUserId(currentUserRef.current);
 
-      if (!callSid || !currentUserId) return;
+      if (!sessionCallSid || !currentUserId) return;
       if (!assignedUserIds.map(String).includes(currentUserId)) return;
       if (String(answeredBy) === currentUserId) return;
 
       const currentCall = activeCallRef.current;
-      if (!currentCall || currentCall.callSid !== callSid || currentCall.accepted) return;
+      if (!currentCall || currentCall.parentCallSid !== sessionCallSid || currentCall.accepted) return;
 
       activeCallRef.current = {
         ...currentCall,
         teammateAnswered: true,
         answeredBy,
-        answeredByName
+        answeredByName,
+        logged: true
       };
 
       stopIncomingAlerts();
       setIncomingCall(null);
       setIsIncomingMinimized(false);
       setConnection(null);
+      resetCall();
     };
 
     window.addEventListener('callAnsweredByTeammate', handleTeammateAnswered);
@@ -296,20 +305,22 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
         twilioDevice.on('incoming', (conn) => {
           const from = getIncomingCallerNumber(conn);
           const localNumber = getIncomingAllottedNumber(conn);
-          console.log("📲 Incoming call from:", from);
+          const parentCallSid = getParentCallSid(conn);
+          console.log("📲 Incoming call from:", from, "| session:", parentCallSid);
 
           activeCallRef.current = {
             callType: 'inbound',
             phoneNumber: from,
             localNumber,
-            callSid: conn.parameters.CallSid || '',
+            callSid: parentCallSid,
+            parentCallSid,
             accepted: false,
             logged: false
           };
 
           setIncomingCall({
             from,
-            callSid: conn.parameters.CallSid
+            callSid: parentCallSid
           });
           setIsIncomingMinimized(false);
           setConnection(conn);
@@ -367,12 +378,19 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchInboundSession = async (callSid, attempts = 3) => {
+  const fetchInboundSession = async ({ callSid, phoneNumber, localNumber }, attempts = 3) => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/calls/session/${encodeURIComponent(callSid)}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
+        const params = new URLSearchParams();
+        if (phoneNumber) params.set('phoneNumber', phoneNumber);
+        if (localNumber) params.set('localNumber', localNumber);
+        const query = params.toString();
+        const res = await fetch(
+          `${BACKEND_URL}/api/calls/session/${encodeURIComponent(callSid)}${query ? `?${query}` : ''}`,
+          {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          }
+        );
 
         if (res.ok) {
           const session = await res.json();
@@ -471,7 +489,9 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
       return;
     }
 
-    const session = callSid ? await fetchInboundSession(callSid) : null;
+    const session = callSid
+      ? await fetchInboundSession({ callSid, phoneNumber, localNumber })
+      : null;
     if (session?.status === 'answered' && session.answeredBy && String(session.answeredBy) !== currentUserId) {
       await logCall({
         phoneNumber,
@@ -614,7 +634,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
 
   const sendDTMF = (digit) => connection && connection.sendDigits(digit);
 
-  const markCallAnswered = async (callSid) => {
+  const markCallAnswered = async ({ callSid, phoneNumber, localNumber }) => {
     if (!callSid) return;
 
     try {
@@ -624,7 +644,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({ callSid })
+        body: JSON.stringify({ callSid, phoneNumber, localNumber })
       });
     } catch (err) {
       console.error('Failed to mark call answered:', err);
@@ -634,15 +654,24 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   // Accept Incoming Call
   const acceptIncomingCall = async () => {
     if (connection) {
-      const callSid = activeCallRef.current?.callSid || connection.parameters?.CallSid || '';
+      const parentCallSid = activeCallRef.current?.parentCallSid
+        || getParentCallSid(connection)
+        || activeCallRef.current?.callSid
+        || '';
 
       connection.accept();
       activeCallRef.current = {
         ...(activeCallRef.current || {}),
-        accepted: true
+        accepted: true,
+        callSid: parentCallSid,
+        parentCallSid
       };
 
-      await markCallAnswered(callSid);
+      await markCallAnswered({
+        callSid: parentCallSid,
+        phoneNumber: activeCallRef.current?.phoneNumber,
+        localNumber: activeCallRef.current?.localNumber
+      });
       stopIncomingAlerts();
       setIncomingCall(null);
       setIsIncomingMinimized(false);

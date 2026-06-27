@@ -4,6 +4,7 @@ import CallLog from '../model/CallLog.js';
 import CallTranscript from '../model/CallTranscript.js';
 import InboundCallSession from '../model/InboundCallSession.js';
 import TwilioNumber from '../model/TwilioNumber.js';
+import { findInboundSession } from '../utils/inboundCallSession.js';
 import {
   ensureVoiceIdentity,
   getAssignedNumberByIdentity,
@@ -273,34 +274,37 @@ export const incomingVoice = async (req, res) => {
     }
 
     const dial = twiml.dial(dialOptions);
+    const addClientParameters = (client) => {
+      client.parameter({ name: 'originalFrom', value: from });
+      client.parameter({ name: 'originalTo', value: to });
+      if (callSid) {
+        client.parameter({ name: 'parentCallSid', value: callSid });
+      }
+    };
 
     if (assignedUsers.length > 0) {
+      const seenIdentities = new Set();
+
       for (const assignedUser of assignedUsers) {
         const identity = await ensureVoiceIdentity(assignedUser);
+        if (!identity || seenIdentities.has(identity)) continue;
+
+        seenIdentities.add(identity);
         const client = dial.client(identity);
+        addClientParameters(client);
+      }
 
-        client.parameter({
-          name: 'originalFrom',
-          value: from
-        });
-
-        client.parameter({
-          name: 'originalTo',
-          value: to
-        });
+      if (seenIdentities.size === 0) {
+        const client = dial.client(BROWSER_CLIENT_IDENTITY);
+        addClientParameters(client);
+        console.warn(`📲 No valid client identities for ${to}; using fallback client ${BROWSER_CLIENT_IDENTITY}`);
+      } else {
+        console.log(`📲 Ringing ${seenIdentities.size} client(s) for ${to}:`, [...seenIdentities]);
       }
     } else {
       const client = dial.client(BROWSER_CLIENT_IDENTITY);
-
-      client.parameter({
-        name: 'originalFrom',
-        value: from
-      });
-
-      client.parameter({
-        name: 'originalTo',
-        value: to
-      });
+      addClientParameters(client);
+      console.log(`📲 No assignees found for ${to}; ringing fallback client ${BROWSER_CLIENT_IDENTITY}`);
     }
 
     res.type('text/xml');
@@ -329,10 +333,15 @@ export const incomingCallStatus = async (req, res) => {
 
     const phoneNumber = req.query.from || req.body.From || 'Unknown';
     const localNumber = req.query.to || req.body.To || '';
-    const callSid = req.body.DialCallSid || req.body.CallSid || '';
+    const parentCallSid = req.body.CallSid || '';
+    const sessionCallSid = parentCallSid || req.body.DialCallSid || '';
 
-    if (callSid) {
-      const session = await InboundCallSession.findOne({ callSid }).select('status answeredBy');
+    if (sessionCallSid) {
+      const session = await findInboundSession({
+        callSid: sessionCallSid,
+        phoneNumber,
+        localNumber
+      });
 
       if (session?.status === 'answered' || session?.answeredBy) {
         return sendEmptyVoiceResponse(res);
@@ -340,7 +349,7 @@ export const incomingCallStatus = async (req, res) => {
 
       if (MISSED_DIAL_STATUSES.has(dialStatus)) {
         await InboundCallSession.findOneAndUpdate(
-          { callSid, status: 'ringing' },
+          { callSid: session?.callSid || sessionCallSid, status: 'ringing' },
           { $set: { status: 'missed' } }
         );
       }
@@ -350,10 +359,12 @@ export const incomingCallStatus = async (req, res) => {
       return sendEmptyVoiceResponse(res);
     }
 
+    const missedCallSid = parentCallSid || req.body.DialCallSid || '';
+
     await Promise.all(targetUserIds.map((userId) => CallLog.findOneAndUpdate(
       {
         $or: [
-          ...(callSid ? [{ callSid, user: userId }] : []),
+          ...(missedCallSid ? [{ callSid: missedCallSid, user: userId }] : []),
           {
             user: userId,
             phoneNumber,
@@ -371,7 +382,7 @@ export const incomingCallStatus = async (req, res) => {
           callType: 'inbound',
           duration: 0,
           status: 'missed',
-          callSid,
+          callSid: missedCallSid,
           startedAt: new Date(),
           endedAt: new Date()
         }

@@ -2,7 +2,36 @@ import CallLog from '../model/CallLog.js';
 import CallTranscript from '../model/CallTranscript.js';
 import InboundCallSession from '../model/InboundCallSession.js';
 import User from '../model/User.js';
+import { findInboundSession } from '../utils/inboundCallSession.js';
 import { getAssignedNumberForUser } from '../utils/twilioNumbers.js';
+
+const createTeammateCallLogs = async (session, answererId) => {
+  const otherUserIds = (session.assignedUserIds || [])
+    .map((userId) => String(userId))
+    .filter((userId) => userId && userId !== String(answererId));
+
+  if (otherUserIds.length === 0) return;
+
+  const now = new Date();
+  await Promise.all(otherUserIds.map((userId) => CallLog.findOneAndUpdate(
+    { callSid: session.callSid, user: userId },
+    {
+      $setOnInsert: {
+        user: userId,
+        phoneNumber: session.phoneNumber,
+        localNumber: session.localNumber,
+        callType: 'inbound',
+        duration: 0,
+        status: 'answered-by-teammate',
+        answeredBy: answererId,
+        callSid: session.callSid,
+        startedAt: now,
+        endedAt: now
+      }
+    },
+    { upsert: true, setDefaultsOnInsert: true }
+  )));
+};
 
 const formatCallLog = (log) => {
   const item = log.toObject();
@@ -35,8 +64,8 @@ export const saveCallLog = async (req, res) => {
       || (resolvedCallType === 'outbound' ? await getAssignedNumberForUser(req.user.id) : '');
 
     let resolvedAnsweredBy = answeredBy || undefined;
-    if (status === 'answered-by-teammate' && callSid && !resolvedAnsweredBy) {
-      const session = await InboundCallSession.findOne({ callSid }).select('answeredBy');
+    if (status === 'answered-by-teammate' && !resolvedAnsweredBy) {
+      const session = await findInboundSession({ callSid, phoneNumber, localNumber: resolvedLocalNumber });
       resolvedAnsweredBy = session?.answeredBy || undefined;
     }
 
@@ -88,28 +117,26 @@ export const saveCallLog = async (req, res) => {
 
 export const markCallAnswered = async (req, res) => {
   try {
-    const { callSid } = req.body;
-    if (!callSid) {
-      return res.status(400).json({ message: 'callSid is required' });
-    }
+    const { callSid, phoneNumber, localNumber } = req.body;
+    const session = await findInboundSession({ callSid, phoneNumber, localNumber });
 
-    const existingSession = await InboundCallSession.findOne({ callSid });
-    if (!existingSession) {
+    if (!session) {
       return res.status(404).json({ message: 'Inbound call session not found' });
     }
 
-    if (existingSession.status === 'answered' && existingSession.answeredBy) {
-      const answerer = await User.findById(existingSession.answeredBy).select('name email');
+    if (session.status === 'answered' && session.answeredBy) {
+      const answerer = await User.findById(session.answeredBy).select('name email');
       return res.json({
         alreadyAnswered: true,
-        session: existingSession,
-        answeredBy: existingSession.answeredBy,
+        session,
+        parentCallSid: session.callSid,
+        answeredBy: session.answeredBy,
         answeredByName: answerer?.name || 'Teammate'
       });
     }
 
-    const session = await InboundCallSession.findOneAndUpdate(
-      { callSid, status: 'ringing' },
+    const updatedSession = await InboundCallSession.findOneAndUpdate(
+      { callSid: session.callSid, status: 'ringing' },
       {
         $set: {
           status: 'answered',
@@ -120,8 +147,8 @@ export const markCallAnswered = async (req, res) => {
       { new: true }
     );
 
-    if (!session) {
-      const current = await InboundCallSession.findOne({ callSid });
+    if (!updatedSession) {
+      const current = await findInboundSession({ callSid: session.callSid });
       const answerer = current?.answeredBy
         ? await User.findById(current.answeredBy).select('name email')
         : null;
@@ -129,26 +156,32 @@ export const markCallAnswered = async (req, res) => {
       return res.json({
         alreadyAnswered: true,
         session: current,
+        parentCallSid: current?.callSid,
         answeredBy: current?.answeredBy,
         answeredByName: answerer?.name || 'Teammate'
       });
     }
 
+    await createTeammateCallLogs(updatedSession, req.user.id);
+
     const answerer = await User.findById(req.user.id).select('name email');
     const io = req.app.get('io');
     if (io) {
       io.emit('call-answered-by-teammate', {
-        callSid: session.callSid,
-        phoneNumber: session.phoneNumber,
-        localNumber: session.localNumber,
+        callSid: updatedSession.callSid,
+        parentCallSid: updatedSession.callSid,
+        phoneNumber: updatedSession.phoneNumber,
+        localNumber: updatedSession.localNumber,
         answeredBy: req.user.id,
         answeredByName: answerer?.name || 'Teammate',
-        assignedUserIds: session.assignedUserIds.map((id) => String(id))
+        assignedUserIds: updatedSession.assignedUserIds.map((id) => String(id))
       });
+      io.emit('refresh-call-history');
     }
 
     res.json({
-      session,
+      session: updatedSession,
+      parentCallSid: updatedSession.callSid,
       answeredBy: req.user.id,
       answeredByName: answerer?.name || 'Teammate'
     });
@@ -165,15 +198,22 @@ export const getInboundSession = async (req, res) => {
       return res.status(400).json({ message: 'callSid is required' });
     }
 
-    const session = await InboundCallSession.findOne({ callSid })
-      .populate('answeredBy', 'name email');
+    const { phoneNumber, localNumber } = req.query;
+    const session = await findInboundSession({
+      callSid,
+      phoneNumber,
+      localNumber
+    });
 
     if (!session) {
       return res.status(404).json({ message: 'Inbound call session not found' });
     }
 
+    await session.populate('answeredBy', 'name email');
+
     res.json({
       callSid: session.callSid,
+      parentCallSid: session.callSid,
       phoneNumber: session.phoneNumber,
       localNumber: session.localNumber,
       status: session.status,
