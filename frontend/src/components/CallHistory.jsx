@@ -1,7 +1,6 @@
-import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import LoadingSpinner from './LoadingSpinner.jsx';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll.js';
 import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -203,15 +202,6 @@ function CallHistorySkeleton() {
     <AppSkeletonTheme>
       <div role="status" aria-label="Loading call history">
       <div className="sticky top-0 z-10 bg-[#161B26]/95 px-2 py-2 backdrop-blur border-b border-gray-800">
-        <div className="mb-2 grid grid-cols-4 gap-1">
-          {Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className="rounded-lg border border-gray-800 bg-[#0F141F] px-2 py-2">
-              <Skeleton width={40} height={8} className="mx-auto mb-2 block" />
-              <Skeleton width={24} height={16} className="mx-auto block" />
-            </div>
-          ))}
-        </div>
-
         <div className="grid grid-cols-4 gap-1 rounded-xl bg-[#0F141F] p-1">
           {Array.from({ length: 4 }, (_, index) => (
             <Skeleton key={index} height={32} borderRadius={8} />
@@ -276,7 +266,6 @@ function CallHistory() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
-  const scrollRef = useRef(null);
   const [followUpDraft, setFollowUpDraft] = useState(null);
   const [savingFollowUp, setSavingFollowUp] = useState(false);
   const [followUpNotice, setFollowUpNotice] = useState({ text: '', type: '' });
@@ -319,14 +308,6 @@ function CallHistory() {
     if (!hasMore || loading || loadingMore || !nextBefore) return;
     fetchCallLogs({ before: nextBefore });
   }, [fetchCallLogs, hasMore, loading, loadingMore, nextBefore]);
-
-  const scrollSentinelRef = useInfiniteScroll({
-    onLoadMore: loadMoreLogs,
-    hasMore,
-    loading,
-    loadingMore,
-    rootRef: scrollRef
-  });
 
   useEffect(() => {
     fetchCallLogs({ reset: true });
@@ -600,43 +581,14 @@ function CallHistory() {
   }, [activeFilter, logs, selectedDate, sortOrder]);
 
   const activeFilterLabel = callFilters.find((filter) => filter.key === activeFilter)?.label || 'All';
-  const callTotals = useMemo(() => logs.reduce((acc, log) => {
-    const status = log.status?.toLowerCase();
-    const callType = log.callType?.toLowerCase();
-
-    acc.total += 1;
-    if (callType === 'inbound') acc.inbound += 1;
-    if (callType === 'outbound') acc.outbound += 1;
-    if (status === 'missed') acc.missed += 1;
-
-    return acc;
-  }, {
-    total: 0,
-    inbound: 0,
-    outbound: 0,
-    missed: 0
-  }), [logs]);
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-auto thin-scrollbar">
+    <div className="flex-1 overflow-auto thin-scrollbar">
       {loading && <CallHistorySkeleton />}
       {error && <p className="text-sm text-red-400 text-center py-10">{error}</p>}
 
       {!loading && !error && logs.length > 0 && (
         <div className="sticky top-0 z-10 bg-[#161B26]/95 px-2 py-2 backdrop-blur border-b border-gray-800">
-          <div className="mb-2 grid grid-cols-4 gap-1">
-            {[
-              ['Total', callTotals.total],
-              ['Inbound', callTotals.inbound],
-              ['Outbound', callTotals.outbound],
-              ['Missed', callTotals.missed]
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-lg border border-gray-800 bg-[#0F141F] px-2 py-2 text-center">
-                <p className="text-[10px] font-semibold uppercase text-gray-500">{label}</p>
-                <p className="text-sm font-bold text-white">{value}</p>
-              </div>
-            ))}
-          </div>
           <div className="grid grid-cols-4 gap-1 rounded-xl bg-[#0F141F] p-1">
             {callFilters.map((filter) => {
               const isActive = activeFilter === filter.key;
@@ -858,8 +810,15 @@ function CallHistory() {
       </div>
 
       {!loading && !error && hasMore && (
-        <div ref={scrollSentinelRef} className="px-4 py-4 text-center text-xs text-gray-500">
-          {loadingMore ? 'Loading more calls...' : 'Scroll for more calls'}
+        <div className="px-4 py-4 text-center">
+          <button
+            type="button"
+            onClick={loadMoreLogs}
+            disabled={loadingMore}
+            className="rounded-xl border border-gray-700 bg-[#0F141F] px-4 py-2 text-xs font-semibold text-gray-200 transition hover:border-gray-600 hover:bg-[#1F2533] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore ? 'Loading...' : 'Load more calls'}
+          </button>
         </div>
       )}
 

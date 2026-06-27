@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll.js';
 import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -174,15 +173,6 @@ function ConversationDetails({ phoneNumber, onClose }) {
     shouldStickToBottomRef.current = false;
     fetchConversation({ before: nextBefore });
   }, [fetchConversation, hasMore, loading, loadingMore, nextBefore]);
-
-  const topSentinelRef = useInfiniteScroll({
-    onLoadMore: loadOlderTimeline,
-    hasMore,
-    loading,
-    loadingMore,
-    rootRef: scrollRef,
-    direction: 'up'
-  });
 
   useEffect(() => {
     shouldStickToBottomRef.current = true;
@@ -359,7 +349,6 @@ function ConversationDetails({ phoneNumber, onClose }) {
             </button>
             <p className="mt-1 text-xs text-gray-400">
               {timeline.length} loaded interaction{timeline.length === 1 ? '' : 's'}
-              {hasMore ? ' • scroll up for older activity' : ''}
             </p>
           </div>
 
@@ -390,8 +379,15 @@ function ConversationDetails({ phoneNumber, onClose }) {
         {loading && <ConversationDetailsSkeleton />}
 
         {!loading && hasMore && (
-          <div ref={topSentinelRef} className="mb-4 text-center text-xs text-gray-500">
-            {loadingMore ? 'Loading older activity...' : 'Scroll up for older activity'}
+          <div className="mb-4 text-center">
+            <button
+              type="button"
+              onClick={loadOlderTimeline}
+              disabled={loadingMore}
+              className="rounded-xl border border-gray-700 bg-[#161B28] px-4 py-2 text-xs font-semibold text-gray-200 transition hover:border-gray-600 hover:bg-[#1F2533] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingMore ? 'Loading...' : 'Load older activity'}
+            </button>
           </div>
         )}
 

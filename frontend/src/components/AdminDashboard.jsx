@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import LoadingSpinner from './LoadingSpinner.jsx';
-import { buildPagedUrl, parsePagedResponse } from '../utils/pagination.js';
+
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -80,8 +80,6 @@ function StatCard({ label, value, tone }) {
 }
 
 function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = true }) {
-  const [calls, setCalls] = useState([]);
-  const [messages, setMessages] = useState([]);
   const [activityStats, setActivityStats] = useState({
     month: { calls: 0, messages: 0 },
     selectedDate: { calls: 0, messages: 0 }
@@ -114,8 +112,6 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       const statsParams = getDateRangeParams(appliedStatsMonth, appliedStatsDate);
       statsParams.set('refreshKey', String(statsRefreshKey));
 
-      const callsPromise = fetch(buildPagedUrl(`${BACKEND_URL}/api/calls/logs`, { limit: 100 }), { headers: authHeaders });
-      const messagesPromise = fetch(buildPagedUrl(`${BACKEND_URL}/api/messages`, { limit: 100 }), { headers: authHeaders });
       const statsPromise = showStats
         ? fetch(`${BACKEND_URL}/api/auth/admin-activity-stats?${statsParams}`, {
             headers: authHeaders
@@ -128,30 +124,22 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
         ? fetch(`${BACKEND_URL}/api/phone-numbers`, { headers: authHeaders })
         : Promise.resolve(null);
 
-      const [callsRes, messagesRes, statsRes, usersRes, numbersRes] = await Promise.all([
-        callsPromise,
-        messagesPromise,
+      const [statsRes, usersRes, numbersRes] = await Promise.all([
         statsPromise,
         usersPromise,
         numbersPromise
       ]);
 
-      const [callsData, messagesData, statsData, usersData, numbersData] = await Promise.all([
-        callsRes.json(),
-        messagesRes.json(),
+      const [statsData, usersData, numbersData] = await Promise.all([
         statsRes ? statsRes.json() : Promise.resolve(null),
         usersRes ? usersRes.json() : Promise.resolve(null),
         numbersRes ? numbersRes.json() : Promise.resolve(null)
       ]);
 
-      if (!callsRes.ok) throw new Error(callsData.message || 'Failed to load call totals');
-      if (!messagesRes.ok) throw new Error(messagesData.message || 'Failed to load message totals');
       if (statsRes && !statsRes.ok) throw new Error(statsData.message || 'Failed to load activity totals');
       if (usersRes && !usersRes.ok) throw new Error(usersData.message || 'Failed to load users');
       if (numbersRes && !numbersRes.ok) throw new Error(numbersData.message || 'Failed to load phone numbers');
 
-      setCalls(parsePagedResponse(callsData).items);
-      setMessages(parsePagedResponse(messagesData).items);
       if (showStats) {
         setActivityStats({
           month: {
@@ -180,46 +168,20 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
   }, [fetchDashboardData]);
 
   useEffect(() => {
-    const refresh = () => fetchDashboardData();
-    window.addEventListener('refreshCallHistory', refresh);
-    window.addEventListener('refreshMessages', refresh);
+    const refreshStats = () => {
+      if (showStats) {
+        setStatsRefreshKey((current) => current + 1);
+      }
+    };
+
+    window.addEventListener('refreshCallHistory', refreshStats);
+    window.addEventListener('refreshMessages', refreshStats);
 
     return () => {
-      window.removeEventListener('refreshCallHistory', refresh);
-      window.removeEventListener('refreshMessages', refresh);
+      window.removeEventListener('refreshCallHistory', refreshStats);
+      window.removeEventListener('refreshMessages', refreshStats);
     };
-  }, [fetchDashboardData]);
-
-  const totals = useMemo(() => calls.reduce((acc, call) => {
-    const callType = call.callType?.toLowerCase();
-    const status = call.status?.toLowerCase();
-
-    acc.total += 1;
-    if (callType === 'inbound') acc.inbound += 1;
-    if (callType === 'outbound') acc.outbound += 1;
-    if (status === 'missed') acc.missed += 1;
-
-    return acc;
-  }, {
-    total: 0,
-    inbound: 0,
-    outbound: 0,
-    missed: 0
-  }), [calls]);
-
-  const messageTotals = useMemo(() => messages.reduce((acc, message) => {
-    const direction = message.direction?.toLowerCase();
-
-    acc.total += 1;
-    if (direction === 'inbound') acc.inbound += 1;
-    if (direction === 'outbound') acc.outbound += 1;
-
-    return acc;
-  }, {
-    total: 0,
-    inbound: 0,
-    outbound: 0
-  }), [messages]);
+  }, [showStats]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -447,18 +409,6 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <StatCard label="Total Calls" value={totals.total} tone="total" />
-            <StatCard label="Inbound Calls" value={totals.inbound} tone="inbound" />
-            <StatCard label="Outbound Calls" value={totals.outbound} tone="outbound" />
-            <StatCard label="Missed Calls" value={totals.missed} tone="missed" />
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 pb-3">
-            <StatCard label="Total Messages" value={messageTotals.total} tone="messages" />
-            <StatCard label="Inbound Messages" value={messageTotals.inbound} tone="inbound" />
-            <StatCard label="Outbound Messages" value={messageTotals.outbound} tone="outbound" />
-          </div>
         </>
       )}
 

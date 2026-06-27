@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
-import { useInfiniteScroll } from '../hooks/useInfiniteScroll.js';
 import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
 import { showErrorToast, showSuccessToast } from '../utils/toast.js';
 
@@ -40,15 +39,6 @@ function MessagesSkeleton() {
   return (
     <AppSkeletonTheme>
       <div role="status" aria-label="Loading messages">
-        <div className="mb-4 grid grid-cols-3 gap-2">
-          {Array.from({ length: 3 }, (_, index) => (
-            <div key={index} className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-3">
-              <Skeleton width={54} height={10} className="mx-auto block" />
-              <Skeleton width={28} height={20} className="mx-auto mt-2 block" />
-            </div>
-          ))}
-        </div>
-
         <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900">
           <div className="border-b border-gray-800 px-4 py-3">
             <Skeleton width={126} height={16} />
@@ -158,13 +148,6 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
     if (!hasMore || loading || loadingMore || !nextBefore) return;
     fetchMessageThreads({ before: nextBefore });
   }, [fetchMessageThreads, hasMore, loading, loadingMore, nextBefore]);
-
-  const scrollSentinelRef = useInfiniteScroll({
-    onLoadMore: loadMoreThreads,
-    hasMore,
-    loading,
-    loadingMore
-  });
 
   useEffect(() => {
     setUnreadThreadKeys(readUnreadThreadKeys());
@@ -293,20 +276,6 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
     }));
   };
 
-  const messageTotals = useMemo(() => messageThreads.reduce((acc, message) => {
-    const direction = message.direction?.toLowerCase();
-
-    acc.total += 1;
-    if (direction === 'inbound') acc.inbound += 1;
-    if (direction === 'outbound') acc.outbound += 1;
-
-    return acc;
-  }, {
-    total: 0,
-    inbound: 0,
-    outbound: 0
-  }), [messageThreads]);
-
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -329,19 +298,6 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
         >
           {showCompose ? 'Close SMS' : 'Create SMS'}
         </button>
-      </div>
-
-      <div className="mb-4 grid grid-cols-3 gap-2">
-        {[
-          ['Total', messageTotals.total],
-          ['Inbound', messageTotals.inbound],
-          ['Outbound', messageTotals.outbound]
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-3 text-center">
-            <p className="text-[10px] font-semibold uppercase text-gray-500">{label}</p>
-            <p className="mt-1 text-lg font-bold text-white">{value}</p>
-          </div>
-        ))}
       </div>
 
       {showCompose && (
@@ -488,8 +444,15 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
         )}
 
         {!loading && hasMore && (
-          <div ref={scrollSentinelRef} className="px-4 py-4 text-center text-xs text-gray-500">
-            {loadingMore ? 'Loading more conversations...' : 'Scroll for more conversations'}
+          <div className="px-4 py-4 text-center">
+            <button
+              type="button"
+              onClick={loadMoreThreads}
+              disabled={loadingMore}
+              className="rounded-xl border border-gray-700 bg-[#0F141F] px-4 py-2 text-xs font-semibold text-gray-200 transition hover:border-gray-600 hover:bg-[#1F2533] hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingMore ? 'Loading...' : 'Load more conversations'}
+            </button>
           </div>
         )}
       </div>
