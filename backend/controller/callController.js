@@ -2,6 +2,7 @@ import CallLog from '../model/CallLog.js';
 import CallTranscript from '../model/CallTranscript.js';
 import InboundCallSession from '../model/InboundCallSession.js';
 import User from '../model/User.js';
+import { consolidateAdminCallLogs } from '../utils/consolidateCallLogs.js';
 import { findInboundSession } from '../utils/inboundCallSession.js';
 import { getAssignedNumberForUser } from '../utils/twilioNumbers.js';
 
@@ -237,8 +238,11 @@ export const getCallLogs = async (req, res) => {
       .limit(100);
 
     const formattedLogs = logs.map(formatCallLog);
+    const responseLogs = req.user.role === 'admin'
+      ? consolidateAdminCallLogs(formattedLogs)
+      : formattedLogs;
 
-    res.json(formattedLogs);
+    res.json(responseLogs);
   } catch (error) {
     console.error('Get Call Logs Error:', error);
     res.status(500).json({ message: error.message });

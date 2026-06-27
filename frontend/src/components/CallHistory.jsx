@@ -34,8 +34,9 @@ const callStyles = {
   },
   'answered-by-teammate': {
     label: 'Handled by teammate',
-    iconClass: 'bg-sky-500/10 text-sky-300 ring-sky-500/20',
-    statusClass: 'bg-sky-500/10 text-sky-300 border-sky-500/20'
+    iconClass: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30',
+    statusClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    statusTextClass: 'font-semibold text-emerald-400'
   },
   rejected: {
     label: 'Rejected',
@@ -472,21 +473,43 @@ function CallHistory() {
       || (typeof log.answeredBy === 'object' ? log.answeredBy?.name : '')
       || '';
 
+    const style = callStyles[visualType] || callStyles.default;
+    const handledByName = log.handledByName || answeredByName;
+
     return {
-      ...(callStyles[visualType] || callStyles.default),
+      ...style,
       visualType,
-      statusLabel: status === 'answered-by-teammate' && answeredByName
-        ? `Answered by ${answeredByName}`
-        : (status || 'unknown').replace(/-/g, ' '),
+      statusLabel: status === 'answered-by-teammate' && handledByName
+        ? `Answered by ${handledByName}`
+        : log.isConsolidated && status === 'completed' && callType === 'inbound' && handledByName
+          ? `Answered by ${handledByName}`
+          : (status || 'unknown').replace(/-/g, ' '),
+      statusTextClass: (
+        status === 'answered-by-teammate'
+        || (log.isConsolidated && status === 'completed' && callType === 'inbound' && handledByName)
+      )
+        ? (style.statusTextClass || 'font-semibold text-emerald-400')
+        : (style.statusTextClass || ''),
       directionLabel: callStyles[callType]?.label || callStyles.default.label
     };
   };
 
   
   const getUserName = (log) => {
+    if (log.handledByName) return log.handledByName;
     if (log.userName) return log.userName;
     if (typeof log.user === 'object' && log.user?.name) return log.user.name;
     return 'Unknown User';
+  };
+
+  const getAlsoNotifiedLabel = (log) => {
+    if (!Array.isArray(log.alsoNotifiedUsers) || log.alsoNotifiedUsers.length === 0) return '';
+    return `Also rung: ${log.alsoNotifiedUsers.join(', ')}`;
+  };
+
+  const getMissedByLabel = (log) => {
+    if (!Array.isArray(log.missedByUsers) || log.missedByUsers.length <= 1) return '';
+    return `Missed by: ${log.missedByUsers.join(', ')}`;
   };
 
   const getTranscriptSpeaker = (segment, log) => {
@@ -726,7 +749,7 @@ function CallHistory() {
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
                     <span>{meta.directionLabel}</span>
                     <span className="text-gray-600">|</span>
-                    <span className="capitalize">{meta.statusLabel}</span>
+                    <span className={`capitalize ${meta.statusTextClass}`.trim()}>{meta.statusLabel}</span>
                     <span className="text-gray-600">|</span>
                     <span>{formatDuration(log.duration)}</span>
                     <span className="text-gray-600">|</span>
@@ -735,6 +758,18 @@ function CallHistory() {
                       <>
                         <span className="text-gray-600">|</span>
                         <span>{localNumberLabel}</span>
+                      </>
+                    )}
+                    {getAlsoNotifiedLabel(log) && (
+                      <>
+                        <span className="text-gray-600">|</span>
+                        <span className="text-gray-500">{getAlsoNotifiedLabel(log)}</span>
+                      </>
+                    )}
+                    {getMissedByLabel(log) && (
+                      <>
+                        <span className="text-gray-600">|</span>
+                        <span className="text-gray-500">{getMissedByLabel(log)}</span>
                       </>
                     )}
                   </div>
