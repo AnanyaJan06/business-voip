@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll.js';
+import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -23,13 +25,10 @@ const formatMessageStatus = (status = '') => (
   status ? status.replace('-', ' ') : 'queued'
 );
 
-const upsertMessage = (messages, message) => {
-  if (!message?._id && !message?.messageSid) return messages;
-
-  const messageId = String(message._id || message.messageSid);
-  const exists = messages.some((item) => String(item._id || item.messageSid) === messageId);
-
-  return exists ? messages : [...messages, message];
+const upsertTimelineItem = (timeline, item) => {
+  if (!item?.id) return timeline;
+  const exists = timeline.some((entry) => entry.id === item.id);
+  return exists ? timeline : [...timeline, item];
 };
 
 const normalizeIncomingMessage = (message) => ({
@@ -37,6 +36,21 @@ const normalizeIncomingMessage = (message) => ({
   phoneNumber: message.phoneNumber || message.from,
   direction: message.direction || 'inbound',
   status: message.status || 'received'
+});
+
+const toTimelineMessage = (message) => ({
+  id: String(message._id || message.messageSid || message.id || ''),
+  type: 'sms',
+  direction: message.direction,
+  status: message.status,
+  errorCode: message.errorCode,
+  deliveredAt: message.deliveredAt,
+  from: message.from,
+  to: message.to,
+  body: message.body,
+  mediaUrls: message.mediaUrls || [],
+  date: message.createdAt || message.date,
+  userName: message.userName || message.user?.name || ''
 });
 
 function ConversationDetailsSkeleton() {
@@ -87,114 +101,121 @@ function ConversationDetailsSkeleton() {
 }
 
 function ConversationDetails({ phoneNumber, onClose }) {
-  const [calls, setCalls] = useState([]);
-  const [messages, setMessages] = useState([]);
+  const [timeline, setTimeline] = useState([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextBefore, setNextBefore] = useState(null);
   const [messageBody, setMessageBody] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState('');
   const timelineEndRef = useRef(null);
+  const scrollRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
 
   const selectedDigits = normalizePhone(phoneNumber);
 
-  const fetchConversation = useCallback(async ({ silent = false } = {}) => {
+  const fetchConversation = useCallback(async ({ reset = false, before = null, silent = false } = {}) => {
     if (!phoneNumber) return;
 
     try {
-      if (!silent) setLoading(true);
-      const headers = {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      };
+      if (reset && !silent) {
+        setLoading(true);
+        setNotice('');
+      } else if (!reset) {
+        setLoadingMore(true);
+      }
 
-      const [callsRes, messagesRes] = await Promise.all([
-        fetch(`${BACKEND_URL}/api/calls/logs`, { headers }),
-        fetch(`${BACKEND_URL}/api/messages`, { headers })
-      ]);
+      const scrollContainer = scrollRef.current;
+      const previousHeight = reset ? 0 : (scrollContainer?.scrollHeight || 0);
+      const previousTop = scrollContainer?.scrollTop || 0;
 
-      const [callsData, messagesData] = await Promise.all([
-        callsRes.json(),
-        messagesRes.json()
-      ]);
+      const res = await fetch(buildPagedUrl(`${BACKEND_URL}/api/conversations/timeline`, {
+        limit: PAGE_SIZE,
+        before,
+        extraParams: { phoneNumber }
+      }), {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
 
-      if (!callsRes.ok) throw new Error(callsData.message || 'Failed to load calls');
-      if (!messagesRes.ok) throw new Error(messagesData.message || 'Failed to load messages');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to load conversation');
 
-      setCalls(callsData);
-      setMessages(messagesData);
+      const page = parsePagedResponse(data);
+
+      setTimeline((current) => {
+        if (reset) return page.items;
+        const existingIds = new Set(current.map((item) => item.id));
+        const olderItems = page.items.filter((item) => !existingIds.has(item.id));
+        return [...olderItems, ...current];
+      });
+      setHasMore(page.hasMore);
+      setNextBefore(page.nextBefore);
+
+      if (!reset && scrollContainer) {
+        requestAnimationFrame(() => {
+          const nextHeight = scrollContainer.scrollHeight;
+          scrollContainer.scrollTop = previousTop + (nextHeight - previousHeight);
+        });
+      }
     } catch (error) {
-      setNotice(error.message);
+      if (reset && !silent) setNotice(error.message);
     } finally {
-      if (!silent) setLoading(false);
+      if (reset && !silent) setLoading(false);
+      setLoadingMore(false);
     }
   }, [phoneNumber]);
 
-  useEffect(() => {
-    fetchConversation();
-  }, [fetchConversation]);
+  const loadOlderTimeline = useCallback(() => {
+    if (!hasMore || loading || loadingMore || !nextBefore) return;
+    shouldStickToBottomRef.current = false;
+    fetchConversation({ before: nextBefore });
+  }, [fetchConversation, hasMore, loading, loadingMore, nextBefore]);
+
+  const topSentinelRef = useInfiniteScroll({
+    onLoadMore: loadOlderTimeline,
+    hasMore,
+    loading,
+    loadingMore,
+    rootRef: scrollRef,
+    direction: 'up'
+  });
 
   useEffect(() => {
-    const refreshCalls = () => fetchConversation({ silent: true });
+    shouldStickToBottomRef.current = true;
+    setTimeline([]);
+    setHasMore(false);
+    setNextBefore(null);
+    fetchConversation({ reset: true });
+  }, [fetchConversation, phoneNumber]);
+
+  useEffect(() => {
+    const refreshConversation = () => fetchConversation({ reset: true, silent: true });
     const refreshMessages = (event) => {
       const message = event.detail?.message;
       if (!message) {
-        fetchConversation({ silent: true });
+        refreshConversation();
         return;
       }
 
       const values = [message.phoneNumber, message.from, message.to].map(normalizePhone);
       if (!values.includes(selectedDigits)) return;
 
-      setMessages((current) => upsertMessage(current, normalizeIncomingMessage(message)));
+      const timelineMessage = toTimelineMessage(normalizeIncomingMessage(message));
+      setTimeline((current) => upsertTimelineItem(current, timelineMessage));
+      shouldStickToBottomRef.current = true;
     };
 
-    window.addEventListener('refreshCallHistory', refreshCalls);
+    window.addEventListener('refreshCallHistory', refreshConversation);
     window.addEventListener('refreshMessages', refreshMessages);
     return () => {
-      window.removeEventListener('refreshCallHistory', refreshCalls);
+      window.removeEventListener('refreshCallHistory', refreshConversation);
       window.removeEventListener('refreshMessages', refreshMessages);
     };
   }, [fetchConversation, selectedDigits]);
-
-  const timeline = useMemo(() => {
-    if (!selectedDigits) return [];
-
-    const matchingCalls = calls
-      .filter((call) => normalizePhone(call.phoneNumber) === selectedDigits)
-      .map((call) => ({
-        id: call._id || call.callSid,
-        type: 'call',
-        direction: call.callType || 'call',
-        status: call.status || 'completed',
-        duration: Number(call.duration) || 0,
-        localNumber: call.localNumber || '',
-        date: call.startedAt || call.createdAt,
-        userName: call.userName || call.user?.name || ''
-      }));
-
-    const matchingMessages = messages
-      .filter((message) => {
-        const values = [message.phoneNumber, message.from, message.to].map(normalizePhone);
-        return values.includes(selectedDigits);
-      })
-      .map((message) => ({
-        id: message._id || message.messageSid,
-        type: 'sms',
-        direction: message.direction,
-        status: message.status,
-        errorCode: message.errorCode,
-        deliveredAt: message.deliveredAt,
-        from: message.from,
-        to: message.to,
-        body: message.body,
-        mediaUrls: message.mediaUrls || [],
-        date: message.createdAt,
-        userName: message.userName || message.user?.name || ''
-      }));
-
-    return [...matchingCalls, ...matchingMessages]
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-  }, [calls, messages, selectedDigits]);
 
   const formatDate = (date) => new Date(date).toLocaleDateString('en-US', {
     month: 'short',
@@ -230,15 +251,15 @@ function ConversationDetails({ phoneNumber, onClose }) {
       : `To ${allottedNumber}`;
   };
 
-  const groupedTimeline = timeline.reduce((groups, item) => {
+  const groupedTimeline = useMemo(() => timeline.reduce((groups, item) => {
     const key = formatDate(item.date);
     groups[key] = groups[key] || [];
     groups[key].push(item);
     return groups;
-  }, {});
+  }, {}), [timeline]);
 
   useEffect(() => {
-    if (!loading && phoneNumber) {
+    if (!loading && phoneNumber && shouldStickToBottomRef.current) {
       timelineEndRef.current?.scrollIntoView({ block: 'end' });
     }
   }, [loading, phoneNumber, timeline.length]);
@@ -298,12 +319,14 @@ function ConversationDetails({ phoneNumber, onClose }) {
       setMessageBody('');
       setImageFile(null);
       if (data.messageLog) {
-        setMessages((current) => upsertMessage(current, data.messageLog));
+        const timelineMessage = toTimelineMessage(data.messageLog);
+        setTimeline((current) => upsertTimelineItem(current, timelineMessage));
+        shouldStickToBottomRef.current = true;
         window.dispatchEvent(new CustomEvent('refreshMessages', {
           detail: { message: data.messageLog }
         }));
       } else {
-        fetchConversation({ silent: true });
+        fetchConversation({ reset: true, silent: true });
         window.dispatchEvent(new Event('refreshMessages'));
       }
     } catch (error) {
@@ -335,7 +358,8 @@ function ConversationDetails({ phoneNumber, onClose }) {
               {phoneNumber}
             </button>
             <p className="mt-1 text-xs text-gray-400">
-              {timeline.length} interaction{timeline.length === 1 ? '' : 's'}
+              {timeline.length} loaded interaction{timeline.length === 1 ? '' : 's'}
+              {hasMore ? ' • scroll up for older activity' : ''}
             </p>
           </div>
 
@@ -362,8 +386,14 @@ function ConversationDetails({ phoneNumber, onClose }) {
         </div>
       </div>
 
-      <div className="thin-scrollbar min-h-0 flex-1 overflow-auto px-5 py-4">
+      <div ref={scrollRef} className="thin-scrollbar min-h-0 flex-1 overflow-auto px-5 py-4">
         {loading && <ConversationDetailsSkeleton />}
+
+        {!loading && hasMore && (
+          <div ref={topSentinelRef} className="mb-4 text-center text-xs text-gray-500">
+            {loadingMore ? 'Loading older activity...' : 'Scroll up for older activity'}
+          </div>
+        )}
 
         {!loading && timeline.length === 0 && (
           <p className="py-10 text-center text-sm text-gray-400">No calls or messages found for this number.</p>
@@ -382,6 +412,12 @@ function ConversationDetails({ phoneNumber, onClose }) {
                 const isOutbound = item.direction === 'outbound';
                 const isCall = item.type === 'call';
                 const allottedNumberLabel = getAllottedNumberLabel(item);
+                const handledByName = item.handledByName || item.answeredByName || item.userName || '';
+                const callStatusLabel = item.status === 'answered-by-teammate' && handledByName
+                  ? `Answered by ${handledByName}`
+                  : item.isConsolidated && item.status === 'completed' && handledByName
+                    ? `Answered by ${handledByName}`
+                    : (item.status || 'completed').replace(/-/g, ' ');
 
                 return (
                   <div
@@ -397,58 +433,45 @@ function ConversationDetails({ phoneNumber, onClose }) {
                     }`}>
                       {isCall ? (
                         <>
-                          <p className={`text-sm font-semibold capitalize ${
-                            item.status === 'missed' || item.status === 'failed' || item.status === 'rejected'
-                              ? 'text-red-300'
-                              : 'text-emerald-300'
+                          <p className="text-sm font-semibold capitalize">{item.direction} call</p>
+                          <p className={`mt-1 text-xs capitalize ${
+                            item.status === 'answered-by-teammate' || (item.isConsolidated && item.status === 'completed' && handledByName)
+                              ? 'font-semibold text-emerald-400'
+                              : 'text-gray-300'
                           }`}>
-                            {item.status} {item.direction} call
+                            {callStatusLabel}
                           </p>
-                          <p className="mt-1 text-xs text-gray-300">
-                            Duration {formatDuration(item.duration)}
-                          </p>
-                          {allottedNumberLabel && (
-                            <p className="mt-1 text-xs text-gray-400">{allottedNumberLabel}</p>
-                          )}
+                          <p className="mt-1 text-xs text-gray-400">{formatDuration(item.duration)}</p>
                         </>
                       ) : (
                         <>
                           {item.mediaUrls?.length > 0 && (
                             <div className="mb-2 space-y-2">
-                              {item.mediaUrls.map((mediaUrl) => (
-                                <a key={mediaUrl} href={mediaUrl} target="_blank" rel="noreferrer">
-                                  <img
-                                    src={mediaUrl}
-                                    alt="Message attachment"
-                                    className="max-h-64 rounded-xl object-contain"
-                                  />
-                                </a>
+                              {item.mediaUrls.map((url) => (
+                                <img
+                                  key={url}
+                                  src={url}
+                                  alt="Message attachment"
+                                  className="max-h-56 rounded-xl border border-gray-700 object-cover"
+                                />
                               ))}
                             </div>
                           )}
                           {item.body && <p className="whitespace-pre-wrap text-sm leading-6">{item.body}</p>}
-                          <p className="mt-2 text-xs uppercase tracking-wide text-gray-300">
-                            {item.mediaUrls?.length > 0 ? 'MMS' : 'SMS'}
-                            {isOutbound && (
-                              <span className={`ml-2 capitalize ${
-                                messageStatusStyles[item.status] || messageStatusStyles.queued
-                              }`}>
-                                {formatMessageStatus(item.status)}
-                              </span>
-                            )}
-                          </p>
-                          {item.errorCode && (
-                            <p className="mt-1 text-xs text-red-300">Error {item.errorCode}</p>
-                          )}
-                          {allottedNumberLabel && (
-                            <p className="mt-1 text-xs text-gray-400">{allottedNumberLabel}</p>
-                          )}
                         </>
                       )}
 
-                      <div className="mt-2 flex items-center justify-between gap-4 text-xs text-gray-400">
-                        <span>{item.userName}</span>
+                      <div className="mt-3 flex items-center justify-between gap-4 text-[11px] text-gray-400">
                         <span>{formatTime(item.date)}</span>
+                        <div className="text-right">
+                          {!isCall && (
+                            <span className={`capitalize ${messageStatusStyles[item.status] || 'text-gray-300'}`}>
+                              {formatMessageStatus(item.status)}
+                            </span>
+                          )}
+                          {allottedNumberLabel && <p className="mt-0.5">{allottedNumberLabel}</p>}
+                          {handledByName && isCall && <p className="mt-0.5">{handledByName}</p>}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -457,55 +480,42 @@ function ConversationDetails({ phoneNumber, onClose }) {
             </div>
           </div>
         ))}
+
         <div ref={timelineEndRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="border-t border-gray-800 bg-[#161B28] p-4">
-        {notice && <p className="mb-2 rounded-lg bg-red-600 px-3 py-2 text-xs text-white">{notice}</p>}
-        <textarea
-          value={messageBody}
-          onChange={(event) => setMessageBody(event.target.value)}
-          rows={3}
-          maxLength={1600}
-          placeholder="Write a message..."
-          className="w-full resize-none rounded-2xl border border-gray-700 bg-[#0F1322] px-4 py-3 text-sm text-white focus:border-[#059669]"
-        />
-        <div className="mt-2 rounded-xl border border-dashed border-gray-700 bg-[#0F1322] px-3 py-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="min-w-0 truncate text-xs text-gray-400">
-              {imageFile ? imageFile.name : 'Attach an image'}
-            </span>
-            <div className="flex items-center gap-2">
-              {imageFile && (
-                <button
-                  type="button"
-                  onClick={() => setImageFile(null)}
-                  className="rounded-lg border border-gray-700 px-2.5 py-1.5 text-xs text-gray-300 transition hover:bg-gray-800 hover:text-white"
-                >
-                  Remove
-                </button>
-              )}
-              <label className="cursor-pointer rounded-lg bg-gray-700 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-gray-600">
-                Choose Image
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  className="sr-only"
-                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
-                />
-              </label>
-            </div>
+      <form onSubmit={sendMessage} className="border-t border-gray-800 bg-[#161B28] px-5 py-4">
+        {notice && <p className="mb-3 text-sm text-red-400">{notice}</p>}
+
+        <div className="flex flex-col gap-3">
+          <textarea
+            value={messageBody}
+            onChange={(event) => setMessageBody(event.target.value)}
+            rows={2}
+            maxLength={1600}
+            placeholder="Write a message..."
+            className="w-full resize-none rounded-xl border border-gray-700 bg-[#0F1322] px-3 py-2 text-sm text-white focus:border-emerald-500"
+          />
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <label className="cursor-pointer rounded-lg border border-gray-700 px-3 py-2 text-xs font-medium text-gray-300 transition hover:bg-gray-800 hover:text-white">
+              {imageFile ? imageFile.name : 'Attach image'}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="sr-only"
+                onChange={(event) => setImageFile(event.target.files?.[0] || null)}
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={sending}
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+            >
+              {sending ? <InlineLoader label="Sending..." /> : 'Send SMS'}
+            </button>
           </div>
-        </div>
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-gray-500">{messageBody.length}/1600</span>
-          <button
-            type="submit"
-            disabled={sending || (!messageBody.trim() && !imageFile)}
-            className="rounded-xl bg-[#059669] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:bg-gray-700 disabled:text-gray-400"
-          >
-            {sending ? <InlineLoader label="Sending..." /> : 'Send'}
-          </button>
         </div>
       </form>
     </div>

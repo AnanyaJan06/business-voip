@@ -4,6 +4,8 @@ import InboundCallSession from '../model/InboundCallSession.js';
 import User from '../model/User.js';
 import { consolidateAdminCallLogs } from '../utils/consolidateCallLogs.js';
 import { findInboundSession } from '../utils/inboundCallSession.js';
+import { buildPaginatedResponse, parseBeforeDate, parseLimit } from '../utils/pagination.js';
+import { buildPhoneOrFilter } from '../utils/phoneMatch.js';
 import { getAssignedNumberForUser } from '../utils/twilioNumbers.js';
 
 const createTeammateCallLogs = async (session, answererId) => {
@@ -230,19 +232,41 @@ export const getInboundSession = async (req, res) => {
 
 export const getCallLogs = async (req, res) => {
   try {
-    const query = req.user.role === 'admin' ? {} : { user: req.user.id };
+    const limit = parseLimit(req.query.limit);
+    const before = parseBeforeDate(req.query.before);
+    const phoneNumber = String(req.query.phoneNumber || '').trim();
+    const query = {};
+
+    if (phoneNumber) {
+      Object.assign(query, buildPhoneOrFilter(phoneNumber, ['phoneNumber']));
+      if (req.user.role !== 'admin') {
+        query.user = req.user.id;
+      }
+    } else if (req.user.role !== 'admin') {
+      query.user = req.user.id;
+    }
+
+    if (before) {
+      query.startedAt = { $lt: before };
+    }
+
     const logs = await CallLog.find(query)
       .populate('user', 'name email role')
       .populate('answeredBy', 'name email')
-      .sort({ startedAt: -1 })
-      .limit(100);
+      .sort({ startedAt: -1, _id: -1 })
+      .limit(limit + 1);
 
     const formattedLogs = logs.map(formatCallLog);
-    const responseLogs = req.user.role === 'admin'
-      ? consolidateAdminCallLogs(formattedLogs)
-      : formattedLogs;
+    const page = buildPaginatedResponse(
+      formattedLogs,
+      limit,
+      (log) => new Date(log.startedAt || log.createdAt || 0).toISOString()
+    );
+    page.items = req.user.role === 'admin'
+      ? consolidateAdminCallLogs(page.items)
+      : page.items;
 
-    res.json(responseLogs);
+    res.json(page);
   } catch (error) {
     console.error('Get Call Logs Error:', error);
     res.status(500).json({ message: error.message });

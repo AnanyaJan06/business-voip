@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll.js';
+import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
 import { showErrorToast, showSuccessToast } from '../utils/toast.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -26,15 +28,6 @@ const messageStatusStyles = {
 const formatMessageStatus = (status = '') => (
   status ? status.replace('-', ' ') : 'queued'
 );
-
-const upsertMessage = (messages, message) => {
-  if (!message?._id && !message?.messageSid) return messages;
-
-  const messageId = String(message._id || message.messageSid);
-  const exists = messages.some((item) => String(item._id || item.messageSid) === messageId);
-
-  return exists ? messages : [message, ...messages];
-};
 
 const normalizeIncomingMessage = (message) => ({
   ...message,
@@ -81,11 +74,14 @@ function MessagesSkeleton() {
 }
 
 function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
-  const [messages, setMessages] = useState([]);
+  const [messageThreads, setMessageThreads] = useState([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextBefore, setNextBefore] = useState(null);
   const [recipient, setRecipient] = useState(selectedPhoneNumber);
   const [body, setBody] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [sending, setSending] = useState(false);
   const [showCompose, setShowCompose] = useState(Boolean(selectedPhoneNumber));
   const [unreadThreadKeys, setUnreadThreadKeys] = useState([]);
@@ -107,32 +103,76 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
     setUnreadThreadKeys(uniqueKeys);
   }, [unreadStorageKey]);
 
-  const fetchMessages = useCallback(async ({ silent = false } = {}) => {
+  const upsertThread = useCallback((threads, message) => {
+    const normalized = normalizeIncomingMessage(message);
+    const phoneNumber = normalized.direction === 'outbound' ? normalized.to : normalized.from;
+    const threadKey = normalizePhone(phoneNumber) || phoneNumber;
+    const nextThread = {
+      ...normalized,
+      phoneNumber,
+      threadKey
+    };
+    const remaining = threads.filter((thread) => {
+      const key = thread.threadKey || normalizePhone(thread.phoneNumber) || thread.phoneNumber;
+      return key !== threadKey;
+    });
+
+    return [nextThread, ...remaining];
+  }, []);
+
+  const fetchMessageThreads = useCallback(async ({ reset = false, before = null, silent = false } = {}) => {
     try {
-      if (!silent) setLoading(true);
-      const res = await fetch(`${BACKEND_URL}/api/messages`, {
+      if (reset && !silent) {
+        setLoading(true);
+      } else if (!reset) {
+        setLoadingMore(true);
+      }
+
+      const res = await fetch(buildPagedUrl(`${BACKEND_URL}/api/messages/threads`, {
+        limit: PAGE_SIZE,
+        before
+      }), {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
-      const data = await res.json();
 
+      const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to load messages');
-      setMessages(Array.isArray(data) ? data : []);
+
+      const page = parsePagedResponse(data);
+      setMessageThreads((current) => (reset ? page.items : [...current, ...page.items]));
+      setHasMore(page.hasMore);
+      setNextBefore(page.nextBefore);
     } catch (error) {
-      showErrorToast(error.message || 'Failed to load messages');
+      if (reset && !silent) {
+        showErrorToast(error.message || 'Failed to load messages');
+      }
     } finally {
-      setLoading(false);
+      if (reset && !silent) setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
+
+  const loadMoreThreads = useCallback(() => {
+    if (!hasMore || loading || loadingMore || !nextBefore) return;
+    fetchMessageThreads({ before: nextBefore });
+  }, [fetchMessageThreads, hasMore, loading, loadingMore, nextBefore]);
+
+  const scrollSentinelRef = useInfiniteScroll({
+    onLoadMore: loadMoreThreads,
+    hasMore,
+    loading,
+    loadingMore
+  });
 
   useEffect(() => {
     setUnreadThreadKeys(readUnreadThreadKeys());
   }, [readUnreadThreadKeys]);
 
   useEffect(() => {
-    fetchMessages();
-  }, [fetchMessages]);
+    fetchMessageThreads({ reset: true });
+  }, [fetchMessageThreads]);
 
   useEffect(() => {
     const handleIncomingMessage = (event) => {
@@ -144,16 +184,16 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
       }
 
       if (incomingMessage) {
-        setMessages((current) => upsertMessage(current, normalizeIncomingMessage(incomingMessage)));
+        setMessageThreads((current) => upsertThread(current, incomingMessage));
         return;
       }
 
-      fetchMessages({ silent: true });
+      fetchMessageThreads({ reset: true, silent: true });
     };
 
     window.addEventListener('refreshMessages', handleIncomingMessage);
     return () => window.removeEventListener('refreshMessages', handleIncomingMessage);
-  }, [fetchMessages, readUnreadThreadKeys, writeUnreadThreadKeys]);
+  }, [fetchMessageThreads, readUnreadThreadKeys, upsertThread, writeUnreadThreadKeys]);
 
   useEffect(() => {
     if (selectedPhoneNumber) {
@@ -214,9 +254,9 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
       setImageFile(null);
       showSuccessToast(imageFile ? 'Image message queued successfully' : 'Message queued successfully');
       if (data.messageLog) {
-        setMessages((current) => upsertMessage(current, data.messageLog));
+        setMessageThreads((current) => upsertThread(current, data.messageLog));
       } else {
-        fetchMessages({ silent: true });
+        fetchMessageThreads({ reset: true, silent: true });
       }
     } catch (error) {
       showErrorToast(error.message || 'Failed to send message');
@@ -236,10 +276,6 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
     })}`;
   };
 
-  const getThreadNumber = (message) => (
-    message.direction === 'outbound' ? message.to : message.from
-  );
-
   const getAllottedNumberLabel = (message) => {
     const allottedNumber = message.direction === 'outbound' ? message.from : message.to;
     if (!allottedNumber) return '';
@@ -257,28 +293,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
     }));
   };
 
-  const messageThreads = useMemo(() => {
-    const threads = new Map();
-
-    messages.forEach((message) => {
-      const phoneNumber = getThreadNumber(message);
-      const key = normalizePhone(phoneNumber) || phoneNumber;
-      const existing = threads.get(key);
-
-      if (!existing || new Date(message.createdAt) > new Date(existing.createdAt)) {
-        threads.set(key, {
-          ...message,
-          phoneNumber,
-          threadKey: key
-        });
-      }
-    });
-
-    return [...threads.values()]
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [messages]);
-
-  const messageTotals = useMemo(() => messages.reduce((acc, message) => {
+  const messageTotals = useMemo(() => messageThreads.reduce((acc, message) => {
     const direction = message.direction?.toLowerCase();
 
     acc.total += 1;
@@ -290,7 +305,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
     total: 0,
     inbound: 0,
     outbound: 0
-  }), [messages]);
+  }), [messageThreads]);
 
   if (loading) {
     return (
@@ -469,6 +484,12 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {!loading && hasMore && (
+          <div ref={scrollSentinelRef} className="px-4 py-4 text-center text-xs text-gray-500">
+            {loadingMore ? 'Loading more conversations...' : 'Scroll for more conversations'}
           </div>
         )}
       </div>

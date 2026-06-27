@@ -4,7 +4,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import MessageLog from '../model/MessageLog.js';
 import TwilioNumber from '../model/TwilioNumber.js';
-import { getAssignedNumberForUser, getAssignedNumbersForUser } from '../utils/twilioNumbers.js';
+import { buildMessageAccessQuery } from '../utils/messageAccess.js';
+import { buildPaginatedResponse, parseBeforeDate, parseLimit } from '../utils/pagination.js';
+import { buildPhoneOrFilter } from '../utils/phoneMatch.js';
+import { getAssignedNumberForUser } from '../utils/twilioNumbers.js';
 import '../model/User.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -190,37 +193,113 @@ export const updateMessageStatus = async (req, res) => {
   }
 };
 
+const formatMessage = (message) => {
+  const item = message.toObject ? message.toObject() : message;
+  return {
+    ...item,
+    userName: item.user?.name || ''
+  };
+};
+
 export const getMessages = async (req, res) => {
   try {
-    const assignedNumbers = await getAssignedNumbersForUser(req.user.id);
-    const fallbackAssignedNumber = req.user.assignedPhoneNumber || await getAssignedNumberForUser(req.user.id);
-    const recipientNumbers = [...new Set([
-      ...assignedNumbers,
-      fallbackAssignedNumber
-    ].filter(Boolean))];
-    const query = req.user.role === 'admin'
-      ? {}
-      : {
-          $or: [
-            { user: req.user.id },
-            ...(recipientNumbers.length > 0 ? [{ direction: 'inbound', to: { $in: recipientNumbers } }] : [])
-          ]
-        };
+    const limit = parseLimit(req.query.limit);
+    const before = parseBeforeDate(req.query.before);
+    const phoneNumber = String(req.query.phoneNumber || '').trim();
+    const accessQuery = await buildMessageAccessQuery(req.user);
+    const filters = [];
+
+    if (phoneNumber) {
+      filters.push(buildPhoneOrFilter(phoneNumber, ['phoneNumber', 'from', 'to']));
+    }
+
+    if (Object.keys(accessQuery).length > 0) {
+      filters.push(accessQuery);
+    }
+
+    const query = filters.length > 1
+      ? { $and: filters }
+      : (filters[0] || {});
+
+    if (before) {
+      query.createdAt = { $lt: before };
+    }
 
     const messages = await MessageLog.find(query)
       .populate('user', 'name email role')
-      .sort({ createdAt: -1 })
-      .limit(100);
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1);
 
-    res.json(messages.map((message) => {
-      const item = message.toObject();
-      return {
-        ...item,
-        userName: item.user?.name || ''
-      };
-    }));
+    const page = buildPaginatedResponse(
+      messages.map(formatMessage),
+      limit,
+      (message) => new Date(message.createdAt || 0).toISOString()
+    );
+
+    res.json(page);
   } catch (error) {
     console.error('Get Messages Error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getMessageThreads = async (req, res) => {
+  try {
+    const limit = parseLimit(req.query.limit);
+    const before = parseBeforeDate(req.query.before);
+    const accessQuery = await buildMessageAccessQuery(req.user);
+    const pipeline = [];
+
+    if (Object.keys(accessQuery).length > 0) {
+      pipeline.push({ $match: accessQuery });
+    }
+
+    pipeline.push(
+      {
+        $addFields: {
+          threadPhone: {
+            $cond: [
+              { $eq: ['$direction', 'outbound'] },
+              '$to',
+              '$from'
+            ]
+          }
+        }
+      },
+      { $sort: { createdAt: -1, _id: -1 } },
+      {
+        $group: {
+          _id: '$threadPhone',
+          latestMessage: { $first: '$$ROOT' },
+          latestCreatedAt: { $first: '$createdAt' }
+        }
+      },
+      { $sort: { latestCreatedAt: -1, _id: -1 } }
+    );
+
+    if (before) {
+      pipeline.push({ $match: { latestCreatedAt: { $lt: before } } });
+    }
+
+    pipeline.push({ $limit: limit + 1 });
+
+    const groupedThreads = await MessageLog.aggregate(pipeline);
+    const page = buildPaginatedResponse(
+      groupedThreads.map((thread) => {
+        const message = formatMessage(thread.latestMessage);
+        return {
+          ...message,
+          phoneNumber: thread._id,
+          threadKey: thread._id
+        };
+      }),
+      limit,
+      (thread) => new Date(thread.createdAt || 0).toISOString()
+    );
+
+    res.json(page);
+  } catch (error) {
+    console.error('Get Message Threads Error:', error);
     res.status(500).json({ message: error.message });
   }
 };

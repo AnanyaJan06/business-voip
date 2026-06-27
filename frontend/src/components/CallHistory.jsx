@@ -1,6 +1,8 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import LoadingSpinner from './LoadingSpinner.jsx';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll.js';
+import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -266,45 +268,75 @@ const getDateInputValue = (date) => {
 
 function CallHistory() {
   const [logs, setLogs] = useState([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextBefore, setNextBefore] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [sortOrder, setSortOrder] = useState('newest');
   const [selectedDate, setSelectedDate] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+  const scrollRef = useRef(null);
   const [followUpDraft, setFollowUpDraft] = useState(null);
   const [savingFollowUp, setSavingFollowUp] = useState(false);
   const [followUpNotice, setFollowUpNotice] = useState({ text: '', type: '' });
   const [expandedTranscriptId, setExpandedTranscriptId] = useState('');
 
-  const fetchCallLogs = async () => {
+  const fetchCallLogs = useCallback(async ({ reset = false, before = null } = {}) => {
     try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch(`${BACKEND_URL}/api/calls/logs`, {
+      if (reset) {
+        setLoading(true);
+        setError(null);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const res = await fetch(buildPagedUrl(`${BACKEND_URL}/api/calls/logs`, {
+        limit: PAGE_SIZE,
+        before
+      }), {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('token')}`
         }
       });
 
       if (!res.ok) throw new Error('Failed to load call history');
-      const data = await res.json();
-      setLogs(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  useEffect(() => {
-    fetchCallLogs();
+      const page = parsePagedResponse(await res.json());
+
+      setLogs((current) => (reset ? page.items : [...current, ...page.items]));
+      setHasMore(page.hasMore);
+      setNextBefore(page.nextBefore);
+    } catch (err) {
+      if (reset) setError(err.message);
+    } finally {
+      if (reset) setLoading(false);
+      setLoadingMore(false);
+    }
   }, []);
 
+  const loadMoreLogs = useCallback(() => {
+    if (!hasMore || loading || loadingMore || !nextBefore) return;
+    fetchCallLogs({ before: nextBefore });
+  }, [fetchCallLogs, hasMore, loading, loadingMore, nextBefore]);
+
+  const scrollSentinelRef = useInfiniteScroll({
+    onLoadMore: loadMoreLogs,
+    hasMore,
+    loading,
+    loadingMore,
+    rootRef: scrollRef
+  });
+
   useEffect(() => {
-    const handler = () => fetchCallLogs();
+    fetchCallLogs({ reset: true });
+  }, [fetchCallLogs]);
+
+  useEffect(() => {
+    const handler = () => fetchCallLogs({ reset: true });
     window.addEventListener('refreshCallHistory', handler);
     return () => window.removeEventListener('refreshCallHistory', handler);
-  }, []);
+  }, [fetchCallLogs]);
 
   const formatPhoneNumber = (phone) => {
     if (!phone) return 'Unknown';
@@ -586,7 +618,7 @@ function CallHistory() {
   }), [logs]);
 
   return (
-    <div className="flex-1 overflow-auto thin-scrollbar">
+    <div ref={scrollRef} className="flex-1 overflow-auto thin-scrollbar">
       {loading && <CallHistorySkeleton />}
       {error && <p className="text-sm text-red-400 text-center py-10">{error}</p>}
 
@@ -824,6 +856,12 @@ function CallHistory() {
           );
         })}
       </div>
+
+      {!loading && !error && hasMore && (
+        <div ref={scrollSentinelRef} className="px-4 py-4 text-center text-xs text-gray-500">
+          {loadingMore ? 'Loading more calls...' : 'Scroll for more calls'}
+        </div>
+      )}
 
       {followUpDraft && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">

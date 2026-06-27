@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import LoadingSpinner from './LoadingSpinner.jsx';
+import { buildPagedUrl, parsePagedResponse } from '../utils/pagination.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -113,8 +114,8 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       const statsParams = getDateRangeParams(appliedStatsMonth, appliedStatsDate);
       statsParams.set('refreshKey', String(statsRefreshKey));
 
-      const callsPromise = fetch(`${BACKEND_URL}/api/calls/logs`, { headers: authHeaders });
-      const messagesPromise = fetch(`${BACKEND_URL}/api/messages`, { headers: authHeaders });
+      const callsPromise = fetch(buildPagedUrl(`${BACKEND_URL}/api/calls/logs`, { limit: 100 }), { headers: authHeaders });
+      const messagesPromise = fetch(buildPagedUrl(`${BACKEND_URL}/api/messages`, { limit: 100 }), { headers: authHeaders });
       const statsPromise = showStats
         ? fetch(`${BACKEND_URL}/api/auth/admin-activity-stats?${statsParams}`, {
             headers: authHeaders
@@ -149,8 +150,8 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       if (usersRes && !usersRes.ok) throw new Error(usersData.message || 'Failed to load users');
       if (numbersRes && !numbersRes.ok) throw new Error(numbersData.message || 'Failed to load phone numbers');
 
-      setCalls(Array.isArray(callsData) ? callsData : []);
-      setMessages(Array.isArray(messagesData) ? messagesData : []);
+      setCalls(parsePagedResponse(callsData).items);
+      setMessages(parsePagedResponse(messagesData).items);
       if (showStats) {
         setActivityStats({
           month: {
