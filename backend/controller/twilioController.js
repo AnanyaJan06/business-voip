@@ -104,6 +104,36 @@ const buildWebhookUrl = (path, params = {}) => {
   return url.toString();
 };
 
+const getLastCallerContext = async ({ from, to }) => {
+  if (!from || !to) return null;
+
+  const recentLogs = await CallLog.find({
+    phoneNumber: from,
+    localNumber: to,
+    status: { $in: ['completed', 'answered-by-teammate'] }
+  })
+    .populate('user', 'name email')
+    .populate('answeredBy', 'name email')
+    .sort({ startedAt: -1, createdAt: -1 })
+    .limit(10);
+
+  const lastLog = recentLogs.find((log) => log.status === 'completed') || recentLogs[0];
+  if (!lastLog) return null;
+
+  const handler = lastLog.answeredBy || lastLog.user;
+  const handledAt = lastLog.endedAt || lastLog.startedAt || lastLog.createdAt;
+
+  return {
+    lastHandledBy: handler?._id || handler || '',
+    lastHandledByName: handler?.name || '',
+    lastHandledByEmail: handler?.email || '',
+    lastHandledAt: handledAt ? new Date(handledAt).toISOString() : '',
+    lastCallType: lastLog.callType || '',
+    lastCallStatus: lastLog.status || '',
+    lastCallSid: lastLog.callSid || ''
+  };
+};
+
 const sendEmptyVoiceResponse = (res) => {
   const twiml = new twilio.twiml.VoiceResponse();
   res.type('text/xml');
@@ -218,6 +248,7 @@ export const incomingVoice = async (req, res) => {
       ? await TwilioNumber.findOne({ phoneNumber: to }).populate('assignedUsers', 'twilioIdentity assignedPhoneNumber')
       : null;
     const assignedUsers = assignedNumber?.assignedUsers || [];
+    const callerContext = await getLastCallerContext({ from, to });
 
     console.log(`📲 Incoming call from: ${from} | SID: ${callSid}`);
 
@@ -228,7 +259,8 @@ export const incomingVoice = async (req, res) => {
         to,
         assignedTo: assignedUsers.map((user) => user._id),
         callSid: callSid,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        callerContext
       });
     }
 
@@ -279,6 +311,13 @@ export const incomingVoice = async (req, res) => {
       client.parameter({ name: 'originalTo', value: to });
       if (callSid) {
         client.parameter({ name: 'parentCallSid', value: callSid });
+      }
+      if (callerContext?.lastHandledByName) {
+        client.parameter({ name: 'lastHandledByName', value: callerContext.lastHandledByName });
+        client.parameter({ name: 'lastHandledBy', value: String(callerContext.lastHandledBy || '') });
+        client.parameter({ name: 'lastHandledAt', value: callerContext.lastHandledAt || '' });
+        client.parameter({ name: 'lastCallType', value: callerContext.lastCallType || '' });
+        client.parameter({ name: 'lastCallStatus', value: callerContext.lastCallStatus || '' });
       }
     };
 

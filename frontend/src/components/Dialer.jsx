@@ -53,7 +53,33 @@ const getParentCallSid = (conn) => {
   return customSid || conn?.parameters?.parentCallSid || conn?.parameters?.CallSid || '';
 };
 
+const getIncomingCallContext = (conn) => {
+  const getParam = (name) => conn?.customParameters?.get?.(name) || conn?.parameters?.[name] || '';
+
+  return {
+    lastHandledBy: getParam('lastHandledBy'),
+    lastHandledByName: getParam('lastHandledByName'),
+    lastHandledAt: getParam('lastHandledAt'),
+    lastCallType: getParam('lastCallType'),
+    lastCallStatus: getParam('lastCallStatus')
+  };
+};
+
 const getUserId = (user) => String(user?.id || user?._id || '');
+
+const formatLastHandledAt = (value) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+};
 
 function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser = null }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
@@ -409,6 +435,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
           const from = getIncomingCallerNumber(conn);
           const localNumber = getIncomingAllottedNumber(conn);
           const parentCallSid = getParentCallSid(conn);
+          const callerContext = getIncomingCallContext(conn);
           console.log("📲 Incoming call from:", from, "| session:", parentCallSid);
 
           activeCallRef.current = {
@@ -423,7 +450,8 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
 
           setIncomingCall({
             from,
-            callSid: parentCallSid
+            callSid: parentCallSid,
+            ...callerContext
           });
           setIsIncomingMinimized(false);
           setConnection(conn);
@@ -841,6 +869,19 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
             <p className="text-xl font-medium text-white mb-6 break-all">
               {incomingCall.from || 'Unknown Number'}
             </p>
+            {incomingCall.lastHandledByName && (
+              <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Recent company history</p>
+                <p className="mt-1 text-sm text-white">
+                  Last handled by {incomingCall.lastHandledByName}
+                </p>
+                {incomingCall.lastHandledAt && (
+                  <p className="mt-0.5 text-xs text-gray-300">
+                    {formatLastHandledAt(incomingCall.lastHandledAt)}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button
@@ -869,7 +910,11 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
             <span className="flex h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
             <span>
               <span className="block truncate text-sm font-semibold text-white">{incomingCall.from || 'Incoming call'}</span>
-              <span className="block text-xs text-emerald-300">Incoming call</span>
+              <span className="block text-xs text-emerald-300">
+                {incomingCall.lastHandledByName
+                  ? `Last: ${incomingCall.lastHandledByName}`
+                  : 'Incoming call'}
+              </span>
             </span>
           </button>
           <button
@@ -1092,4 +1137,3 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
 }
 
 export default Dialer;
-
