@@ -2,6 +2,7 @@ import CallLog from '../model/CallLog.js';
 import CallTranscript from '../model/CallTranscript.js';
 import InboundCallSession from '../model/InboundCallSession.js';
 import User from '../model/User.js';
+import { buildCallAccessQuery } from '../utils/callAccess.js';
 import { consolidateAdminCallLogs } from '../utils/consolidateCallLogs.js';
 import { findInboundSession } from '../utils/inboundCallSession.js';
 import { buildPaginatedResponse, parseBeforeDate, parseLimit } from '../utils/pagination.js';
@@ -235,16 +236,20 @@ export const getCallLogs = async (req, res) => {
     const limit = parseLimit(req.query.limit);
     const before = parseBeforeDate(req.query.before);
     const phoneNumber = String(req.query.phoneNumber || '').trim();
-    const query = {};
+    const filters = [];
+    const accessQuery = await buildCallAccessQuery(req.user);
 
     if (phoneNumber) {
-      Object.assign(query, buildPhoneOrFilter(phoneNumber, ['phoneNumber']));
-      if (req.user.role !== 'admin') {
-        query.user = req.user.id;
-      }
-    } else if (req.user.role !== 'admin') {
-      query.user = req.user.id;
+      filters.push(buildPhoneOrFilter(phoneNumber, ['phoneNumber']));
     }
+
+    if (Object.keys(accessQuery).length > 0) {
+      filters.push(accessQuery);
+    }
+
+    const query = filters.length > 1
+      ? { $and: filters }
+      : (filters[0] || {});
 
     if (before) {
       query.startedAt = { $lt: before };

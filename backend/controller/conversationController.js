@@ -3,6 +3,7 @@ import MessageLog from '../model/MessageLog.js';
 import { consolidateAdminCallLogs } from '../utils/consolidateCallLogs.js';
 import { buildPhoneOrFilter } from '../utils/phoneMatch.js';
 import { buildPaginatedResponse, parseBeforeDate, parseLimit } from '../utils/pagination.js';
+import { buildCallAccessQuery } from '../utils/callAccess.js';
 import { buildMessageAccessQuery } from '../utils/messageAccess.js';
 
 const formatCallItem = (log) => {
@@ -56,11 +57,11 @@ export const getConversationTimeline = async (req, res) => {
     const limit = parseLimit(req.query.limit);
     const before = parseBeforeDate(req.query.before);
     const phoneFilter = buildPhoneOrFilter(phoneNumber, ['phoneNumber', 'from', 'to']);
+    const callAccessQuery = await buildCallAccessQuery(req.user);
 
-    const callQuery = {
-      ...phoneFilter,
-      ...(req.user.role === 'admin' ? {} : { user: req.user.id })
-    };
+    const callQuery = Object.keys(callAccessQuery).length > 0
+      ? { $and: [phoneFilter, callAccessQuery] }
+      : phoneFilter;
 
     const messageAccessQuery = await buildMessageAccessQuery(req.user);
     const messageQuery = Object.keys(messageAccessQuery).length > 0

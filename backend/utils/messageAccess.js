@@ -1,19 +1,27 @@
-import { getAssignedNumberForUser, getAssignedNumbersForUser } from './twilioNumbers.js';
+import { getAssignedNumbersForUser } from './twilioNumbers.js';
+import { getNumberHistoryCutoff } from './numberHistoryAccess.js';
 
 export const buildMessageAccessQuery = async (user) => {
   if (user.role === 'admin') return {};
 
   const assignedNumbers = await getAssignedNumbersForUser(user.id);
-  const fallbackAssignedNumber = user.assignedPhoneNumber || await getAssignedNumberForUser(user.id);
   const recipientNumbers = [...new Set([
     ...assignedNumbers,
-    fallbackAssignedNumber
+    user.assignedPhoneNumber
   ].filter(Boolean))];
 
   return {
     $or: [
       { user: user.id },
-      ...(recipientNumbers.length > 0 ? [{ direction: 'inbound', to: { $in: recipientNumbers } }] : [])
+      ...(recipientNumbers.length > 0
+        ? [{
+            createdAt: { $gte: getNumberHistoryCutoff() },
+            $or: [
+              { direction: 'inbound', to: { $in: recipientNumbers } },
+              { direction: 'outbound', from: { $in: recipientNumbers } }
+            ]
+          }]
+        : [])
     ]
   };
 };
