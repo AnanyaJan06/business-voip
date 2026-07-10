@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
 import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
+import { showCopiedNumberToast, showErrorToast } from '../utils/toast.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -260,6 +261,22 @@ function ConversationDetails({ phoneNumber, onClose }) {
     }));
   };
 
+  const handleCopyNumber = async () => {
+    if (!phoneNumber) return;
+
+    try {
+      await navigator.clipboard.writeText(phoneNumber);
+      showCopiedNumberToast({
+        phoneNumber,
+        onPaste: () => window.dispatchEvent(new CustomEvent('pasteNumberOnDialer', {
+          detail: { phoneNumber }
+        }))
+      });
+    } catch {
+      showErrorToast('Failed to copy phone number');
+    }
+  };
+
   const sendMessage = async (event) => {
     event.preventDefault();
     const trimmedBody = messageBody.trim();
@@ -341,7 +358,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
           <div className="min-w-0">
             <button
               type="button"
-              onClick={() => navigator.clipboard?.writeText(phoneNumber)}
+              onClick={handleCopyNumber}
               className="truncate text-left text-xl font-semibold text-white hover:text-emerald-300"
               title="Copy number"
             >

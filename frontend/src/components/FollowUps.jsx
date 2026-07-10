@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
 import { confirmAction } from '../utils/confirmDialog.js';
-import { showErrorToast, showSuccessToast } from '../utils/toast.js';
+import { showCopiedNumberToast, showErrorToast, showSuccessToast } from '../utils/toast.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -215,7 +215,12 @@ function FollowUps({ onDueCountChange }) {
 
     try {
       await navigator.clipboard.writeText(phone);
-      showSuccessToast('Phone number copied');
+      showCopiedNumberToast({
+        phoneNumber: phone,
+        onPaste: () => window.dispatchEvent(new CustomEvent('pasteNumberOnDialer', {
+          detail: { phoneNumber: phone }
+        }))
+      });
     } catch {
       showErrorToast('Failed to copy phone number');
     }

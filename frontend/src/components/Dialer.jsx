@@ -81,6 +81,10 @@ const formatLastHandledAt = (value) => {
   });
 };
 
+const getDialableClipboardValue = (value) => String(value || '')
+  .replace(/[^\d+*#]/g, '')
+  .replace(/(?!^)\+/g, '');
+
 function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser = null }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
@@ -308,6 +312,44 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
       stopIncomingAlerts();
     };
   }, []);
+
+  useEffect(() => {
+    const handlePaste = (event) => {
+      if (!isOpen || isCalling || incomingCall) return;
+
+      const pastedNumber = getDialableClipboardValue(event.clipboardData?.getData('text'));
+      if (!pastedNumber) return;
+
+      event.preventDefault();
+      setPhoneNumber(pastedNumber);
+      setIsMinimized(false);
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [incomingCall, isCalling, isOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (!isOpen || isCalling || incomingCall) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (/^\d$/.test(event.key) || event.key === '*' || event.key === '#') {
+        event.preventDefault();
+        setPhoneNumber((current) => current + event.key);
+        setIsMinimized(false);
+        return;
+      }
+
+      if (event.key === 'Backspace') {
+        event.preventDefault();
+        setPhoneNumber((current) => current.slice(0, -1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [incomingCall, isCalling, isOpen]);
 
   useEffect(() => {
     clearTimeout(dialerAnimationRef.current);

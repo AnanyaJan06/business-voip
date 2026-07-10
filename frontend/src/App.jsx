@@ -171,6 +171,19 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const handlePasteNumberOnDialer = (event) => {
+      const { phoneNumber } = event.detail || {};
+      if (!phoneNumber) return;
+
+      setSelectedPhoneNumber(phoneNumber);
+      setShowDialerModal(true);
+    };
+
+    window.addEventListener('pasteNumberOnDialer', handlePasteNumberOnDialer);
+    return () => window.removeEventListener('pasteNumberOnDialer', handlePasteNumberOnDialer);
+  }, []);
+
+  useEffect(() => {
     const handleMessageContact = (event) => {
       const { phoneNumber } = event.detail;
       setSelectedMessageNumber(phoneNumber);

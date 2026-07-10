@@ -26,6 +26,39 @@ const toastOptions = {
 
 const showSuccessToast = (message) => toast.success(message, toastOptions);
 const showErrorToast = (message) => toast.error(message, toastOptions);
+const showCopiedNumberToast = ({ phoneNumber, onPaste }) => toast.custom((t) => createElement(
+  'div',
+  {
+    className: `pointer-events-auto flex w-[min(360px,calc(100vw-2rem))] rounded-xl border border-emerald-500/25 bg-[#101827] text-white shadow-2xl transition-all duration-200 ${
+      t.visible ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
+    }`
+  },
+  createElement(
+    'div',
+    { className: 'min-w-0 flex-1 p-4' },
+    createElement('p', { className: 'text-sm font-semibold text-white' }, 'Number copied'),
+    createElement('p', { className: 'mt-1 truncate text-sm text-gray-400' }, phoneNumber || 'Phone number')
+  ),
+  createElement(
+    'div',
+    { className: 'flex border-l border-white/10' },
+    createElement(
+      'button',
+      {
+        type: 'button',
+        onClick: () => {
+          toast.dismiss(t.id);
+          onPaste?.();
+        },
+        className: 'flex w-full items-center justify-center rounded-r-xl border border-transparent p-4 text-sm font-semibold text-emerald-300 hover:text-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500'
+      },
+      'Paste on dialer'
+    )
+  )
+), {
+  duration: 5000,
+  position: 'top-right'
+});
 const showIncomingSmsToast = ({ from, body, onClick }) => toast.custom((t) => createElement(
   'div',
   {
@@ -127,4 +160,4 @@ const showTeamMessageToast = ({ senderName, onClick }) => toast.custom((t) => cr
   position: 'top-right'
 });
 
-export { showErrorToast, showIncomingSmsToast, showSuccessToast, showTeamMessageToast, toastOptions };
+export { showCopiedNumberToast, showErrorToast, showIncomingSmsToast, showSuccessToast, showTeamMessageToast, toastOptions };
