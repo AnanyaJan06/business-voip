@@ -1,6 +1,5 @@
 import express from 'express';
 import {
-  setupFirstAdmin,
   register,
   login,
   logout,
@@ -14,8 +13,7 @@ import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.post('/setup-admin', setupFirstAdmin);
-router.post('/register', register);
+router.post('/register', authMiddleware, requireAdmin, register);
 router.post('/login', login);
 router.post('/logout', authMiddleware, logout);
 
@@ -26,5 +24,6 @@ router.post('/change-password', authMiddleware, changePassword);
 
 
 export default router;
+
 
 
