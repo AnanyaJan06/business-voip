@@ -21,6 +21,45 @@ export const requireAdmin = (req, res, next) => {
   next();
 };
 
+export const setupFirstAdmin = async (req, res) => {
+  try {
+    const userCount = await User.countDocuments();
+
+    if (userCount > 0) {
+      return res.status(403).json({ message: 'First admin setup is already complete' });
+    }
+
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Name, email, and password are required' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: 'admin'
+    });
+
+    res.status(201).json({
+      message: 'First admin created successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        assignedPhoneNumber: user.assignedPhoneNumber || ''
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -211,3 +250,4 @@ export const changePassword = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
