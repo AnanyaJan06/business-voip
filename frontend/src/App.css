@@ -684,3 +684,196 @@ html[data-theme="day"] div[style*="background: #111827"] {
   border-color: #e2e8f0 !important;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
 }
+
+/* ============================================================
+   DAY MODE: Admin Dashboard
+   ============================================================ */
+
+/* Admin card surfaces and borders */
+html[data-theme="day"] .admin-card {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+html[data-theme="day"] .admin-heading {
+  color: #0f172a !important;
+}
+
+html[data-theme="day"] .admin-subtext,
+html[data-theme="day"] .admin-label {
+  color: #64748b !important;
+}
+
+/* Admin inputs (month, date, text, password, select) */
+html[data-theme="day"] .admin-input {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme="day"] .admin-input::placeholder {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="day"] .admin-input:focus {
+  background-color: #ffffff !important;
+  border-color: #059669 !important;
+}
+
+html[data-theme="day"] .admin-input option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+/* Admin Stat Cards */
+html[data-theme="day"] .admin-stat-card {
+  border-color: #e2e8f0;
+}
+
+html[data-theme="day"] .admin-stat-label {
+  color: #64748b !important;
+}
+
+html[data-theme="day"] .admin-stat-emerald {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+}
+
+html[data-theme="day"] .admin-stat-emerald .admin-stat-value {
+  color: #047857 !important;
+}
+
+html[data-theme="day"] .admin-stat-red {
+  background-color: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+}
+
+html[data-theme="day"] .admin-stat-red .admin-stat-value {
+  color: #b91c1c !important;
+}
+
+html[data-theme="day"] .admin-stat-violet {
+  background-color: #f5f3ff !important;
+  border-color: #ddd6fe !important;
+}
+
+html[data-theme="day"] .admin-stat-violet .admin-stat-value {
+  color: #6d28d9 !important;
+}
+
+/* Admin Tables and Sub-containers */
+html[data-theme="day"] .admin-table-container {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+html[data-theme="day"] .admin-table-header {
+  background-color: #f8fafc !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+html[data-theme="day"] .admin-table-row {
+  border-color: #e2e8f0 !important;
+}
+
+html[data-theme="day"] .admin-table-row:hover {
+  background-color: #f8fafc;
+}
+
+html[data-theme="day"] .admin-table-body {
+  border-color: #e2e8f0 !important;
+}
+
+html[data-theme="day"] .admin-empty-text {
+  color: #64748b !important;
+}
+
+html[data-theme="day"] .admin-row-title {
+  color: #0f172a !important;
+}
+
+html[data-theme="day"] .admin-row-subtext {
+  color: #64748b !important;
+}
+
+html[data-theme="day"] .admin-row-count {
+  color: #94a3b8 !important;
+}
+
+/* User Assignment Pills in Twilio Numbers */
+html[data-theme="day"] .admin-user-pill-assigned {
+  background-color: #d1fae5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
+}
+
+html[data-theme="day"] .admin-user-pill-unassigned {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #475569 !important;
+}
+
+html[data-theme="day"] .admin-user-pill-unassigned:hover {
+  background-color: #e2e8f0 !important;
+  border-color: #10b981 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme="day"] .admin-default-tag {
+  color: #047857 !important;
+}
+
+/* Set Default Sender Buttons */
+html[data-theme="day"] .admin-default-btn-active {
+  background-color: #d1fae5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
+}
+
+html[data-theme="day"] .admin-default-btn-idle {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}
+
+html[data-theme="day"] .admin-default-btn-idle:hover {
+  background-color: #e2e8f0 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+/* Created Users Metadata & Badges */
+html[data-theme="day"] .admin-user-meta {
+  color: #64748b !important;
+}
+
+html[data-theme="day"] .admin-user-meta-label {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="day"] .admin-user-meta-value {
+  color: #334155 !important;
+}
+
+html[data-theme="day"] .admin-user-number-pill-default {
+  background-color: #d1fae5 !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
+}
+
+html[data-theme="day"] .admin-user-number-pill {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+html[data-theme="day"] .admin-user-no-numbers {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="day"] .admin-role-badge {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+}

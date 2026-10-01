@@ -313,7 +313,7 @@ function App() {
 
       if (dueItems.length > 0 && activeTabRef.current !== 'followups') {
         setFollowUpToast(newlyDueItem?.item || dueItems[0]);
-        if (newlyDueItem) playFollowUpAlertSound();
+        playFollowUpAlertSound();
         window.clearTimeout(followUpToastTimerRef.current);
         followUpToastTimerRef.current = window.setTimeout(() => {
           setFollowUpToast(null);

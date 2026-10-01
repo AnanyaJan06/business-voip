@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  RefreshCw,
+  UserPlus,
+  Users,
+  Phone,
+  Check,
+  CheckCircle2
+} from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner.jsx';
-
+import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
+import { showSuccessToast, showErrorToast } from '../utils/toast.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -64,18 +73,141 @@ const formatDateTime = (value) => {
 
 function StatCard({ label, value, tone }) {
   const tones = {
-    total: 'border-emerald-500/20 bg-[#059669]/10 text-emerald-300',
-    inbound: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
-    outbound: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
-    missed: 'border-red-500/20 bg-red-500/10 text-red-300',
-    messages: 'border-violet-500/20 bg-violet-500/10 text-violet-300'
+    total: 'admin-stat-emerald border-emerald-500/20 bg-[#059669]/10 text-emerald-300',
+    inbound: 'admin-stat-emerald border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
+    outbound: 'admin-stat-emerald border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
+    missed: 'admin-stat-red border-red-500/20 bg-red-500/10 text-red-300',
+    messages: 'admin-stat-violet border-violet-500/20 bg-violet-500/10 text-violet-300'
   };
 
   return (
-    <div className={`rounded-xl border p-4 ${tones[tone]}`}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+    <div className={`admin-stat-card rounded-xl border p-4 transition-all duration-150 ${tones[tone]}`}>
+      <p className="admin-stat-label text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
+      <p className="admin-stat-value mt-2 text-3xl font-bold text-white">{value}</p>
     </div>
+  );
+}
+
+function AdminDashboardSkeleton({ showStats, showCreateUser, showUsers }) {
+  return (
+    <AppSkeletonTheme>
+      <div className="mx-auto max-w-5xl space-y-4" role="status" aria-label="Loading admin dashboard">
+        {showStats && (
+          <div className="admin-card rounded-xl border border-gray-800 bg-gray-900 p-4">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <Skeleton width={140} height={18} />
+                <Skeleton width={220} height={12} />
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <div>
+                  <Skeleton width={80} height={12} className="mb-1.5" />
+                  <Skeleton width={130} height={36} borderRadius={12} />
+                </div>
+                <div>
+                  <Skeleton width={80} height={12} className="mb-1.5" />
+                  <Skeleton width={130} height={36} borderRadius={12} />
+                </div>
+                <Skeleton width={85} height={36} borderRadius={12} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="admin-stat-card rounded-xl border border-gray-800 bg-gray-800/40 p-4 space-y-2">
+                  <Skeleton width="60%" height={12} />
+                  <Skeleton width="40%" height={28} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {showCreateUser && (
+          <div className="admin-card rounded-xl border border-gray-800 bg-gray-900 p-4">
+            <div className="mb-4 space-y-1">
+              <Skeleton width={120} height={20} />
+              <Skeleton width={180} height={12} />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-1.5">
+                  <Skeleton width={60} height={12} />
+                  <Skeleton height={44} borderRadius={12} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-4">
+              <Skeleton height={44} borderRadius={12} />
+            </div>
+          </div>
+        )}
+
+        {showUsers && (
+          <>
+            <div className="admin-card rounded-xl border border-gray-800 bg-gray-900 p-4">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <Skeleton width={130} height={20} />
+                  <Skeleton width={260} height={12} />
+                </div>
+                <Skeleton width={95} height={32} borderRadius={8} />
+              </div>
+              <div className="admin-table-container overflow-hidden rounded-xl border border-gray-800">
+                <div className="admin-table-header border-b border-gray-800 px-4 py-3">
+                  <Skeleton width={160} height={16} />
+                </div>
+                <div className="divide-y divide-gray-800">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={i} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1.4fr] md:items-start">
+                      <div className="space-y-1.5">
+                        <Skeleton width={140} height={16} />
+                        <Skeleton width={100} height={12} />
+                        <Skeleton width={110} height={10} />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          <Skeleton width={90} height={28} borderRadius={9999} />
+                          <Skeleton width={110} height={28} borderRadius={9999} />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Skeleton width={120} height={26} borderRadius={8} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-card admin-table-container overflow-hidden rounded-xl border border-gray-800 bg-gray-900">
+              <div className="admin-table-header border-b border-gray-800 px-4 py-3">
+                <Skeleton width={120} height={16} />
+              </div>
+              <div className="divide-y divide-gray-800">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-start justify-between gap-3 px-4 py-3">
+                    <div className="space-y-2 min-w-0 flex-1">
+                      <Skeleton width={140} height={16} />
+                      <Skeleton width={180} height={12} />
+                      <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                        <Skeleton width="80%" height={11} />
+                        <Skeleton width="80%" height={11} />
+                        <Skeleton width="70%" height={11} />
+                        <Skeleton width="70%" height={11} />
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <Skeleton width={120} height={22} borderRadius={9999} />
+                      </div>
+                    </div>
+                    <Skeleton width={60} height={22} borderRadius={9999} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </AppSkeletonTheme>
   );
 }
 
@@ -195,13 +327,16 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     setAppliedStatsMonth(statsMonthInput);
     setAppliedStatsDate(statsDateInput);
     setStatsRefreshKey((current) => current + 1);
+    showSuccessToast('Activity stats refreshed');
   };
 
   const createUser = async (event) => {
     event.preventDefault();
 
     if (!form.name.trim() || !form.email.trim() || form.password.length < 6) {
-      setNotice({ text: 'Enter name, email, and a password with at least 6 characters.', type: 'error' });
+      const msg = 'Enter name, email, and a password with at least 6 characters.';
+      setNotice({ text: msg, type: 'error' });
+      showErrorToast(msg);
       return;
     }
 
@@ -227,10 +362,13 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       if (!res.ok) throw new Error(data.message || 'Failed to create user');
 
       setForm(emptyForm);
-      setNotice({ text: `${data.user?.name || 'User'} created successfully.`, type: 'success' });
+      const successMsg = `${data.user?.name || 'User'} created successfully.`;
+      setNotice({ text: successMsg, type: 'success' });
+      showSuccessToast(successMsg);
       fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
+      showErrorToast(err.message);
     } finally {
       setCreating(false);
     }
@@ -250,13 +388,16 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       if (!res.ok) throw new Error(data.message || 'Failed to import Twilio numbers');
 
       setOwnedNumbers(Array.isArray(data) ? data : []);
+      const successMsg = `Synced ${Array.isArray(data) ? data.length : 0} purchased Twilio number${Array.isArray(data) && data.length === 1 ? '' : 's'}.`;
       setNotice({
-        text: `Synced ${Array.isArray(data) ? data.length : 0} purchased Twilio number${Array.isArray(data) && data.length === 1 ? '' : 's'}.`,
+        text: successMsg,
         type: 'success'
       });
+      showSuccessToast(successMsg);
       fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
+      showErrorToast(err.message);
     } finally {
       setSyncingNumbers(false);
     }
@@ -289,15 +430,19 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       if (!res.ok) throw new Error(data.message || 'Failed to assign phone number');
 
       const assignedCount = Array.isArray(userIds) ? userIds.length : 0;
+      const successMsg = assignedCount > 0
+        ? `${data.phoneNumber} assigned to ${assignedCount} user${assignedCount === 1 ? '' : 's'}.`
+        : `${data.phoneNumber} unassigned.`;
+
       setNotice({
-        text: assignedCount > 0
-          ? `${data.phoneNumber} assigned to ${assignedCount} user${assignedCount === 1 ? '' : 's'}.`
-          : `${data.phoneNumber} unassigned.`,
+        text: successMsg,
         type: 'success'
       });
+      showSuccessToast(successMsg);
       fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
+      showErrorToast(err.message);
     } finally {
       setAssigningNumber('');
     }
@@ -331,13 +476,16 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       if (!res.ok) throw new Error(data.message || 'Failed to set default phone number');
 
       const selectedUser = users.find((user) => String(user._id || user.id) === String(userId));
+      const successMsg = `${data.phoneNumber} is now default sender for ${selectedUser?.name || 'the user'}.`;
       setNotice({
-        text: `${data.phoneNumber} is now the default sender for ${selectedUser?.name || 'the selected user'}.`,
+        text: successMsg,
         type: 'success'
       });
+      showSuccessToast(successMsg);
       fetchDashboardData();
     } catch (err) {
       setNotice({ text: err.message, type: 'error' });
+      showErrorToast(err.message);
     } finally {
       setSettingDefaultNumber('');
     }
@@ -347,7 +495,9 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
     getAssignedUserIds(number).some((assignedId) => String(assignedId) === String(userId))
   ));
 
-  if (loading) return <LoadingSpinner label="Loading admin dashboard..." />;
+  if (loading) {
+    return <AdminDashboardSkeleton showStats={showStats} showCreateUser={showCreateUser} showUsers={showUsers} />;
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
@@ -358,166 +508,176 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       )}
 
       {notice.text && (
-        <div className={`rounded-xl px-4 py-3 text-sm text-white ${
+        <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm text-white shadow-sm transition-all duration-200 ${
           notice.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
         }`}>
-          {notice.text}
+          {notice.type === 'success' ? <CheckCircle2 className="h-4 w-4 shrink-0 text-white" /> : null}
+          <span>{notice.text}</span>
         </div>
       )}
 
       {showStats && (
-        <>
-          <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-white">Monthly Activity</h3>
-                <p className="text-xs text-gray-400">Choose a month and date, then refresh the counts.</p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-[auto_auto_auto] sm:items-end">
-                <div>
-                  <label className="mb-1.5 block text-xs text-gray-400">Filter by month</label>
-                  <input
-                    type="month"
-                    value={statsMonthInput}
-                    onChange={(event) => setStatsMonthInput(event.target.value)}
-                    className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-[#059669] sm:w-auto"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs text-gray-400">Filter by date</label>
-                  <input
-                    type="date"
-                    value={statsDateInput}
-                    onChange={(event) => setStatsDateInput(event.target.value)}
-                    className="w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white focus:border-[#059669] sm:w-auto"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={refreshActivityStats}
-                  className="rounded-xl bg-[#059669] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#047857]"
-                >
-                  Refresh
-                </button>
-              </div>
+        <div className="admin-card rounded-xl border border-gray-800 bg-gray-900 p-4 transition-all">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="admin-heading text-sm font-semibold text-white">Monthly Activity</h3>
+              <p className="admin-subtext text-xs text-gray-400">Choose a month and date, then refresh the counts.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Selected Month Calls" value={activityStats.month.calls} tone="total" />
-              <StatCard label="Selected Month Messages" value={activityStats.month.messages} tone="messages" />
-              <StatCard label="Selected Date Calls" value={activityStats.selectedDate.calls} tone="outbound" />
-              <StatCard label="Selected Date Messages" value={activityStats.selectedDate.messages} tone="messages" />
+            <div className="grid gap-2 sm:grid-cols-[auto_auto_auto] sm:items-end">
+              <div>
+                <label className="admin-label mb-1.5 block text-xs text-gray-400">Filter by month</label>
+                <input
+                  type="month"
+                  value={statsMonthInput}
+                  onChange={(event) => setStatsMonthInput(event.target.value)}
+                  className="admin-input w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white transition focus:border-[#059669] sm:w-auto"
+                />
+              </div>
+              <div>
+                <label className="admin-label mb-1.5 block text-xs text-gray-400">Filter by date</label>
+                <input
+                  type="date"
+                  value={statsDateInput}
+                  onChange={(event) => setStatsDateInput(event.target.value)}
+                  className="admin-input w-full rounded-xl border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white transition focus:border-[#059669] sm:w-auto"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={refreshActivityStats}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-[#059669] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-[#047857] hover:shadow active:scale-95"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span>Refresh</span>
+              </button>
             </div>
           </div>
-
-        </>
+          <div className="grid grid-cols-2 gap-3">
+            <StatCard label="Selected Month Calls" value={activityStats.month.calls} tone="total" />
+            <StatCard label="Selected Month Messages" value={activityStats.month.messages} tone="messages" />
+            <StatCard label="Selected Date Calls" value={activityStats.selectedDate.calls} tone="outbound" />
+            <StatCard label="Selected Date Messages" value={activityStats.selectedDate.messages} tone="messages" />
+          </div>
+        </div>
       )}
 
       {showCreateUser && (
-        <form onSubmit={createUser} className="rounded-xl border border-gray-800 bg-gray-900 p-4">
-        <div className="mb-4">
-          <h3 className="text-base font-semibold text-white">Create User</h3>
-          <p className="text-xs text-gray-400">Add a user or admin account.</p>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-xs text-gray-400">Name</label>
-            <input
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="Username"
-              required
-            />
+        <form onSubmit={createUser} className="admin-card rounded-xl border border-gray-800 bg-gray-900 p-4 transition-all">
+          <div className="mb-4">
+            <h3 className="admin-heading text-base font-semibold text-white">Create User</h3>
+            <p className="admin-subtext text-xs text-gray-400">Add a user or admin account.</p>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs text-gray-400">Email</label>
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="email@company.com"
-              required
-            />
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="admin-label mb-1.5 block text-xs text-gray-400">Name</label>
+              <input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                className="admin-input w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white transition focus:border-[#059669]"
+                placeholder="Username"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="admin-label mb-1.5 block text-xs text-gray-400">Email</label>
+              <input
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                className="admin-input w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white transition focus:border-[#059669]"
+                placeholder="email@company.com"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="admin-label mb-1.5 block text-xs text-gray-400">Password</label>
+              <input
+                type="password"
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                className="admin-input w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white transition focus:border-[#059669]"
+                placeholder="Minimum 6 characters"
+                minLength={6}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="admin-label mb-1.5 block text-xs text-gray-400">Role</label>
+              <select
+                name="role"
+                value={form.role}
+                onChange={handleChange}
+                className="admin-input w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white transition focus:border-[#059669]"
+              >
+                <option value="agent">Agent</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="mb-1.5 block text-xs text-gray-400">Password</label>
-            <input
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-              placeholder="Minimum 6 characters"
-              minLength={6}
-              required
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs text-gray-400">Role</label>
-            <select
-              name="role"
-              value={form.role}
-              onChange={handleChange}
-              className="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white focus:border-[#059669]"
-            >
-              <option value="agent">Agent</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={creating}
-          className="mt-4 w-full rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
-        >
-          {creating ? <LoadingSpinner label="Creating..." size="sm" tone="white" inline /> : 'Create User'}
-        </button>
+          <button
+            type="submit"
+            disabled={creating}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#059669] py-3 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-[#047857] hover:shadow active:scale-[0.99] disabled:opacity-60"
+          >
+            {creating ? (
+              <LoadingSpinner label="Creating..." size="sm" tone="white" inline />
+            ) : (
+              <>
+                <UserPlus className="h-4 w-4" />
+                <span>Create User</span>
+              </>
+            )}
+          </button>
         </form>
       )}
 
       {showUsers && (
-        <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
+        <div className="admin-card rounded-xl border border-gray-800 bg-gray-900 p-4 transition-all">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-white">Twilio Numbers</h3>
-              <p className="text-xs text-gray-400">Sync purchased Twilio numbers, assign the same number to multiple users, and choose each user's default sender.</p>
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-[#059669]" />
+                <h3 className="admin-heading text-base font-semibold text-white">Twilio Numbers</h3>
+              </div>
+              <p className="admin-subtext text-xs text-gray-400 mt-1">Sync purchased Twilio numbers, assign the same number to multiple users, and choose each user's default sender.</p>
             </div>
             <button
               type="button"
               onClick={importNumbers}
               disabled={syncingNumbers}
-              className="shrink-0 rounded-lg bg-[#059669] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#047857] disabled:opacity-60"
+              className="shrink-0 flex items-center gap-1.5 rounded-lg bg-[#059669] px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-150 hover:bg-[#047857] hover:shadow active:scale-95 disabled:opacity-60"
             >
-              {syncingNumbers ? 'Syncing...' : 'Sync Twilio'}
+              <RefreshCw className={`h-3.5 w-3.5 ${syncingNumbers ? 'animate-spin' : ''}`} />
+              <span>{syncingNumbers ? 'Syncing...' : 'Sync Twilio'}</span>
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-gray-800">
-            <div className="border-b border-gray-800 px-4 py-3">
-              <h4 className="text-sm font-semibold text-white">Purchased Twilio Numbers</h4>
+          <div className="admin-table-container overflow-hidden rounded-xl border border-gray-800">
+            <div className="admin-table-header border-b border-gray-800 px-4 py-3">
+              <h4 className="admin-heading text-sm font-semibold text-white">Purchased Twilio Numbers</h4>
             </div>
             {ownedNumbers.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-400">Click Sync Twilio to import purchased numbers.</p>
+              <p className="admin-empty-text py-8 text-center text-sm text-gray-400">Click Sync Twilio to import purchased numbers.</p>
             ) : (
-              <div className="divide-y divide-gray-800">
+              <div className="admin-table-body divide-y divide-gray-800">
                 {ownedNumbers.map((number) => {
                   const numberId = number.id || number._id;
                   const assignedUserIds = getAssignedUserIds(number).map((id) => String(id));
 
                   return (
-                    <div key={numberId || number.sid} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1.4fr] md:items-start">
+                    <div key={numberId || number.sid} className="admin-table-row grid gap-3 px-4 py-3 md:grid-cols-[1fr_1.4fr] md:items-start transition-colors">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-white">{number.phoneNumber}</p>
-                        <p className="truncate text-xs text-gray-400">{number.friendlyName || number.sid}</p>
-                        <p className="mt-1 text-[11px] text-gray-500">
+                        <p className="admin-row-title truncate text-sm font-semibold text-white">{number.phoneNumber}</p>
+                        <p className="admin-row-subtext truncate text-xs text-gray-400">{number.friendlyName || number.sid}</p>
+                        <p className="admin-row-count mt-1 text-[11px] text-gray-500">
                           {assignedUserIds.length > 0
                             ? `${assignedUserIds.length} user${assignedUserIds.length === 1 ? '' : 's'} assigned`
                             : 'No users assigned'}
@@ -536,10 +696,10 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
                             return (
                               <label
                                 key={userId}
-                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition ${
+                                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs select-none transition-all duration-150 active:scale-95 ${
                                   isAssigned
-                                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
-                                    : 'border-gray-700 bg-gray-800 text-gray-300'
+                                    ? 'admin-user-pill-assigned border-emerald-500/40 bg-emerald-500/10 text-emerald-100 font-medium'
+                                    : 'admin-user-pill-unassigned border-gray-700 bg-gray-800 text-gray-300'
                                 } ${assigningNumber === numberId ? 'opacity-60' : 'cursor-pointer hover:border-emerald-500/60'}`}
                               >
                                 <input
@@ -550,7 +710,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
                                   className="h-3.5 w-3.5 rounded border-gray-600 bg-gray-900 text-[#059669] focus:ring-[#059669]"
                                 />
                                 <span>{user.name}</span>
-                                {isDefault && <span className="text-[10px] uppercase tracking-wide text-emerald-300">default</span>}
+                                {isDefault && <span className="admin-default-tag text-[10px] uppercase font-bold tracking-wide text-emerald-300">default</span>}
                               </label>
                             );
                           })}
@@ -568,17 +728,22 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
                                   type="button"
                                   onClick={() => setDefaultNumber(numberId, userId)}
                                   disabled={isDefault || settingDefaultNumber === numberId || assigningNumber === numberId}
-                                  className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition disabled:opacity-60 ${
+                                  className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-all duration-150 active:scale-95 disabled:opacity-60 ${
                                     isDefault
-                                      ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                                      : 'border border-gray-700 bg-gray-800 text-gray-200 hover:border-emerald-500/60 hover:text-white'
+                                      ? 'admin-default-btn-active border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 cursor-default'
+                                      : 'admin-default-btn-idle border border-gray-700 bg-gray-800 text-gray-200 hover:border-emerald-500/60 hover:text-white'
                                   }`}
                                 >
-                                  {isDefault
-                                    ? `${assignedUser?.name || 'User'} default`
-                                    : settingDefaultNumber === numberId
-                                      ? 'Saving...'
-                                      : `Set default for ${assignedUser?.name || 'user'}`}
+                                  {isDefault ? (
+                                    <>
+                                      <Check className="h-3 w-3 text-emerald-400" />
+                                      <span>{assignedUser?.name || 'User'} default</span>
+                                    </>
+                                  ) : settingDefaultNumber === numberId ? (
+                                    'Saving...'
+                                  ) : (
+                                    `Set default for ${assignedUser?.name || 'user'}`
+                                  )}
                                 </button>
                               );
                             })}
@@ -595,36 +760,37 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       )}
 
       {showUsers && (
-        <div className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900">
-          <div className="border-b border-gray-800 px-4 py-3">
-            <h3 className="text-sm font-semibold text-white">Created Users</h3>
+        <div className="admin-card admin-table-container overflow-hidden rounded-xl border border-gray-800 bg-gray-900 transition-all">
+          <div className="admin-table-header border-b border-gray-800 px-4 py-3 flex items-center gap-2">
+            <Users className="h-4 w-4 text-[#059669]" />
+            <h3 className="admin-heading text-sm font-semibold text-white">Created Users</h3>
           </div>
 
           {users.length === 0 ? (
-            <p className="py-10 text-center text-sm text-gray-400">No users created yet.</p>
+            <p className="admin-empty-text py-10 text-center text-sm text-gray-400">No users created yet.</p>
           ) : (
-            <div className="divide-y divide-gray-800">
+            <div className="admin-table-body divide-y divide-gray-800">
               {users.map((user) => {
                 const userId = user._id || user.id;
                 const assignedNumbers = getUserAssignedNumbers(userId);
 
                 return (
-                  <div key={userId} className="flex items-start justify-between gap-3 px-4 py-3">
+                  <div key={userId} className="admin-table-row flex items-start justify-between gap-3 px-4 py-3 transition-colors">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">{user.name}</p>
-                      <p className="truncate text-xs text-gray-400">{user.email}</p>
+                      <p className="admin-row-title truncate text-sm font-semibold text-white">{user.name}</p>
+                      <p className="admin-row-subtext truncate text-xs text-gray-400">{user.email}</p>
                       <div className="mt-2 grid gap-1 text-[11px] text-gray-400 sm:grid-cols-2">
-                        <p className="break-words">
-                          <span className="text-gray-500">Login IP:</span> {user.lastLoginIp || 'Not recorded'}
+                        <p className="admin-user-meta break-words">
+                          <span className="admin-user-meta-label text-gray-500">Login IP:</span> <span className="admin-user-meta-value">{user.lastLoginIp || 'Not recorded'}</span>
                         </p>
-                        <p className="break-words">
-                          <span className="text-gray-500">Logout IP:</span> {user.lastLogoutIp || 'Not recorded'}
+                        <p className="admin-user-meta break-words">
+                          <span className="admin-user-meta-label text-gray-500">Logout IP:</span> <span className="admin-user-meta-value">{user.lastLogoutIp || 'Not recorded'}</span>
                         </p>
-                        <p className="break-words">
-                          <span className="text-gray-500">Last login:</span> {formatDateTime(user.lastLoginAt)}
+                        <p className="admin-user-meta break-words">
+                          <span className="admin-user-meta-label text-gray-500">Last login:</span> <span className="admin-user-meta-value">{formatDateTime(user.lastLoginAt)}</span>
                         </p>
-                        <p className="break-words">
-                          <span className="text-gray-500">Last logout:</span> {formatDateTime(user.lastLogoutAt)}
+                        <p className="admin-user-meta break-words">
+                          <span className="admin-user-meta-label text-gray-500">Last logout:</span> <span className="admin-user-meta-value">{formatDateTime(user.lastLogoutAt)}</span>
                         </p>
                       </div>
                       {assignedNumbers.length > 0 ? (
@@ -636,22 +802,22 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
                             return (
                               <span
                                 key={number.id || number._id || number.sid}
-                                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                                className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
                                   isDefault
-                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-                                    : 'border-gray-700 text-gray-300'
+                                    ? 'admin-user-number-pill-default border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                                    : 'admin-user-number-pill border-gray-700 text-gray-300'
                                 }`}
                               >
-                                {number.phoneNumber}{isDefault ? ' default' : ''}
+                                {number.phoneNumber}{isDefault ? ' (default)' : ''}
                               </span>
                             );
                           })}
                         </div>
                       ) : (
-                        <p className="mt-1 text-xs text-gray-500">No numbers assigned</p>
+                        <p className="admin-user-no-numbers mt-1 text-xs text-gray-500">No numbers assigned</p>
                       )}
                     </div>
-                    <span className="shrink-0 rounded-full border border-gray-700 px-2.5 py-1 text-[11px] font-semibold capitalize text-gray-300">
+                    <span className="admin-role-badge shrink-0 rounded-full border border-gray-700 px-2.5 py-1 text-[11px] font-semibold capitalize text-gray-300">
                       {user.role}
                     </span>
                   </div>
