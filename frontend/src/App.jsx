@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useDragControls, useReducedMotion } from 'motion/react';
 import {
   Phone,
   Users,
@@ -10,7 +10,11 @@ import {
   Settings as SettingsIcon,
   Plus,
   Sun,
-  Moon
+  Moon,
+  X,
+  Minus,
+  MessageCircle,
+  ArrowLeft
 } from 'lucide-react';
 import Dialer, { DEVICE_STATES, PhoneServiceAlert } from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
@@ -81,6 +85,13 @@ function App() {
   const [unreadTeamMessages, setUnreadTeamMessages] = useState(0);
   const [dueFollowUps, setDueFollowUps] = useState(0);
   const [followUpToast, setFollowUpToast] = useState(null);
+  const [smsWidgetThreads, setSmsWidgetThreads] = useState([]);
+  const [smsWidgetOpen, setSmsWidgetOpen] = useState(false);
+  const [smsWidgetPhone, setSmsWidgetPhone] = useState('');
+  const smsWidgetBoundaryRef = useRef(null);
+  const smsWidgetDragControls = useDragControls();
+  const smsWidgetPointerStartRef = useRef(null);
+  const smsWidgetDraggedRef = useRef(false);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
   const [currentUser, setCurrentUser] = useState(null);
   const [deviceStatus, setDeviceStatus] = useState({
@@ -111,6 +122,7 @@ function App() {
   const followUpToastTimerRef = useRef(null);
   const audioContextRef = useRef(null);
   const pendingFollowUpSoundRef = useRef(false);
+  const pendingIncomingSmsSoundRef = useRef(false);
   const dueFollowUpIdsRef = useRef(new Set());
   const isAdmin = currentUser?.role === 'admin';
   const prefersReducedMotion = useReducedMotion();
@@ -121,6 +133,9 @@ function App() {
     : activeTab === 'team'
       ? `team-${getUserId(selectedTeamUser) || 'empty'}`
       : `${activeTab}-conversation-${conversationNumber || 'empty'}`;
+  const smsWidgetContactName = smsWidgetPhone
+    ? contactsList.find((contact) => normalizePhone(contact.phone) === normalizePhone(smsWidgetPhone))?.name
+    : '';
 
   const playFollowUpAlertSound = useCallback(() => {
     const audioContext = audioContextRef.current;
@@ -148,6 +163,31 @@ function App() {
     });
   }, []);
 
+  const playIncomingSmsAlertSound = useCallback(() => {
+    const audioContext = audioContextRef.current;
+    if (!audioContext || audioContext.state !== 'running') {
+      pendingIncomingSmsSoundRef.current = true;
+      return;
+    }
+
+    pendingIncomingSmsSoundRef.current = false;
+    const startAt = audioContext.currentTime;
+    [880, 1174.66].forEach((frequency, index) => {
+      const noteStart = startAt + index * 0.11;
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, noteStart);
+      gain.gain.setValueAtTime(0.0001, noteStart);
+      gain.gain.exponentialRampToValueAtTime(0.045, noteStart + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.16);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(noteStart);
+      oscillator.stop(noteStart + 0.17);
+    });
+  }, []);
+
   const unlockAlertAudio = useCallback(() => {
     const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextConstructor) return;
@@ -167,12 +207,15 @@ function App() {
           if (pendingFollowUpSoundRef.current && audioContext.state === 'running') {
             playFollowUpAlertSound();
           }
+          if (pendingIncomingSmsSoundRef.current && audioContext.state === 'running') {
+            playIncomingSmsAlertSound();
+          }
         })
         .catch(() => {});
     } catch (error) {
       console.info('Follow-up alert audio is unavailable:', error);
     }
-  }, [playFollowUpAlertSound]);
+  }, [playFollowUpAlertSound, playIncomingSmsAlertSound]);
 
   useEffect(() => {
     document.addEventListener('pointerdown', unlockAlertAudio);
@@ -379,6 +422,20 @@ function App() {
 
       if (!assignedRecipients.includes(currentUserId)) return;
 
+      playIncomingSmsAlertSound();
+
+      setSmsWidgetThreads((threads) => {
+        const phone = message.from || '';
+        const key = normalizePhone(phone) || phone;
+        const existing = threads.find((thread) => (normalizePhone(thread.phoneNumber) || thread.phoneNumber) === key);
+        if (existing) {
+          return threads.map((thread) => (thread === existing
+            ? { ...thread, body: message.body || '', unread: thread.unread + 1 }
+            : thread));
+        }
+        return [...threads, { phoneNumber: phone, body: message.body || '', unread: 1 }];
+      });
+
       const threadKey = normalizePhone(message.from) || message.from;
       if (threadKey && activeTabRef.current !== 'messages') {
         const unreadKey = getUnreadSmsThreadsKey(currentUserId);
@@ -455,7 +512,7 @@ function App() {
       window.clearTimeout(unreadRefreshTimer);
       socket.disconnect();
     };
-  }, [openTab, refreshUnreadTeamMessages, token]);
+  }, [openTab, playIncomingSmsAlertSound, refreshUnreadTeamMessages, token]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -469,9 +526,43 @@ function App() {
       setShowCallHistoryConversation(activeTabRef.current === 'history');
     };
 
+    const handleSmsThreadRead = (event) => {
+      const phoneNumber = event.detail?.phoneNumber;
+      const threadKey = normalizePhone(phoneNumber) || phoneNumber;
+      if (!threadKey) return;
+
+      const readThread = smsWidgetThreads.find((thread) => (
+        (normalizePhone(thread.phoneNumber) || thread.phoneNumber) === threadKey
+      ));
+      if (activeTabRef.current !== 'messages' && readThread?.unread) {
+        setUnreadMessages((count) => Math.max(0, count - readThread.unread));
+      }
+
+      const userId = getUserId(currentUserRef.current);
+      if (userId) {
+        try {
+          const unreadKey = getUnreadSmsThreadsKey(userId);
+          const unreadThreads = JSON.parse(localStorage.getItem(unreadKey) || '[]');
+          localStorage.setItem(unreadKey, JSON.stringify(unreadThreads.filter((key) => key !== threadKey)));
+        } catch {
+          localStorage.setItem(getUnreadSmsThreadsKey(userId), '[]');
+        }
+      }
+
+      setSmsWidgetThreads((threads) => threads.map((thread) => (
+        (normalizePhone(thread.phoneNumber) || thread.phoneNumber) === threadKey
+          ? { ...thread, unread: 0 }
+          : thread
+      )));
+    };
+
     window.addEventListener('openConversation', handleOpenConversation);
-    return () => window.removeEventListener('openConversation', handleOpenConversation);
-  }, []);
+    window.addEventListener('sms-thread-read', handleSmsThreadRead);
+    return () => {
+      window.removeEventListener('openConversation', handleOpenConversation);
+      window.removeEventListener('sms-thread-read', handleSmsThreadRead);
+    };
+  }, [smsWidgetThreads]);
 
   const clearSelectedMessageNumber = useCallback(() => {
     setSelectedMessageNumber('');
@@ -784,6 +875,87 @@ function App() {
           <span className="mt-2 line-clamp-2 block text-sm text-gray-300">{followUpToast.note}</span>
         </button>
       )}
+
+      <div ref={smsWidgetBoundaryRef} className="pointer-events-none fixed inset-0 z-[80]">
+        <AnimatePresence>
+          {smsWidgetThreads.length > 0 && (
+            <motion.div
+              key="incoming-sms-widget"
+              drag
+              dragListener={false}
+              dragControls={smsWidgetDragControls}
+              dragConstraints={smsWidgetBoundaryRef}
+              dragMomentum={false}
+              dragElastic={0}
+              onPointerDown={(event) => {
+                smsWidgetPointerStartRef.current = { x: event.clientX, y: event.clientY };
+                smsWidgetDraggedRef.current = false;
+              }}
+              onPointerMove={(event) => {
+                const start = smsWidgetPointerStartRef.current;
+                if (start && (Math.abs(event.clientX - start.x) > 5 || Math.abs(event.clientY - start.y) > 5)) {
+                  smsWidgetDraggedRef.current = true;
+                }
+              }}
+              onPointerUp={() => {
+                window.setTimeout(() => { smsWidgetPointerStartRef.current = null; }, 0);
+              }}
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.96 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: 'easeOut' }}
+              className={`pointer-events-auto absolute bottom-5 right-5 touch-none ${smsWidgetOpen ? 'h-[min(620px,calc(100vh-2.5rem))] w-[min(390px,calc(100vw-2.5rem))]' : ''}`}
+            >
+              {smsWidgetOpen ? (
+                <section className="sms-widget-panel flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-700 bg-[#0F1322] shadow-2xl">
+                  <header onPointerDown={(event) => smsWidgetDragControls.start(event)} className="sms-widget-header flex shrink-0 cursor-grab touch-none items-center justify-between gap-3 border-b border-gray-700 bg-[#1C2333] px-3 py-2.5 active:cursor-grabbing">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-white">{smsWidgetPhone ? (smsWidgetContactName || smsWidgetPhone) : 'Messages'}</div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {smsWidgetPhone && <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setSmsWidgetPhone('')} className="rounded-lg p-2 text-gray-300 hover:bg-gray-700 hover:text-white" aria-label="Back to messages" title="Back"><ArrowLeft className="h-4 w-4" /></button>}
+                      <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setSmsWidgetOpen(false)} className="rounded-lg p-2 text-gray-300 hover:bg-gray-700 hover:text-white" aria-label="Minimize conversation" title="Minimize"><Minus className="h-4 w-4" /></button>
+                      <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSmsWidgetOpen(false); setSmsWidgetThreads([]); setSmsWidgetPhone(''); }} className="rounded-lg p-2 text-gray-300 hover:bg-red-500/20 hover:text-red-300" aria-label="Hide message widget" title="Hide"><X className="h-4 w-4" /></button>
+                      {smsWidgetPhone && <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedPhoneNumber(smsWidgetPhone); setShowDialerModal(true); }} className="rounded-lg p-2 text-emerald-300 hover:bg-emerald-500/15 hover:text-emerald-200" aria-label="Call contact" title="Call"><Phone className="h-4 w-4" /></button>}
+                    </div>
+                  </header>
+                  {smsWidgetPhone ? (
+                    <div className="min-h-0 flex-1">
+                      <ConversationDetails key={smsWidgetPhone} phoneNumber={smsWidgetPhone} hideHeader />
+                    </div>
+                  ) : (
+                    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                      {smsWidgetThreads.slice().reverse().map((thread) => (
+                        <button key={normalizePhone(thread.phoneNumber) || thread.phoneNumber} type="button" onClick={() => { setSmsWidgetPhone(thread.phoneNumber); window.dispatchEvent(new CustomEvent('sms-thread-read', { detail: { phoneNumber: thread.phoneNumber } })); }} className="sms-widget-thread mb-1 flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-white/5">
+                          <span className="sms-widget-avatar grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-500 text-white"><MessageCircle className="h-5 w-5" /></span>
+                          <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-white">{thread.phoneNumber}</span><span className="block truncate text-xs text-gray-400">{thread.body || 'New message'}</span></span>
+                          {thread.unread > 0 && <span className="sms-widget-unread grid h-5 min-w-5 place-items-center rounded-full bg-sky-500 px-1 text-[10px] font-bold text-white">{thread.unread > 99 ? '99+' : thread.unread}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ) : (
+                <div onPointerDown={(event) => smsWidgetDragControls.start(event)} className="relative touch-none">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (smsWidgetDraggedRef.current) { smsWidgetDraggedRef.current = false; return; }
+                      setSmsWidgetPhone('');
+                      setSmsWidgetOpen(true);
+                    }}
+                    className="sms-widget-bubble grid h-14 w-14 place-items-center rounded-full border border-sky-200/25 bg-gradient-to-br from-sky-400/20 via-indigo-400/15 to-cyan-300/20 text-sky-200 shadow-[0_8px_32px_rgba(14,165,233,0.28)] backdrop-blur-xl transition duration-200 hover:scale-105 hover:border-sky-200/45 hover:from-sky-400/30 hover:to-cyan-300/30"
+                    aria-label="Open incoming SMS messages"
+                  >
+                    <MessageCircle className="h-6 w-6" />
+                  </button>
+                  {smsWidgetThreads.reduce((count, thread) => count + thread.unread, 0) > 0 && <span className="sms-widget-badge pointer-events-none absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{smsWidgetThreads.reduce((count, thread) => count + thread.unread, 0) > 99 ? '99+' : smsWidgetThreads.reduce((count, thread) => count + thread.unread, 0)}</span>}
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       <AppToaster />
     </div>

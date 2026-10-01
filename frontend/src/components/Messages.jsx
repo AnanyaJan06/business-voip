@@ -154,6 +154,18 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
   }, [readUnreadThreadKeys]);
 
   useEffect(() => {
+    const handleSmsThreadRead = (event) => {
+      const phoneNumber = event.detail?.phoneNumber;
+      const threadKey = normalizePhone(phoneNumber) || phoneNumber;
+      if (!threadKey) return;
+      writeUnreadThreadKeys(readUnreadThreadKeys().filter((key) => key !== threadKey));
+    };
+
+    window.addEventListener('sms-thread-read', handleSmsThreadRead);
+    return () => window.removeEventListener('sms-thread-read', handleSmsThreadRead);
+  }, [readUnreadThreadKeys, writeUnreadThreadKeys]);
+
+  useEffect(() => {
     fetchMessageThreads({ reset: true });
   }, [fetchMessageThreads]);
 
@@ -271,6 +283,9 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
   const openConversation = (phoneNumber) => {
     const threadKey = normalizePhone(phoneNumber) || phoneNumber;
     writeUnreadThreadKeys(unreadThreadKeys.filter((key) => key !== threadKey));
+    window.dispatchEvent(new CustomEvent('sms-thread-read', {
+      detail: { phoneNumber }
+    }));
     window.dispatchEvent(new CustomEvent('openConversation', {
       detail: { phoneNumber }
     }));
@@ -392,7 +407,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
                   key={message._id || message.messageSid}
                   type="button"
                   onClick={() => openConversation(message.phoneNumber)}
-                  className="sms-thread-row block w-full px-4 py-3 text-left transition hover:bg-[#1F2533]"
+                  className={`sms-thread-row block w-full px-4 py-3 text-left transition hover:bg-[#1F2533] ${isUnread ? 'sms-thread-row-unread' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -415,6 +430,11 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
                       </p>
 
                       <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {isUnread && (
+                          <span className="sms-unread-badge inline-flex rounded-full bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
+                            Unread
+                          </span>
+                        )}
                         {message.direction === 'outbound' ? (
                           <span className={`sms-status-badge inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
                             messageStatusStyles[message.status] || messageStatusStyles.queued

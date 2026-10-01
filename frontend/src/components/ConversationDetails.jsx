@@ -100,7 +100,7 @@ function ConversationDetailsSkeleton() {
   );
 }
 
-function ConversationDetails({ phoneNumber, onClose }) {
+function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
   const [timeline, setTimeline] = useState([]);
   const [hasMore, setHasMore] = useState(false);
   const [nextBefore, setNextBefore] = useState(null);
@@ -353,7 +353,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#0F1322]">
-      <div className="border-b border-gray-800 bg-[#161B28] px-5 py-4">
+      {!hideHeader && <div className="border-b border-gray-800 bg-[#161B28] px-5 py-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <button
@@ -390,7 +390,7 @@ function ConversationDetails({ phoneNumber, onClose }) {
             </button>
           </div>
         </div>
-      </div>
+      </div>}
 
       <div ref={scrollRef} className="thin-scrollbar min-h-0 flex-1 overflow-auto px-5 py-4">
         {loading && <ConversationDetailsSkeleton />}
