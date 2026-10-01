@@ -11,7 +11,7 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
-import Dialer from './components/Dialer.jsx';
+import Dialer, { DEVICE_STATES, PhoneServiceAlert } from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
 import CallDetails from './components/CallDetails.jsx';
 import Contacts from './components/Contacts.jsx';
@@ -82,6 +82,28 @@ function App() {
   const [followUpToast, setFollowUpToast] = useState(null);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
   const [currentUser, setCurrentUser] = useState(null);
+  const [deviceStatus, setDeviceStatus] = useState({
+    deviceState: DEVICE_STATES.INITIALIZING,
+    deviceError: '',
+    retryDeviceRegistration: () => {},
+    isCalling: false,
+    incomingCall: false,
+  });
+
+  const handleDeviceStatusChange = useCallback((status) => {
+    setDeviceStatus((prev) => {
+      if (
+        prev.deviceState === status.deviceState &&
+        prev.deviceError === status.deviceError &&
+        prev.isCalling === status.isCalling &&
+        prev.incomingCall === status.incomingCall &&
+        prev.retryDeviceRegistration === status.retryDeviceRegistration
+      ) {
+        return prev;
+      }
+      return status;
+    });
+  }, []);
   const activeTabRef = useRef(activeTab);
   const currentUserRef = useRef(currentUser);
   const selectedTeamUserRef = useRef(selectedTeamUser);
@@ -543,9 +565,28 @@ function App() {
             New Call
           </div>
 
-          {/* Connection status container below New Call button */}
-          <div id="dialer-status-box" className="w-full shrink-0 empty:hidden md:mt-3" />
+          {/* Phone Service Status Notice (Moved below New Call button) */}
+          {!deviceStatus.isCalling && !deviceStatus.incomingCall && deviceStatus.deviceState && deviceStatus.deviceState !== DEVICE_STATES.READY && (
+            <div className="hidden md:block md:mt-3">
+              <PhoneServiceAlert
+                deviceState={deviceStatus.deviceState}
+                deviceError={deviceStatus.deviceError}
+                onRetry={deviceStatus.retryDeviceRegistration}
+              />
+            </div>
+          )}
         </nav>
+
+        {/* Mobile Phone Service Status Notice */}
+        {!deviceStatus.isCalling && !deviceStatus.incomingCall && deviceStatus.deviceState && deviceStatus.deviceState !== DEVICE_STATES.READY && (
+          <div className="px-3 pb-3 md:hidden">
+            <PhoneServiceAlert
+              deviceState={deviceStatus.deviceState}
+              deviceError={deviceStatus.deviceError}
+              onRetry={deviceStatus.retryDeviceRegistration}
+            />
+          </div>
+        )}
 
         <div className="hidden p-3 border-t border-gray-800 md:block">
           <div className="hidden md:block">
@@ -679,6 +720,7 @@ function App() {
         isOpen={showDialerModal}
         onClose={() => setShowDialerModal(false)}
         currentUser={currentUser}
+        onDeviceStatusChange={handleDeviceStatusChange}
       />
 
       {followUpToast && (
