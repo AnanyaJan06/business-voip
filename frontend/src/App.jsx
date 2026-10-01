@@ -113,6 +113,13 @@ function App() {
   const dueFollowUpIdsRef = useRef(new Set());
   const isAdmin = currentUser?.role === 'admin';
   const prefersReducedMotion = useReducedMotion();
+  const rightPanelKey = activeTab === 'history'
+    ? showCallHistoryConversation
+      ? `history-conversation-${conversationNumber}`
+      : `history-call-${selectedCallLog?._id || selectedCallLog?.callSid || 'empty'}`
+    : activeTab === 'team'
+      ? `team-${getUserId(selectedTeamUser) || 'empty'}`
+      : `${activeTab}-conversation-${conversationNumber || 'empty'}`;
 
   const unlockAlertAudio = useCallback(() => {
     const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
@@ -690,42 +697,49 @@ function App() {
 
       {/* Right Persistent Area (Optional - you can keep small info here) */}
       <div className="hidden min-w-0 flex-1 flex-col border-l border-gray-800 bg-[#0F1322] lg:flex">
-        {activeTab === 'admin' && isAdmin ? (
-          <div className="h-full overflow-auto p-4 thin-scrollbar">
-            <AdminDashboard showUsers={false} />
-          </div>
-        ) : activeTab === 'team' ? (
-          <InternalMessageDetails
-            currentUser={currentUser}
-            selectedUser={selectedTeamUser}
-            onReadMessages={refreshUnreadTeamMessages}
-          />
-        ) : activeTab === 'history' && showCallHistoryConversation ? (
-          <div key={conversationNumber} className="conversation-panel-enter h-full min-h-0">
-            <ConversationDetails
-              phoneNumber={conversationNumber}
-              onClose={() => {
-                setShowCallHistoryConversation(false);
-                setConversationNumber('');
-              }}
-            />
-          </div>
-        ) : activeTab === 'history' ? (
-          <div key={selectedCallLog?._id || selectedCallLog?.callSid || 'call-details'} className="call-details-panel-enter h-full min-h-0">
-            <CallDetails
-              call={selectedCallLog}
-              contacts={contactsList}
-              allLogs={callHistoryLogs}
-              onSelectCall={setSelectedCallLog}
-              onClose={() => setSelectedCallLog(null)}
-            />
-          </div>
-        ) : (
-          <ConversationDetails
-            phoneNumber={conversationNumber}
-            onClose={() => setConversationNumber('')}
-          />
-        )}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={rightPanelKey}
+            initial={prefersReducedMotion ? false : { opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: prefersReducedMotion ? 0 : -8 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.22, ease: 'easeOut' }}
+            className="h-full min-h-0 flex flex-col"
+          >
+            {activeTab === 'admin' && isAdmin ? (
+              <div className="h-full overflow-auto p-4 thin-scrollbar">
+                <AdminDashboard showUsers={false} />
+              </div>
+            ) : activeTab === 'team' ? (
+              <InternalMessageDetails
+                currentUser={currentUser}
+                selectedUser={selectedTeamUser}
+                onReadMessages={refreshUnreadTeamMessages}
+              />
+            ) : activeTab === 'history' && showCallHistoryConversation ? (
+              <ConversationDetails
+                phoneNumber={conversationNumber}
+                onClose={() => {
+                  setShowCallHistoryConversation(false);
+                  setConversationNumber('');
+                }}
+              />
+            ) : activeTab === 'history' ? (
+              <CallDetails
+                call={selectedCallLog}
+                contacts={contactsList}
+                allLogs={callHistoryLogs}
+                onSelectCall={setSelectedCallLog}
+                onClose={() => setSelectedCallLog(null)}
+              />
+            ) : (
+              <ConversationDetails
+                phoneNumber={conversationNumber}
+                onClose={() => setConversationNumber('')}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       <Dialer

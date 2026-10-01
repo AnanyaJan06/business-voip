@@ -474,42 +474,6 @@ html[data-theme="day"] .transcript-line {
   line-height: 1;
 }
 
-.conversation-panel-enter {
-  animation: conversationPanelEnter 220ms ease-out both;
-}
-
-.call-details-panel-enter {
-  animation: callDetailsPanelEnter 220ms ease-out both;
-}
-
-@keyframes conversationPanelEnter {
-  from {
-    opacity: 0;
-    transform: translateX(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes callDetailsPanelEnter {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .conversation-panel-enter,
-  .call-details-panel-enter {
-    animation: none;
-  }
-}
 
 /* ============================================================
    DAY MODE ENHANCEMENTS: Calls, Conversation Details, Messages
