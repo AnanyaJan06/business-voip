@@ -110,6 +110,7 @@ function App() {
   const selectedTeamUserRef = useRef(selectedTeamUser);
   const followUpToastTimerRef = useRef(null);
   const audioContextRef = useRef(null);
+  const pendingFollowUpSoundRef = useRef(false);
   const dueFollowUpIdsRef = useRef(new Set());
   const isAdmin = currentUser?.role === 'admin';
   const prefersReducedMotion = useReducedMotion();
@@ -121,25 +122,14 @@ function App() {
       ? `team-${getUserId(selectedTeamUser) || 'empty'}`
       : `${activeTab}-conversation-${conversationNumber || 'empty'}`;
 
-  const unlockAlertAudio = useCallback(() => {
-    const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextConstructor) return;
-
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContextConstructor();
-      }
-      if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume().catch(() => {});
-      }
-    } catch (error) {
-      console.info('Message alert audio is unavailable:', error);
-    }
-  }, []);
-
   const playFollowUpAlertSound = useCallback(() => {
     const audioContext = audioContextRef.current;
-    if (!audioContext || audioContext.state !== 'running') return;
+    if (!audioContext || audioContext.state !== 'running') {
+      pendingFollowUpSoundRef.current = true;
+      return;
+    }
+
+    pendingFollowUpSoundRef.current = false;
 
     const startAt = audioContext.currentTime;
     [659.25, 783.99].forEach((frequency, index) => {
@@ -157,6 +147,32 @@ function App() {
       oscillator.stop(noteStart + 0.2);
     });
   }, []);
+
+  const unlockAlertAudio = useCallback(() => {
+    const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContextConstructor();
+      }
+
+      const audioContext = audioContextRef.current;
+      const resumeAudio = audioContext.state === 'suspended'
+        ? audioContext.resume()
+        : Promise.resolve();
+
+      resumeAudio
+        .then(() => {
+          if (pendingFollowUpSoundRef.current && audioContext.state === 'running') {
+            playFollowUpAlertSound();
+          }
+        })
+        .catch(() => {});
+    } catch (error) {
+      console.info('Follow-up alert audio is unavailable:', error);
+    }
+  }, [playFollowUpAlertSound]);
 
   useEffect(() => {
     document.addEventListener('pointerdown', unlockAlertAudio);
