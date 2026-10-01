@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import Dialer from './components/Dialer.jsx';
+import Dialer, { DEVICE_STATES, PhoneServiceAlert } from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
 import Contacts from './components/Contacts.jsx';
 import ConversationDetails from './components/ConversationDetails.jsx';
@@ -139,6 +139,28 @@ function App() {
   const [followUpToast, setFollowUpToast] = useState(null);
   const [showDialerModal, setShowDialerModal] = useState(false);   // ← New state
   const [currentUser, setCurrentUser] = useState(null);
+  const [deviceStatus, setDeviceStatus] = useState({
+    deviceState: DEVICE_STATES.INITIALIZING,
+    deviceError: '',
+    retryDeviceRegistration: () => {},
+    isCalling: false,
+    incomingCall: false,
+  });
+
+  const handleDeviceStatusChange = useCallback((status) => {
+    setDeviceStatus((prev) => {
+      if (
+        prev.deviceState === status.deviceState &&
+        prev.deviceError === status.deviceError &&
+        prev.isCalling === status.isCalling &&
+        prev.incomingCall === status.incomingCall &&
+        prev.retryDeviceRegistration === status.retryDeviceRegistration
+      ) {
+        return prev;
+      }
+      return status;
+    });
+  }, []);
   const activeTabRef = useRef(activeTab);
   const currentUserRef = useRef(currentUser);
   const selectedTeamUserRef = useRef(selectedTeamUser);
@@ -494,7 +516,7 @@ function App() {
           <h1 className="text-xl font-bold tracking-tight md:text-2xl">Dialio</h1>
         </div>
 
-        <nav className="flex gap-2 overflow-x-auto p-3 no-scrollbar md:flex-1 md:flex-col md:gap-1 md:overflow-visible md:p-3">
+        <nav className="flex gap-2 overflow-x-auto p-3 no-scrollbar md:flex-1 md:flex-col md:gap-1 md:overflow-y-auto thin-scrollbar md:p-3">
           {[
             ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
             { id: 'history', label: 'Calls' },
@@ -538,7 +560,29 @@ function App() {
             <span className="w-5"><NavIcon type="plus" /></span>
             New Call
           </div>
+
+          {/* Phone Service Status Notice (Moved below New Call button) */}
+          {!deviceStatus.isCalling && !deviceStatus.incomingCall && deviceStatus.deviceState && deviceStatus.deviceState !== DEVICE_STATES.READY && (
+            <div className="hidden md:block md:mt-3">
+              <PhoneServiceAlert
+                deviceState={deviceStatus.deviceState}
+                deviceError={deviceStatus.deviceError}
+                onRetry={deviceStatus.retryDeviceRegistration}
+              />
+            </div>
+          )}
         </nav>
+
+        {/* Mobile Phone Service Status Notice */}
+        {!deviceStatus.isCalling && !deviceStatus.incomingCall && deviceStatus.deviceState && deviceStatus.deviceState !== DEVICE_STATES.READY && (
+          <div className="px-3 pb-3 md:hidden">
+            <PhoneServiceAlert
+              deviceState={deviceStatus.deviceState}
+              deviceError={deviceStatus.deviceError}
+              onRetry={deviceStatus.retryDeviceRegistration}
+            />
+          </div>
+        )}
 
         <div className="hidden p-3 border-t border-gray-800 md:block">
           <button
@@ -640,6 +684,7 @@ function App() {
         isOpen={showDialerModal}
         onClose={() => setShowDialerModal(false)}
         currentUser={currentUser}
+        onDeviceStatusChange={handleDeviceStatusChange}
       />
 
       {followUpToast && (
