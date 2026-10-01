@@ -61,6 +61,37 @@ html[data-theme="day"] .text-white {
   color: #172033;
 }
 
+html[data-theme="day"] .text-gray-100,
+html[data-theme="day"] .text-gray-200 {
+  color: #172033;
+}
+
+html[data-theme="day"] .text-emerald-300,
+html[data-theme="day"] .text-emerald-400,
+html[data-theme="day"] .text-emerald-400\/90 {
+  color: #059669;
+}
+
+html[data-theme="day"] .text-sky-300,
+html[data-theme="day"] .text-sky-400 {
+  color: #0284c7;
+}
+
+html[data-theme="day"] .text-red-300,
+html[data-theme="day"] .text-red-400 {
+  color: #dc2626;
+}
+
+html[data-theme="day"] .text-amber-300,
+html[data-theme="day"] .text-amber-400 {
+  color: #d97706;
+}
+
+html[data-theme="day"] .text-purple-300,
+html[data-theme="day"] .text-purple-400 {
+  color: #7c3aed;
+}
+
 html[data-theme="day"] .text-gray-300,
 html[data-theme="day"] .text-gray-400,
 html[data-theme="day"] .text-gray-500 {
@@ -99,13 +130,64 @@ html[data-theme="day"] .conversation-call-bubble {
 
 html[data-theme="day"] .conversation-sms-outbound {
   background-color: #d1fae5;
-  color: #172033;
+  color: #064e3b;
+  border: 1px solid #a7f3d0;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.08);
+}
+
+html[data-theme="day"] .conversation-sms-outbound p {
+  color: #064e3b;
+}
+
+html[data-theme="day"] .conversation-sms-outbound .text-gray-400 {
+  color: #047857;
+}
+
+html[data-theme="day"] .conversation-sms-outbound .text-emerald-300 {
+  color: #065f46;
+}
+
+html[data-theme="day"] .conversation-sms-outbound .text-sky-300 {
+  color: #0369a1;
+}
+
+html[data-theme="day"] .conversation-sms-outbound .text-amber-300 {
+  color: #92400e;
+}
+
+html[data-theme="day"] .conversation-sms-outbound .text-red-300 {
+  color: #991b1b;
 }
 
 html[data-theme="day"] .conversation-sms-inbound {
   background-color: #ffffff;
   color: #172033;
   border: 1px solid #d7e0eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+html[data-theme="day"] .conversation-sms-inbound p {
+  color: #172033;
+}
+
+html[data-theme="day"] .conversation-sms-inbound .text-gray-400 {
+  color: #64748b;
+}
+
+html[data-theme="day"] .conversation-sms-inbound .text-emerald-300 {
+  color: #059669;
+}
+
+html[data-theme="day"] .conversation-sms-inbound .text-sky-300 {
+  color: #0284c7;
+}
+
+html[data-theme="day"] .conversation-sms-inbound .text-amber-300 {
+  color: #d97706;
+}
+
+html[data-theme="day"] .conversation-sms-inbound .text-red-300 {
+  color: #dc2626;
 }
 
 html[data-theme="day"] .conversation-call-bubble .text-gray-300,
@@ -329,4 +411,312 @@ html[data-theme="day"] ::-webkit-scrollbar-thumb:hover {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;             /* Chrome, Safari, Edge */
+}
+
+/* Sidebar connection/status card theme overrides */
+html[data-theme="day"] .sidebar-status-error {
+  background-color: #fef3c7;
+  border-color: #fcd34d;
+}
+html[data-theme="day"] .sidebar-status-error .text-white {
+  color: #92400e;
+}
+html[data-theme="day"] .sidebar-status-error .text-gray-300 {
+  color: #b45309;
+}
+html[data-theme="day"] .sidebar-status-info {
+  background-color: #f0f9ff;
+  border-color: #bae6fd;
+}
+html[data-theme="day"] .sidebar-status-info .text-white {
+  color: #0369a1;
+}
+html[data-theme="day"] .sidebar-status-info .text-gray-300 {
+  color: #0284c7;
+}
+
+/* Call log transparent tile day mode overrides */
+html[data-theme="day"] .call-log-tile:hover {
+  background-color: #e8eef6;
+}
+html[data-theme="day"] .call-log-tile-selected {
+  background-color: #d1fae5;
+  border-color: #34d399;
+}
+
+html[data-theme="day"] .call-log-action-call:hover {
+  color: #059669;
+}
+
+html[data-theme="day"] .call-log-action-message:hover {
+  color: #0284c7;
+}
+
+html[data-theme="day"] .call-log-action-followup:hover {
+  color: #d97706;
+}
+
+html[data-theme="day"] .call-log-action-copy:hover {
+  color: #172033;
+}
+
+.transcript-line {
+  color: #e5e7eb;
+}
+
+html[data-theme="day"] .transcript-line {
+  color: #334155;
+}
+
+.call-log-action-separator {
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.conversation-panel-enter {
+  animation: conversationPanelEnter 220ms ease-out both;
+}
+
+.call-details-panel-enter {
+  animation: callDetailsPanelEnter 220ms ease-out both;
+}
+
+@keyframes conversationPanelEnter {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes callDetailsPanelEnter {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-panel-enter,
+  .call-details-panel-enter {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   DAY MODE ENHANCEMENTS: Calls, Conversation Details, Messages
+   ============================================================ */
+
+/* Call icon badges in day mode */
+html[data-theme="day"] .call-icon-missed {
+  background-color: #fee2e2;
+  color: #dc2626;
+  box-shadow: 0 0 0 1px #fca5a5;
+}
+html[data-theme="day"] .call-icon-forwarded {
+  background-color: #f3e8ff;
+  color: #7c3aed;
+  box-shadow: 0 0 0 1px #d8b4fe;
+}
+html[data-theme="day"] .call-icon-outbound {
+  background-color: #d1fae5;
+  color: #059669;
+  box-shadow: 0 0 0 1px #86efac;
+}
+html[data-theme="day"] .call-icon-inbound {
+  background-color: #e0f2fe;
+  color: #0284c7;
+  box-shadow: 0 0 0 1px #7dd3fc;
+}
+
+/* Call log item typography */
+html[data-theme="day"] .call-title-missed {
+  color: #dc2626;
+}
+html[data-theme="day"] .call-title-normal {
+  color: #172033;
+}
+html[data-theme="day"] .call-handled-by {
+  color: #059669;
+}
+
+/* Call log quick action buttons */
+html[data-theme="day"] .call-log-action {
+  color: #475569;
+}
+html[data-theme="day"] .call-log-action:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+html[data-theme="day"] .call-log-action-separator {
+  color: #cbd5e1;
+}
+
+/* Search input & filters in CallHistory */
+html[data-theme="day"] .call-history-search-input {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #172033;
+}
+html[data-theme="day"] .call-history-search-input:focus {
+  background-color: #ffffff;
+  border-color: #059669;
+}
+html[data-theme="day"] #call-sort-order,
+html[data-theme="day"] #call-date-filter {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #172033;
+}
+
+/* CallDetails panel styling */
+html[data-theme="day"] .call-details-avatar {
+  background: linear-gradient(135deg, #d1fae5 0%, #ccfbf1 100%);
+  border-color: #a7f3d0;
+  color: #047857;
+}
+html[data-theme="day"] .call-details-action-call {
+  background-color: #d1fae5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+html[data-theme="day"] .call-details-action-call:hover {
+  background-color: #a7f3d0;
+}
+html[data-theme="day"] .call-details-action-btn {
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+html[data-theme="day"] .call-details-action-btn:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}
+html[data-theme="day"] .call-details-badge {
+  background-color: #f1f5f9;
+  color: #172033;
+  border: 1px solid #e2e8f0;
+}
+
+/* Same-day calls list */
+html[data-theme="day"] .call-day-item-selected {
+  background-color: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+html[data-theme="day"] .call-day-item {
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  color: #172033;
+}
+html[data-theme="day"] .call-day-item:hover {
+  background-color: #eef3f8;
+}
+
+/* Transcript lines in CallDetails */
+html[data-theme="day"] .transcript-line {
+  color: #172033;
+}
+html[data-theme="day"] .transcript-line .text-emerald-400 {
+  color: #059669;
+}
+html[data-theme="day"] .transcript-line .text-sky-400 {
+  color: #0284c7;
+}
+
+/* Messages & SMS threads */
+html[data-theme="day"] .sms-thread-row:hover {
+  background-color: #f1f5f9;
+}
+html[data-theme="day"] .sms-thread-title {
+  color: #172033;
+}
+html[data-theme="day"] .sms-thread-preview {
+  color: #475569;
+}
+html[data-theme="day"] .sms-received-badge {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+/* Common tinted background utilities */
+html[data-theme="day"] .bg-emerald-500\/15 {
+  background-color: #d1fae5;
+}
+html[data-theme="day"] .bg-sky-500\/15 {
+  background-color: #e0f2fe;
+}
+html[data-theme="day"] .bg-amber-500\/15 {
+  background-color: #fef3c7;
+}
+html[data-theme="day"] .bg-red-500\/15 {
+  background-color: #fee2e2;
+}
+html[data-theme="day"] .bg-purple-500\/15 {
+  background-color: #f3e8ff;
+}
+html[data-theme="day"] .bg-emerald-950\/20,
+html[data-theme="day"] .bg-emerald-950\/30 {
+  background-color: #ecfdf5;
+}
+html[data-theme="day"] .border-emerald-500\/20,
+html[data-theme="day"] .border-emerald-500\/25,
+html[data-theme="day"] .border-emerald-500\/30,
+html[data-theme="day"] .border-emerald-500\/40 {
+  border-color: #a7f3d0;
+}
+html[data-theme="day"] .bg-gray-800\/60 {
+  background-color: #f8fafc;
+}
+
+/* ============================================================
+   DAY MODE: Skeletons & Copied Toast Overrides
+   ============================================================ */
+
+/* White/Light skeleton loading in day mode */
+html[data-theme="day"] .react-loading-skeleton {
+  --base-color: #e2e8f0 !important;
+  --highlight-color: #ffffff !important;
+  background-color: var(--base-color) !important;
+}
+
+/* Copied number toast Day mode styling */
+html[data-theme="day"] .copied-number-toast {
+  background-color: #ffffff !important;
+  border-color: #a7f3d0 !important;
+  color: #172033 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+html[data-theme="day"] .copied-number-title {
+  color: #172033 !important;
+}
+html[data-theme="day"] .copied-number-subtitle {
+  color: #475569 !important;
+}
+html[data-theme="day"] .copied-number-divider {
+  border-left-color: #e2e8f0 !important;
+}
+html[data-theme="day"] .copied-number-btn {
+  color: #059669 !important;
+}
+html[data-theme="day"] .copied-number-btn:hover {
+  color: #047857 !important;
+  background-color: #ecfdf5 !important;
+}
+
+/* General hot-toast popup overrides in Day mode */
+html[data-theme="day"] div[style*="background: rgb(17, 24, 39)"],
+html[data-theme="day"] div[style*="background: #111827"] {
+  background: #ffffff !important;
+  color: #172033 !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
 }

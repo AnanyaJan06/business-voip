@@ -1,7 +1,19 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import {
+  Phone,
+  Users,
+  MessageSquare,
+  CalendarCheck,
+  LayoutDashboard,
+  Settings as SettingsIcon,
+  Plus,
+  Sun,
+  Moon
+} from 'lucide-react';
 import Dialer from './components/Dialer.jsx';
 import CallHistory from './components/CallHistory.jsx';
+import CallDetails from './components/CallDetails.jsx';
 import Contacts from './components/Contacts.jsx';
 import ConversationDetails from './components/ConversationDetails.jsx';
 import Messages from './components/Messages.jsx';
@@ -35,94 +47,21 @@ const readJsonResponse = async (res) => {
 };
 
 function NavIcon({ type }) {
-  const common = {
-    className: 'h-5 w-5',
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: '2',
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-    'aria-hidden': 'true'
-  };
-
   const icons = {
-    history: (
-      <svg {...common}>
-        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.77.62 2.61a2 2 0 0 1-.45 2.11L8 9.72" />
-      </svg>
-    ),
-    contacts: (
-      <svg {...common}>
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-    messages: (
-      <svg {...common}>
-        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-      </svg>
-    ),
-    team: (
-      <svg {...common}>
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-    followups: (
-      <svg {...common}>
-        <path d="M8 2v4" />
-        <path d="M16 2v4" />
-        <rect x="3" y="4" width="18" height="18" rx="2" />
-        <path d="M3 10h18" />
-        <path d="m9 16 2 2 4-4" />
-      </svg>
-    ),
-    admin: (
-      <svg {...common}>
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-      </svg>
-    ),
-    settings: (
-      <svg {...common}>
-        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.72l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z" />
-        <circle cx="12" cy="12" r="3" />
-      </svg>
-    ),
-    plus: (
-      <svg {...common}>
-        <path d="M5 12h14" />
-        <path d="M12 5v14" />
-      </svg>
-    ),
-    sun: (
-      <svg {...common}>
-        <circle cx="12" cy="12" r="4" />
-        <path d="M12 2v2" />
-        <path d="M12 20v2" />
-        <path d="m4.93 4.93 1.41 1.41" />
-        <path d="m17.66 17.66 1.41 1.41" />
-        <path d="M2 12h2" />
-        <path d="M20 12h2" />
-        <path d="m6.34 17.66-1.41 1.41" />
-        <path d="m19.07 4.93-1.41 1.41" />
-      </svg>
-    ),
-    moon: (
-      <svg {...common}>
-        <path d="M12 3a6 6 0 0 0 9 7.4A9 9 0 1 1 12 3Z" />
-      </svg>
-    )
+    history: Phone,
+    contacts: Users,
+    messages: MessageSquare,
+    team: Users,
+    followups: CalendarCheck,
+    admin: LayoutDashboard,
+    settings: SettingsIcon,
+    plus: Plus,
+    sun: Sun,
+    moon: Moon
   };
 
-  return icons[type];
+  const Icon = icons[type];
+  return Icon ? <Icon className="h-5 w-5" aria-hidden="true" /> : null;
 }
 
 function App() {
@@ -132,6 +71,10 @@ function App() {
   const [selectedMessageNumber, setSelectedMessageNumber] = useState('');
   const [selectedTeamUser, setSelectedTeamUser] = useState(null);
   const [conversationNumber, setConversationNumber] = useState('');
+  const [selectedCallLog, setSelectedCallLog] = useState(null);
+  const [showCallHistoryConversation, setShowCallHistoryConversation] = useState(false);
+  const [callHistoryLogs, setCallHistoryLogs] = useState([]);
+  const [contactsList, setContactsList] = useState([]);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'night');
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadTeamMessages, setUnreadTeamMessages] = useState(0);
@@ -143,12 +86,64 @@ function App() {
   const currentUserRef = useRef(currentUser);
   const selectedTeamUserRef = useRef(selectedTeamUser);
   const followUpToastTimerRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const dueFollowUpIdsRef = useRef(new Set());
   const isAdmin = currentUser?.role === 'admin';
+
+  const unlockAlertAudio = useCallback(() => {
+    const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextConstructor) return;
+
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContextConstructor();
+      }
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().catch(() => {});
+      }
+    } catch (error) {
+      console.info('Message alert audio is unavailable:', error);
+    }
+  }, []);
+
+  const playFollowUpAlertSound = useCallback(() => {
+    const audioContext = audioContextRef.current;
+    if (!audioContext || audioContext.state !== 'running') return;
+
+    const startAt = audioContext.currentTime;
+    [659.25, 783.99].forEach((frequency, index) => {
+      const noteStart = startAt + index * 0.14;
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, noteStart);
+      gain.gain.setValueAtTime(0.0001, noteStart);
+      gain.gain.exponentialRampToValueAtTime(0.055, noteStart + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.19);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(noteStart);
+      oscillator.stop(noteStart + 0.2);
+    });
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('pointerdown', unlockAlertAudio);
+    document.addEventListener('keydown', unlockAlertAudio);
+    return () => {
+      document.removeEventListener('pointerdown', unlockAlertAudio);
+      document.removeEventListener('keydown', unlockAlertAudio);
+    };
+  }, [unlockAlertAudio]);
 
   const openTab = useCallback((tabId) => {
     setActiveTab(tabId);
+    setShowCallHistoryConversation(false);
     if (tabId !== 'team') {
       setSelectedTeamUser(null);
+    }
+    if (tabId !== 'history') {
+      setSelectedCallLog(null);
     }
     if (tabId === 'messages') {
       setUnreadMessages(0);
@@ -187,6 +182,7 @@ function App() {
     const handleMessageContact = (event) => {
       const { phoneNumber } = event.detail;
       setSelectedMessageNumber(phoneNumber);
+      setConversationNumber(phoneNumber);
       openTab('messages');
     };
 
@@ -261,8 +257,16 @@ function App() {
 
       setDueFollowUps(dueItems.length);
 
+      const dueItemsWithIds = dueItems.map((item) => ({
+        item,
+        id: String(item._id || item.id || `${item.name}:${item.followUpDate}`)
+      }));
+      const newlyDueItem = dueItemsWithIds.find(({ id }) => !dueFollowUpIdsRef.current.has(id));
+      dueFollowUpIdsRef.current = new Set(dueItemsWithIds.map(({ id }) => id));
+
       if (dueItems.length > 0 && activeTabRef.current !== 'followups') {
-        setFollowUpToast(dueItems[0]);
+        setFollowUpToast(newlyDueItem?.item || dueItems[0]);
+        if (newlyDueItem) playFollowUpAlertSound();
         window.clearTimeout(followUpToastTimerRef.current);
         followUpToastTimerRef.current = window.setTimeout(() => {
           setFollowUpToast(null);
@@ -271,7 +275,7 @@ function App() {
     } catch (error) {
       console.error('Failed to refresh follow-up reminders:', error);
     }
-  }, [token]);
+  }, [playFollowUpAlertSound, token]);
 
   useEffect(() => {
     if (!token) return undefined;
@@ -415,6 +419,7 @@ function App() {
     const handleOpenConversation = (event) => {
       const { phoneNumber } = event.detail;
       setConversationNumber(phoneNumber);
+      setShowCallHistoryConversation(activeTabRef.current === 'history');
     };
 
     window.addEventListener('openConversation', handleOpenConversation);
@@ -451,6 +456,7 @@ function App() {
     setSelectedPhoneNumber('');
     setSelectedMessageNumber('');
     setSelectedTeamUser(null);
+    setSelectedCallLog(null);
     setConversationNumber('');
     setUnreadMessages(0);
     setUnreadTeamMessages(0);
@@ -488,13 +494,11 @@ function App() {
       {/* Sidebar */}
       <div className="shrink-0 bg-[#11151F] border-b border-gray-800 flex flex-col md:w-60 md:border-b-0 md:border-r">
         <div className="px-4 py-3 flex items-center gap-3 border-b border-gray-800 md:px-5 md:py-4">
-          <div className="w-9 h-9 bg-gradient-to-br from-[#059669] via-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white shadow-lg">
-            <NavIcon type="history" />
-          </div>
+          <img src="/dialio-logo.png" alt="Dialio" className="h-9 w-9 rounded-xl object-contain" />
           <h1 className="text-xl font-bold tracking-tight md:text-2xl">Dialio</h1>
         </div>
 
-        <nav className="flex gap-2 overflow-x-auto p-3 no-scrollbar md:flex-1 md:flex-col md:gap-1 md:overflow-visible md:p-3">
+        <nav className="flex gap-2 overflow-x-auto p-3 no-scrollbar md:flex-1 md:flex-col md:gap-1 md:overflow-y-auto md:overflow-x-hidden md:p-3 thin-scrollbar">
           {[
             ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
             { id: 'history', label: 'Calls' },
@@ -538,24 +542,29 @@ function App() {
             <span className="w-5"><NavIcon type="plus" /></span>
             New Call
           </div>
+
+          {/* Connection status container below New Call button */}
+          <div id="dialer-status-box" className="w-full shrink-0 empty:hidden md:mt-3" />
         </nav>
 
         <div className="hidden p-3 border-t border-gray-800 md:block">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-gray-300 transition hover:bg-gray-800"
-            title={theme === 'night' ? 'Switch to day mode' : 'Switch to night mode'}
-          >
-            <span className="w-5"><NavIcon type={theme === 'night' ? 'sun' : 'moon'} /></span>
-            {theme === 'night' ? 'Day' : 'Night'}
-          </button>
-          <button 
-            onClick={confirmLogout}
-            className="w-full py-2.5 text-sm text-red-400 hover:bg-red-950/30 rounded-xl transition font-medium"
-          >
-            Logout
-          </button>
+          <div className="hidden md:block">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-gray-300 transition hover:bg-gray-800"
+              title={theme === 'night' ? 'Switch to day mode' : 'Switch to night mode'}
+            >
+              <span className="w-5"><NavIcon type={theme === 'night' ? 'sun' : 'moon'} /></span>
+              {theme === 'night' ? 'Day' : 'Night'}
+            </button>
+            <button
+              onClick={confirmLogout}
+              className="w-full py-2.5 text-sm text-red-400 hover:bg-red-950/30 rounded-xl transition font-medium"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 
@@ -591,7 +600,17 @@ function App() {
           {activeTab === 'admin' && isAdmin && (
             <AdminDashboard showStats={false} showCreateUser={false} showUsers />
           )}
-          {activeTab === 'history' && <CallHistory />}
+          {activeTab === 'history' && (
+            <CallHistory
+              selectedCall={selectedCallLog}
+              onSelectCall={(call) => {
+                setSelectedCallLog(call);
+                setShowCallHistoryConversation(false);
+              }}
+              onLogsLoaded={setCallHistoryLogs}
+              onContactsLoaded={setContactsList}
+            />
+          )}
           {activeTab === 'contacts' && <Contacts />}
           {activeTab === 'messages' && (
             <Messages
@@ -627,6 +646,26 @@ function App() {
             selectedUser={selectedTeamUser}
             onReadMessages={refreshUnreadTeamMessages}
           />
+        ) : activeTab === 'history' && showCallHistoryConversation ? (
+          <div key={conversationNumber} className="conversation-panel-enter h-full min-h-0">
+            <ConversationDetails
+              phoneNumber={conversationNumber}
+              onClose={() => {
+                setShowCallHistoryConversation(false);
+                setConversationNumber('');
+              }}
+            />
+          </div>
+        ) : activeTab === 'history' ? (
+          <div key={selectedCallLog?._id || selectedCallLog?.callSid || 'call-details'} className="call-details-panel-enter h-full min-h-0">
+            <CallDetails
+              call={selectedCallLog}
+              contacts={contactsList}
+              allLogs={callHistoryLogs}
+              onSelectCall={setSelectedCallLog}
+              onClose={() => setSelectedCallLog(null)}
+            />
+          </div>
         ) : (
           <ConversationDetails
             phoneNumber={conversationNumber}
@@ -650,21 +689,17 @@ function App() {
             setFollowUpToast(null);
           }}
           className="fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-amber-500/25 bg-[#151B28] p-4 text-left shadow-2xl transition hover:border-amber-400"
+          aria-label={`Open due follow-up for ${followUpToast.name}`}
         >
-          <div className="mb-2 flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 text-amber-300">
-              <NavIcon type="followups" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-white">Follow-up reminder</span>
-              <span className="block truncate text-xs text-gray-400">{followUpToast.name}</span>
-            </span>
-          </div>
-          <p className="line-clamp-2 text-sm text-gray-300">
-            {followUpToast.note}
-          </p>
+          <span className="mb-1 flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-white">Follow-up due</span>
+            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">Due now</span>
+          </span>
+          <span className="block truncate text-xs text-gray-400">{followUpToast.name}</span>
+          <span className="mt-2 line-clamp-2 block text-sm text-gray-300">{followUpToast.note}</span>
         </button>
       )}
+
       <AppToaster />
     </div>
   );

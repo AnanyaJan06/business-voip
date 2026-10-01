@@ -392,7 +392,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
                   key={message._id || message.messageSid}
                   type="button"
                   onClick={() => openConversation(message.phoneNumber)}
-                  className="block w-full px-4 py-3 text-left transition hover:bg-[#1F2533]"
+                  className="sms-thread-row block w-full px-4 py-3 text-left transition hover:bg-[#1F2533]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -400,14 +400,14 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
                         {isUnread && (
                           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-label="Unread message" />
                         )}
-                        <span className={`truncate text-sm font-semibold ${
+                        <span className={`sms-thread-title truncate text-sm font-semibold ${
                           isUnread ? 'text-white' : 'text-gray-200'
                         }`}>
                           {message.phoneNumber}
                         </span>
                       </div>
 
-                      <p className={`mt-1 line-clamp-1 text-xs ${
+                      <p className={`sms-thread-preview mt-1 line-clamp-1 text-xs ${
                         isUnread ? 'font-semibold text-gray-200' : 'text-gray-400'
                       }`}>
                         {message.direction === 'outbound' ? 'You: ' : ''}
@@ -416,13 +416,13 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
 
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {message.direction === 'outbound' ? (
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
+                          <span className={`sms-status-badge inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${
                             messageStatusStyles[message.status] || messageStatusStyles.queued
                           }`}>
                             {formatMessageStatus(message.status)}
                           </span>
                         ) : (
-                          <span className="inline-flex rounded-full bg-gray-700 px-2 py-0.5 text-[11px] font-semibold text-gray-300">
+                          <span className="sms-received-badge inline-flex rounded-full bg-gray-700 px-2 py-0.5 text-[11px] font-semibold text-gray-300">
                             Received
                           </span>
                         )}

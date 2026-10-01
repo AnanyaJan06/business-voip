@@ -30,7 +30,11 @@ app.set('trust proxy', 1);
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
-  ...(process.env.FRONTEND_URLS || '').split(',')
+  ...(process.env.FRONTEND_URLS || '').split(','),
+  // Vite's local development server. Keep these out of production by default.
+  ...(process.env.NODE_ENV === 'production'
+    ? []
+    : ['http://localhost:5173', 'http://127.0.0.1:5173'])
 ]
   .map((origin) => origin?.trim())
   .filter(Boolean);

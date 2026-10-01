@@ -16,12 +16,16 @@ export const parsePagedResponse = (data) => {
   };
 };
 
-export const buildPagedUrl = (baseUrl, { limit = PAGE_SIZE, before = null, extraParams = {} } = {}) => {
+export const buildPagedUrl = (baseUrl, { limit = PAGE_SIZE, before = null, after = null, extraParams = {} } = {}) => {
   const url = new URL(baseUrl);
   url.searchParams.set('limit', String(limit));
 
   if (before) {
     url.searchParams.set('before', before);
+  }
+
+  if (after) {
+    url.searchParams.set('after', after);
   }
 
   Object.entries(extraParams).forEach(([key, value]) => {

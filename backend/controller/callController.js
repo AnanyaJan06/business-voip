@@ -1,6 +1,7 @@
 import CallLog from '../model/CallLog.js';
 import CallTranscript from '../model/CallTranscript.js';
 import InboundCallSession from '../model/InboundCallSession.js';
+import Contact from '../model/Contact.js';
 import User from '../model/User.js';
 import { buildCallAccessQuery } from '../utils/callAccess.js';
 import { consolidateAdminCallLogs } from '../utils/consolidateCallLogs.js';
@@ -235,7 +236,13 @@ export const getCallLogs = async (req, res) => {
   try {
     const limit = parseLimit(req.query.limit);
     const before = parseBeforeDate(req.query.before);
+    const after = parseBeforeDate(req.query.after);
     const phoneNumber = String(req.query.phoneNumber || '').trim();
+    const search = String(req.query.search || '').trim();
+    const callType = String(req.query.callType || '').trim().toLowerCase();
+    const dateStart = parseBeforeDate(req.query.dateStart);
+    const dateEnd = parseBeforeDate(req.query.dateEnd);
+    const sortDirection = req.query.sortOrder === 'oldest' ? 1 : -1;
     const filters = [];
     const accessQuery = await buildCallAccessQuery(req.user);
 
@@ -247,18 +254,64 @@ export const getCallLogs = async (req, res) => {
       filters.push(accessQuery);
     }
 
-    const query = filters.length > 1
-      ? { $and: filters }
-      : (filters[0] || {});
-
-    if (before) {
-      query.startedAt = { $lt: before };
+    if (['inbound', 'outbound'].includes(callType)) {
+      filters.push({ callType });
+    } else if (callType === 'missed') {
+      filters.push({
+        $or: [
+          { status: { $in: ['missed', 'rejected', 'failed'] } },
+          { callType: 'missed' }
+        ]
+      });
     }
+
+    if (dateStart || dateEnd) {
+      const startedAt = {};
+      if (dateStart) startedAt.$gte = dateStart;
+      if (dateEnd) startedAt.$lt = dateEnd;
+      filters.push({ startedAt });
+    }
+
+    if (before) filters.push({ startedAt: { $lt: before } });
+    if (after) filters.push({ startedAt: { $gt: after } });
+
+    if (search) {
+      const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
+      const searchOr = [{ phoneNumber: searchRegex }];
+      const digits = search.replace(/\D/g, '');
+
+      if (digits) {
+        searchOr.push({ phoneNumber: new RegExp(digits.split('').join('\\D*')) });
+      }
+
+      const contactRegex = new RegExp(escapedSearch, 'i');
+      const [matchingContacts, matchingUsers] = await Promise.all([
+        Contact.find({
+          user: req.user.id,
+          $or: [{ name: contactRegex }, { company: contactRegex }]
+        }).select('phone').lean(),
+        User.find({ name: contactRegex }).select('_id').lean()
+      ]);
+
+      matchingContacts.forEach((contact) => {
+        if (contact.phone) searchOr.push(buildPhoneOrFilter(contact.phone, ['phoneNumber']));
+      });
+
+      if (matchingUsers.length > 0) {
+        const userIds = matchingUsers.map((user) => user._id);
+        searchOr.push({ user: { $in: userIds } }, { answeredBy: { $in: userIds } });
+      }
+
+      filters.push({ $or: searchOr });
+    }
+
+    const query = filters.length > 1 ? { $and: filters } : (filters[0] || {});
 
     const logs = await CallLog.find(query)
       .populate('user', 'name email role')
       .populate('answeredBy', 'name email')
-      .sort({ startedAt: -1, _id: -1 })
+      .sort({ startedAt: sortDirection, _id: sortDirection })
       .limit(limit + 1);
 
     const formattedLogs = logs.map(formatCallLog);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Device } from '@twilio/voice-sdk';
 import { BACKEND_URL } from '../config/api.js';
  
@@ -103,6 +104,16 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   const [isIncomingMinimized, setIsIncomingMinimized] = useState(false);
   const [shouldRenderDialer, setShouldRenderDialer] = useState(isOpen);
   const [dialerMotion, setDialerMotion] = useState(isOpen ? 'open' : 'closed');
+  const [statusTarget, setStatusTarget] = useState(() => (
+    typeof document !== 'undefined' ? document.getElementById('dialer-status-box') : null
+  ));
+
+  useEffect(() => {
+    if (!statusTarget) {
+      const el = document.getElementById('dialer-status-box');
+      if (el) setStatusTarget(el);
+    }
+  }, [statusTarget]);
 
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
@@ -413,7 +424,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     
    const retryDeviceRegistration = async () => {
       const activeDevice = deviceRef.current;
-      if (!activeDevice) return;
+      if (!activeDevice) return initDevice();
   
    setDeviceState(DEVICE_STATES.REGISTERING);
       setDeviceError('');
@@ -973,22 +984,31 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
           </button>
         </div>
       )}
-   {!isCalling && !incomingCall && deviceState !== DEVICE_STATES.READY && (
+      {!isCalling && !incomingCall && deviceState !== DEVICE_STATES.READY && (statusTarget || (typeof document !== 'undefined' && document.getElementById('dialer-status-box'))) && createPortal(
         <div
-          className={`fixed bottom-4 left-4 z-[60] w-[min(360px,calc(100vw-2rem))] rounded-xl border px-4 py-3 shadow-2xl ${
+          className={`w-full rounded-xl border p-3 shadow-lg transition-all ${
             deviceState === DEVICE_STATES.ERROR || deviceState === DEVICE_STATES.OFFLINE
-              ? 'border-amber-500/30 bg-[#1A1410]'
-              : 'border-sky-500/25 bg-[#101A28]'
+              ? 'sidebar-status-error border-amber-500/30 bg-[#1A1410]'
+              : 'sidebar-status-info border-sky-500/25 bg-[#101A28]'
           }`}
         >
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-white">
-                {deviceState === DEVICE_STATES.ERROR || deviceState === DEVICE_STATES.OFFLINE
-                  ? 'Not receiving calls'
-                  : 'Connecting phone service'}
-              </p>
-              <p className="mt-1 text-xs text-gray-300">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`inline-block h-2 w-2 rounded-full shrink-0 ${
+                    deviceState === DEVICE_STATES.ERROR || deviceState === DEVICE_STATES.OFFLINE
+                      ? 'bg-amber-400'
+                      : 'bg-sky-400 animate-pulse'
+                  }`}
+                />
+                <p className="text-xs font-semibold text-white">
+                  {deviceState === DEVICE_STATES.ERROR || deviceState === DEVICE_STATES.OFFLINE
+                    ? 'Not receiving calls'
+                    : 'Connecting phone service'}
+                </p>
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-gray-300 break-words">
                 {deviceError || (
                   deviceState === DEVICE_STATES.REFRESHING
                     ? 'Refreshing connection so shared numbers keep ringing.'
@@ -1000,13 +1020,14 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
               <button
                 type="button"
                 onClick={retryDeviceRegistration}
-                className="shrink-0 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-[#1A1410] hover:bg-amber-400"
+                className="shrink-0 rounded-lg bg-amber-500 px-2.5 py-1 text-xs font-semibold text-[#1A1410] hover:bg-amber-400 transition"
               >
                 Retry
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        statusTarget || document.getElementById('dialer-status-box')
       )}
  
       {isCalling && isMinimized && (
