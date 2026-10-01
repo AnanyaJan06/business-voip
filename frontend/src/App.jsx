@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   Phone,
   Users,
@@ -111,6 +112,7 @@ function App() {
   const audioContextRef = useRef(null);
   const dueFollowUpIdsRef = useRef(new Set());
   const isAdmin = currentUser?.role === 'admin';
+  const prefersReducedMotion = useReducedMotion();
 
   const unlockAlertAudio = useCallback(() => {
     const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
@@ -638,40 +640,51 @@ function App() {
         </div>
 
         <div className="flex-1 overflow-auto thin-scrollbar p-2 md:p-3">
-          {activeTab === 'admin' && isAdmin && (
-            <AdminDashboard showStats={false} showCreateUser={false} showUsers />
-          )}
-          {activeTab === 'history' && (
-            <CallHistory
-              selectedCall={selectedCallLog}
-              onSelectCall={(call) => {
-                setSelectedCallLog(call);
-                setShowCallHistoryConversation(false);
-              }}
-              onLogsLoaded={setCallHistoryLogs}
-              onContactsLoaded={setContactsList}
-            />
-          )}
-          {activeTab === 'contacts' && <Contacts />}
-          {activeTab === 'messages' && (
-            <Messages
-              selectedPhoneNumber={selectedMessageNumber}
-              onRecipientUsed={clearSelectedMessageNumber}
-              currentUser={currentUser}
-            />
-          )}
-          {activeTab === 'team' && (
-            <InternalMessages
-              currentUser={currentUser}
-              selectedUserId={getUserId(selectedTeamUser)}
-              onSelectUser={setSelectedTeamUser}
-              onReadMessages={refreshUnreadTeamMessages}
-            />
-          )}
-          {activeTab === 'followups' && (
-            <FollowUps onDueCountChange={setDueFollowUps} />
-          )}
-          {activeTab === 'settings' && <Settings />}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -5 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: 'easeOut' }}
+              className="min-h-full"
+            >
+              {activeTab === 'admin' && isAdmin && (
+                <AdminDashboard showStats={false} showCreateUser={false} showUsers />
+              )}
+              {activeTab === 'history' && (
+                <CallHistory
+                  selectedCall={selectedCallLog}
+                  onSelectCall={(call) => {
+                    setSelectedCallLog(call);
+                    setShowCallHistoryConversation(false);
+                  }}
+                  onLogsLoaded={setCallHistoryLogs}
+                  onContactsLoaded={setContactsList}
+                />
+              )}
+              {activeTab === 'contacts' && <Contacts />}
+              {activeTab === 'messages' && (
+                <Messages
+                  selectedPhoneNumber={selectedMessageNumber}
+                  onRecipientUsed={clearSelectedMessageNumber}
+                  currentUser={currentUser}
+                />
+              )}
+              {activeTab === 'team' && (
+                <InternalMessages
+                  currentUser={currentUser}
+                  selectedUserId={getUserId(selectedTeamUser)}
+                  onSelectUser={setSelectedTeamUser}
+                  onReadMessages={refreshUnreadTeamMessages}
+                />
+              )}
+              {activeTab === 'followups' && (
+                <FollowUps onDueCountChange={setDueFollowUps} />
+              )}
+              {activeTab === 'settings' && <Settings />}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
 
