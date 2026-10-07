@@ -247,9 +247,43 @@ html[data-theme="day"] .internal-message-inbound .internal-message-time {
 }
 
 html[data-theme="day"] .dialer-panel,
-html[data-theme="day"] .dialer-panel .bg-\[\#161B28\] {
+html[data-theme="day"] .dialer-floating-card,
+html[data-theme="day"] .dialer-minimized-card,
+html[data-theme="day"] .dialer-incoming-card,
+html[data-theme="day"] .dialer-panel .bg-\[\#161B28\],
+html[data-theme="day"] .dialer-floating-card .bg-\[\#161B28\]\/95,
+html[data-theme="day"] .dialer-floating-card .bg-\[\#1C2333\]\/90,
+html[data-theme="day"] .dialer-incoming-card .bg-\[\#161B28\]\/95 {
   background-color: #ffffff;
   color: #172033;
+  border-color: #e2e8f0;
+}
+
+html[data-theme="day"] .dialer-floating-card .text-white,
+html[data-theme="day"] .dialer-minimized-card .text-white,
+html[data-theme="day"] .dialer-incoming-card .text-white {
+  color: #0f172a;
+}
+
+html[data-theme="day"] .dialer-floating-card .text-gray-200,
+html[data-theme="day"] .dialer-floating-card .text-gray-300,
+html[data-theme="day"] .dialer-minimized-card .text-gray-300,
+html[data-theme="day"] .dialer-incoming-card .text-gray-200,
+html[data-theme="day"] .dialer-incoming-card .text-gray-300 {
+  color: #334155;
+}
+
+html[data-theme="day"] .dialer-floating-card .text-gray-400,
+html[data-theme="day"] .dialer-minimized-card .text-gray-400,
+html[data-theme="day"] .dialer-incoming-card .text-gray-400 {
+  color: #64748b;
+}
+
+html[data-theme="day"] .dialer-floating-card .bg-\[\#121622\],
+html[data-theme="day"] .dialer-floating-card .from-\[\#1C2436\],
+html[data-theme="day"] .dialer-floating-card .to-\[\#141A28\] {
+  background: #f8fafc;
+  border-color: #e2e8f0;
 }
 
 html[data-theme="day"] .dialer-call-card {
@@ -258,17 +292,26 @@ html[data-theme="day"] .dialer-call-card {
 }
 
 html[data-theme="day"] .dialer-panel .bg-gray-800,
-html[data-theme="day"] .dialer-panel .bg-\[\#1F2937\] {
+html[data-theme="day"] .dialer-panel .bg-\[\#1F2937\],
+html[data-theme="day"] .dialer-floating-card .bg-\[\#1E2536\],
+html[data-theme="day"] .dialer-floating-card .bg-gray-800,
+html[data-theme="day"] .dialer-minimized-card .bg-gray-800,
+html[data-theme="day"] .dialer-incoming-card .bg-gray-800 {
   background-color: #eef3f8;
   color: #172033;
 }
 
 html[data-theme="day"] .dialer-panel .hover\:bg-gray-700:hover,
-html[data-theme="day"] .dialer-panel .hover\:bg-\[\#374151\]:hover {
+html[data-theme="day"] .dialer-panel .hover\:bg-\[\#374151\]:hover,
+html[data-theme="day"] .dialer-floating-card .hover\:bg-\[\#283248\]:hover,
+html[data-theme="day"] .dialer-floating-card .hover\:bg-gray-700:hover,
+html[data-theme="day"] .dialer-minimized-card .hover\:bg-gray-700:hover,
+html[data-theme="day"] .dialer-incoming-card .hover\:bg-gray-700:hover {
   background-color: #dfe8f2;
 }
 
-html[data-theme="day"] .dialer-panel .active\:bg-\[\#4B5563\]:active {
+html[data-theme="day"] .dialer-panel .active\:bg-\[\#4B5563\]:active,
+html[data-theme="day"] .dialer-floating-card .active\:bg-\[\#323E5A\]:active {
   background-color: #cfdae7;
 }
 

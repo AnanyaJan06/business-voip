@@ -1,7 +1,28 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Device } from '@twilio/voice-sdk';
+import { AnimatePresence, motion, useDragControls } from 'motion/react';
+import {
+  Phone,
+  PhoneCall,
+  PhoneOff,
+  PhoneIncoming,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Pause,
+  Play,
+  Grid,
+  Minimize2,
+  Maximize2,
+  Minus,
+  X,
+  GripHorizontal,
+  Delete,
+  User
+} from 'lucide-react';
 import { BACKEND_URL } from '../config/api.js';
- 
+
 export const DEVICE_STATES = {
   INITIALIZING: 'initializing',
   REGISTERING: 'registering',
@@ -18,7 +39,7 @@ export function PhoneServiceAlert({ deviceState, deviceError, onRetry, className
 
   return (
     <div
-      className={`w-full rounded-xl border p-3 shadow-lg transition-all ${isErrorOrOffline ? 'sidebar-status-error' : 'sidebar-status-info'} ${
+      className={`w-full rounded-xl border p-2.5 shadow-lg transition-all ${isErrorOrOffline ? 'sidebar-status-error' : 'sidebar-status-info'} ${
         isErrorOrOffline
           ? 'border-amber-500/30 bg-[#1A1410]'
           : 'border-sky-500/25 bg-[#101A28]'
@@ -51,7 +72,7 @@ export function PhoneServiceAlert({ deviceState, deviceError, onRetry, className
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2.5 w-full rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-[#1A1410] hover:bg-amber-400 transition"
+          className="mt-2 w-full rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-[#1A1410] hover:bg-amber-400 transition"
         >
           Retry
         </button>
@@ -59,25 +80,25 @@ export function PhoneServiceAlert({ deviceState, deviceError, onRetry, className
     </div>
   );
 }
- 
+
 const fetchTwilioToken = async () => {
   const authToken = localStorage.getItem('token');
   if (!authToken) {
     throw new Error('Not signed in');
   }
- 
+
   const res = await fetch(`${BACKEND_URL}/api/twilio/token`, {
     headers: { Authorization: `Bearer ${authToken}` }
   });
   const data = await res.json();
- 
+
   if (!res.ok || !data.token) {
     throw new Error(data.message || 'Unable to get Twilio token');
   }
- 
+
   return data.token;
 };
-const DIALER_ANIMATION_MS = 220;
+
 const INCOMING_ALERT_TITLE = 'Incoming call';
 const INCOMING_ALERT_BODY = 'Open Dialio to answer or reject.';
 
@@ -134,11 +155,38 @@ const getDialableClipboardValue = (value) => String(value || '')
   .replace(/[^\d+*#]/g, '')
   .replace(/(?!^)\+/g, '');
 
-function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser = null, onDeviceStatusChange }) {
+const normalizePhone = (phone) => {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
+};
+
+const KEYPAD_BUTTONS = [
+  { key: '1', sub: '' },
+  { key: '2', sub: 'ABC' },
+  { key: '3', sub: 'DEF' },
+  { key: '4', sub: 'GHI' },
+  { key: '5', sub: 'JKL' },
+  { key: '6', sub: 'MNO' },
+  { key: '7', sub: 'PQRS' },
+  { key: '8', sub: 'TUV' },
+  { key: '9', sub: 'WXYZ' },
+  { key: '*', sub: '' },
+  { key: '0', sub: '+' },
+  { key: '#', sub: '' },
+];
+
+function Dialer({
+  selectedPhoneNumber = '',
+  isOpen = true,
+  onClose,
+  currentUser = null,
+  onDeviceStatusChange,
+  contacts = []
+}) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
   const [device, setDevice] = useState(null);
   const [connection, setConnection] = useState(null);
- const [callStatus, setCallStatus] = useState('Ready');
+  const [callStatus, setCallStatus] = useState('Ready');
   const [deviceState, setDeviceState] = useState(DEVICE_STATES.INITIALIZING);
   const [deviceError, setDeviceError] = useState('');
   const [isCalling, setIsCalling] = useState(false);
@@ -150,23 +198,27 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   const [incomingCall, setIncomingCall] = useState(null);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isIncomingMinimized, setIsIncomingMinimized] = useState(false);
-  const [shouldRenderDialer, setShouldRenderDialer] = useState(isOpen);
-  const [dialerMotion, setDialerMotion] = useState(isOpen ? 'open' : 'closed');
+
   const startTimeRef = useRef(null);
   const timerRef = useRef(null);
   const activeCallRef = useRef(null);
   const currentUserRef = useRef(currentUser);
   const resolveInboundCallEndRef = useRef(async () => {});
-  const dialerAnimationRef = useRef(null);
   const incomingNotificationRef = useRef(null);
   const titleAlertRef = useRef(null);
   const originalTitleRef = useRef(typeof document !== 'undefined' ? document.title : '');
   const ringtoneAudioRef = useRef(null);
-    const deviceRef = useRef(null);
+  const deviceRef = useRef(null);
   const tokenRefreshRef = useRef(null);
   const retryDeviceRegistrationRef = useRef(async () => {});
-  const shouldShowFullDialer = (isOpen || isCalling) && !isMinimized;
-   const isDeviceReady = deviceState === DEVICE_STATES.READY;
+
+  const boundaryRef = useRef(null);
+  const dragControls = useDragControls();
+  const miniDragControls = useDragControls();
+  const miniPointerStartRef = useRef(null);
+  const miniDraggedRef = useRef(false);
+
+  const isDeviceReady = deviceState === DEVICE_STATES.READY;
 
   const retryDeviceRegistration = useCallback(() => {
     retryDeviceRegistrationRef.current();
@@ -182,7 +234,18 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     });
   }, [deviceState, deviceError, isCalling, incomingCall, retryDeviceRegistration, onDeviceStatusChange]);
 
-  const formatIncomingAlertText = (from) => from || 'Unknown Number';
+  const matchedContact = phoneNumber
+    ? contacts.find((contact) => normalizePhone(contact.phone) === normalizePhone(phoneNumber))
+    : null;
+
+  const incomingContact = incomingCall?.from
+    ? contacts.find((contact) => normalizePhone(contact.phone) === normalizePhone(incomingCall.from))
+    : null;
+
+  const formatIncomingAlertText = (from) => {
+    if (incomingContact?.name) return `${incomingContact.name} (${from})`;
+    return from || 'Unknown Number';
+  };
 
   const stopIncomingAlerts = () => {
     incomingNotificationRef.current?.close?.();
@@ -199,7 +262,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
       try {
         ringtoneAudioRef.current.currentTime = 0;
       } catch {
-        // Some browsers do not allow seeking a MediaStream-backed audio element.
+        // Ignored
       }
     }
   };
@@ -211,9 +274,9 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     if (!AudioContextCtor) return null;
 
     const audioContext = new AudioContextCtor();
-    const duration = 1.8;
+    const soundDuration = 1.8;
     const sampleRate = audioContext.sampleRate;
-    const frameCount = sampleRate * duration;
+    const frameCount = sampleRate * soundDuration;
     const buffer = audioContext.createBuffer(1, frameCount, sampleRate);
     const channel = buffer.getChannelData(0);
 
@@ -313,10 +376,24 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
-  // Auto-fill from Contacts
+  // When opened or selectedPhoneNumber changes, unminimize and populate number
   useEffect(() => {
-    if (isOpen) setPhoneNumber(selectedPhoneNumber || '');
+    if (isOpen) {
+      setIsMinimized(false);
+      if (selectedPhoneNumber) {
+        setPhoneNumber(selectedPhoneNumber);
+      }
+    }
   }, [isOpen, selectedPhoneNumber]);
+
+  // Listen for global restore event
+  useEffect(() => {
+    const handleRestore = () => {
+      setIsMinimized(false);
+    };
+    window.addEventListener('restoreDialer', handleRestore);
+    return () => window.removeEventListener('restoreDialer', handleRestore);
+  }, []);
 
   useEffect(() => {
     const handleTeammateAnswered = (event) => {
@@ -372,31 +449,36 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     };
   }, []);
 
+  // Safe paste: do NOT hijack paste if user is typing in any input/textarea in the app
   useEffect(() => {
     const handlePaste = (event) => {
-      if (!isOpen || isCalling || incomingCall) return;
+      if (!isOpen || isCalling || incomingCall || isMinimized) return;
+      const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+      if (isInput) return;
 
       const pastedNumber = getDialableClipboardValue(event.clipboardData?.getData('text'));
       if (!pastedNumber) return;
 
       event.preventDefault();
       setPhoneNumber(pastedNumber);
-      setIsMinimized(false);
     };
 
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [incomingCall, isCalling, isOpen]);
+  }, [incomingCall, isCalling, isMinimized, isOpen]);
 
+  // Safe keyboard typing: do NOT hijack keystrokes if user is typing in any input/textarea in the app
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (!isOpen || isCalling || incomingCall) return;
+      if (!isOpen || isCalling || incomingCall || isMinimized) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      const isInput = ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+      if (isInput) return;
 
       if (/^\d$/.test(event.key) || event.key === '*' || event.key === '#') {
         event.preventDefault();
         setPhoneNumber((current) => current + event.key);
-        setIsMinimized(false);
         return;
       }
 
@@ -408,55 +490,33 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [incomingCall, isCalling, isOpen]);
-
-  useEffect(() => {
-    clearTimeout(dialerAnimationRef.current);
-
-    if (shouldShowFullDialer) {
-      setShouldRenderDialer(true);
-      setDialerMotion('opening');
-      const frame = requestAnimationFrame(() => setDialerMotion('open'));
-      return () => {
-        cancelAnimationFrame(frame);
-        clearTimeout(dialerAnimationRef.current);
-      };
-    }
-
-    if (shouldRenderDialer) {
-      setDialerMotion('closing');
-      dialerAnimationRef.current = setTimeout(() => {
-        setShouldRenderDialer(false);
-      }, DIALER_ANIMATION_MS);
-    }
-
-    return () => clearTimeout(dialerAnimationRef.current);
-  }, [shouldShowFullDialer, shouldRenderDialer]);
+  }, [incomingCall, isCalling, isMinimized, isOpen]);
 
   // Duration Timer
   useEffect(() => {
-    if (startTimeRef.current) {
+    if (startTimeRef.current && isCalling) {
       timerRef.current = setInterval(() => {
         setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
   }, [isCalling]);
-  // Initialize Twilio Device + Incoming Call Listener
+
+  // Initialize Twilio Device
   useEffect(() => {
     let twilioDevice;
     let disposed = false;
- 
+
     const refreshDeviceToken = async (activeDevice, { silent = false } = {}) => {
       if (!activeDevice || tokenRefreshRef.current) return false;
- 
-  tokenRefreshRef.current = true;
+
+      tokenRefreshRef.current = true;
       if (!silent) {
         setDeviceState(DEVICE_STATES.REFRESHING);
         setDeviceError('');
       }
-    
- try {
+
+      try {
         const token = await fetchTwilioToken();
         activeDevice.updateToken(token);
         return true;
@@ -469,15 +529,15 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
         tokenRefreshRef.current = false;
       }
     };
-    
-   const retryDeviceRegistration = async () => {
+
+    const retryDeviceRegistration = async () => {
       const activeDevice = deviceRef.current;
       if (!activeDevice) return;
-  
-   setDeviceState(DEVICE_STATES.REGISTERING);
+
+      setDeviceState(DEVICE_STATES.REGISTERING);
       setDeviceError('');
-    
-  try {
+
+      try {
         const token = await fetchTwilioToken();
         activeDevice.updateToken(token);
         await activeDevice.register();
@@ -487,57 +547,55 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
         setDeviceError(err.message || 'Unable to connect phone service');
       }
     };
-    
- retryDeviceRegistrationRef.current = retryDeviceRegistration;
-  
- 
+
+    retryDeviceRegistrationRef.current = retryDeviceRegistration;
+
     const handleVisibilityChange = () => {
       if (disposed || document.visibilityState !== 'visible' || !twilioDevice) return;
       if (twilioDevice.state === Device.State.Registered) return;
- 
+
       retryDeviceRegistration();
     };
- 
+
     const initDevice = async () => {
       setDeviceState(DEVICE_STATES.INITIALIZING);
       setDeviceError('');
- 
+
       try {
         const token = await fetchTwilioToken();
         if (disposed) return;
- 
+
         twilioDevice = new Device(token, {
           edge: ['singapore', 'tokyo'],
           logLevel: 'warn',
         });
         deviceRef.current = twilioDevice;
- 
+
         twilioDevice.on('registering', () => {
           setDeviceState(DEVICE_STATES.REGISTERING);
         });
- 
+
         twilioDevice.on('registered', () => {
           setDeviceState(DEVICE_STATES.READY);
           setDeviceError('');
-           setCallStatus('Ready');
+          setCallStatus('Ready');
         });
- 
+
         twilioDevice.on('unregistered', () => {
           setDeviceState(DEVICE_STATES.OFFLINE);
           setDeviceError('Phone service disconnected');
         });
- 
+
         twilioDevice.on('tokenWillExpire', () => {
           refreshDeviceToken(twilioDevice);
         });
- 
+
         // Listen for Incoming Calls
         twilioDevice.on('incoming', (conn) => {
           const from = getIncomingCallerNumber(conn);
           const localNumber = getIncomingAllottedNumber(conn);
           const parentCallSid = getParentCallSid(conn);
           const callerContext = getIncomingCallContext(conn);
-          console.log("📲 Incoming call from:", from, "| session:", parentCallSid);
 
           activeCallRef.current = {
             callType: 'inbound',
@@ -582,12 +640,12 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
           conn.on('error', () => resolveInboundCallEndRef.current());
         });
 
-              twilioDevice.on('error', (err) => {
+        twilioDevice.on('error', (err) => {
           console.error('Twilio Device Error:', err);
           setDeviceState(DEVICE_STATES.ERROR);
           setDeviceError(err.message || 'Phone service error');
           setCallStatus('Device error');
- 
+
           if (err.code === 20104 || err.code === 31205 || err.code === 31204) {
             refreshDeviceToken(twilioDevice).then((refreshed) => {
               if (refreshed && !disposed) {
@@ -596,13 +654,12 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
             });
           }
         });
- 
+
         setDeviceState(DEVICE_STATES.REGISTERING);
         await twilioDevice.register();
         if (disposed) return;
- 
+
         setDevice(twilioDevice);
-        console.log('Twilio Device Registered');
       } catch (err) {
         console.error('Device Initialization Error:', err);
         setDeviceState(DEVICE_STATES.OFFLINE);
@@ -610,10 +667,10 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
         setCallStatus('Device offline');
       }
     };
- 
+
     initDevice();
     document.addEventListener('visibilitychange', handleVisibilityChange);
- 
+
     return () => {
       disposed = true;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -622,16 +679,14 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
         twilioDevice.destroy();
       }
     };
-    // The Twilio Device should be created once for this mounted dialer.
-    // Event handlers read current call data from refs to avoid re-registering.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, []);
+  }, []);
 
-  const fetchInboundSession = async ({ callSid, phoneNumber, localNumber }, attempts = 3) => {
+  const fetchInboundSession = async ({ callSid, phoneNumber: pNum, localNumber }, attempts = 3) => {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       try {
         const params = new URLSearchParams();
-        if (phoneNumber) params.set('phoneNumber', phoneNumber);
+        if (pNum) params.set('phoneNumber', pNum);
         if (localNumber) params.set('localNumber', localNumber);
         const query = params.toString();
         const res = await fetch(
@@ -657,7 +712,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     return null;
   };
 
-  const logCall = async ({ phoneNumber, localNumber, callType, duration, status, callSid, answeredBy }) => {
+  const logCall = async ({ phoneNumber: pNum, localNumber, callType, duration: callDuration, status, callSid, answeredBy }) => {
     const currentCall = activeCallRef.current;
     if (currentCall?.callSid === callSid && currentCall.logged) return;
 
@@ -670,13 +725,13 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
-          phoneNumber,
+          phoneNumber: pNum,
           localNumber,
           callType,
-          duration,
+          duration: callDuration,
           status,
           callSid,
           answeredBy
@@ -704,18 +759,13 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
       return;
     }
 
-    if (currentCall.accepted) {
-      clearIncomingCallState();
-      return;
-    }
-
-    if (currentCall.logged) {
+    if (currentCall.accepted || currentCall.logged) {
       clearIncomingCallState();
       return;
     }
 
     const {
-      phoneNumber,
+      phoneNumber: pNum,
       localNumber,
       callSid,
       rejected,
@@ -726,7 +776,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
 
     if (teammateAnswered && teammateAnsweredBy && String(teammateAnsweredBy) !== currentUserId) {
       await logCall({
-        phoneNumber,
+        phoneNumber: pNum,
         localNumber,
         callType: 'inbound',
         status: 'answered-by-teammate',
@@ -739,11 +789,11 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     }
 
     const session = callSid
-      ? await fetchInboundSession({ callSid, phoneNumber, localNumber })
+      ? await fetchInboundSession({ callSid, phoneNumber: pNum, localNumber })
       : null;
     if (session?.status === 'answered' && session.answeredBy && String(session.answeredBy) !== currentUserId) {
       await logCall({
-        phoneNumber,
+        phoneNumber: pNum,
         localNumber,
         callType: 'inbound',
         status: 'answered-by-teammate',
@@ -756,7 +806,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     }
 
     await logCall({
-      phoneNumber,
+      phoneNumber: pNum,
       localNumber,
       callType: 'inbound',
       status: rejected ? 'rejected' : 'missed',
@@ -769,9 +819,10 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   resolveInboundCallEndRef.current = resolveInboundCallEnd;
 
   const makeCall = async () => {
-       if (!phoneNumber.trim()) return alert('Please enter a valid number');
+    if (!phoneNumber.trim()) return;
     if (!device || !isDeviceReady) {
-      return alert('Phone service is not ready yet. Wait for Ready status or tap Retry on the connection banner.');
+      alert('Phone service is not ready yet. Wait for Ready status or tap Retry on the connection banner.');
+      return;
     }
 
     setIsMinimized(false);
@@ -810,8 +861,8 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   };
 
   const handleCallEnd = async (conn, overrides = {}) => {
-    const finalDuration = startTimeRef.current 
-      ? Math.floor((Date.now() - startTimeRef.current) / 1000) 
+    const finalDuration = startTimeRef.current
+      ? Math.floor((Date.now() - startTimeRef.current) / 1000)
       : 0;
 
     await logCall({
@@ -826,7 +877,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     resetCall();
   };
 
-   const resetCall = () => {
+  const resetCall = () => {
     setIsCalling(false);
     setCallStatus(isDeviceReady ? 'Ready' : 'Device offline');
     setDuration(0);
@@ -841,26 +892,18 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  const handleCloseDialer = () => {
-    if (isCalling) {
-      setDialerMotion('minimizing');
-      clearTimeout(dialerAnimationRef.current);
-      dialerAnimationRef.current = setTimeout(() => {
-        setIsMinimized(true);
-      }, DIALER_ANIMATION_MS);
-      return;
-    }
-
-    setDialerMotion('closing');
-    clearTimeout(dialerAnimationRef.current);
-    dialerAnimationRef.current = setTimeout(() => {
-      onClose?.();
-    }, DIALER_ANIMATION_MS);
+  const handleMinimize = () => {
+    setIsMinimized(true);
   };
 
-  const restoreDialer = () => {
-    clearTimeout(dialerAnimationRef.current);
+  const handleClose = () => {
+    if (isCalling) {
+      // Keep active call safe in background; minimize to floating pill
+      setIsMinimized(true);
+      return;
+    }
     setIsMinimized(false);
+    onClose?.();
   };
 
   const endCall = () => connection && connection.disconnect();
@@ -886,7 +929,7 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
 
   const sendDTMF = (digit) => connection && connection.sendDigits(digit);
 
-  const markCallAnswered = async ({ callSid, phoneNumber, localNumber }) => {
+  const markCallAnswered = async ({ callSid, phoneNumber: pNum, localNumber }) => {
     if (!callSid) return;
 
     try {
@@ -896,14 +939,13 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({ callSid, phoneNumber, localNumber })
+        body: JSON.stringify({ callSid, phoneNumber: pNum, localNumber })
       });
     } catch (err) {
       console.error('Failed to mark call answered:', err);
     }
   };
 
-  // Accept Incoming Call
   const acceptIncomingCall = async () => {
     if (connection) {
       const parentCallSid = activeCallRef.current?.parentCallSid
@@ -935,7 +977,6 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
     }
   };
 
-  // Reject Incoming Call
   const rejectIncomingCall = () => {
     if (connection) {
       activeCallRef.current = {
@@ -951,254 +992,545 @@ function Dialer({ selectedPhoneNumber = '', isOpen = true, onClose, currentUser 
   };
 
   return (
-    <>
-      {/* Incoming Call Popup */}
-      {incomingCall && !isIncomingMinimized && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60] px-4">
-          <div className="bg-[#1C2333] border border-gray-600 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl">
-            <div className="flex justify-end -mt-2 -mr-2 mb-1">
+    <div ref={boundaryRef} className="pointer-events-none fixed inset-0 z-[75] overflow-hidden">
+      <AnimatePresence>
+        {/* Floating Incoming Call Alert */}
+        {incomingCall && !isIncomingMinimized && (
+          <motion.div
+            key="incoming-call-alert"
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-auto absolute top-5 right-5 z-[85] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-emerald-500/40 bg-[#161B28]/95 p-4 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl dialer-incoming-card"
+          >
+            <div className="flex items-center justify-between border-b border-gray-700/60 pb-2.5 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Incoming Call</span>
+              </div>
               <button
+                type="button"
                 onClick={() => setIsIncomingMinimized(true)}
-                className="text-gray-400 hover:text-white text-xl"
-                title="Minimize incoming call"
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white transition"
+                title="Minimize alert to pill"
               >
-                −
+                <Minus className="h-4 w-4" />
               </button>
             </div>
-            <div className="text-4xl mb-4 animate-pulse">📲</div>
-            <p className="text-red-400 text-lg font-semibold mb-1">Incoming Call</p>
-            <p className="text-xl font-medium text-white mb-6 break-all">
-              {incomingCall.from || 'Unknown Number'}
-            </p>
-            {incomingCall.lastHandledByName && (
-              <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-left">
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Recent company history</p>
-                <p className="mt-1 text-sm text-white">
-                  Last handled by {incomingCall.lastHandledByName}
-                </p>
-                {incomingCall.lastHandledAt && (
-                  <p className="mt-0.5 text-xs text-gray-300">
-                    {formatLastHandledAt(incomingCall.lastHandledAt)}
-                  </p>
-                )}
-              </div>
-            )}
 
-            <div className="flex gap-3">
+            <div className="text-center py-2">
+              <div className="mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-emerald-500/15 text-emerald-400 mx-auto">
+                <PhoneIncoming className="h-6 w-6 animate-bounce" />
+              </div>
+              {incomingContact?.name && (
+                <p className="text-base font-bold text-white truncate px-2">{incomingContact.name}</p>
+              )}
+              <p className="font-mono text-sm text-gray-200">{incomingCall.from || 'Unknown Number'}</p>
+
+              {incomingCall.lastHandledByName && (
+                <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-left">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Recent company history</p>
+                  <p className="mt-0.5 text-xs text-white">Last handled by {incomingCall.lastHandledByName}</p>
+                  {incomingCall.lastHandledAt && (
+                    <p className="text-[10px] text-gray-300">{formatLastHandledAt(incomingCall.lastHandledAt)}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3.5 flex gap-2">
               <button
+                type="button"
                 onClick={rejectIncomingCall}
-                className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded-xl text-sm font-medium transition-all"
+                className="flex-1 rounded-xl bg-gray-800 hover:bg-red-950/40 hover:text-red-300 border border-gray-700 py-2.5 text-xs font-semibold text-gray-300 transition"
               >
                 Reject
               </button>
               <button
+                type="button"
                 onClick={acceptIncomingCall}
-                className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-xl text-sm font-semibold transition-all"
+                className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 py-2.5 text-xs font-semibold text-white shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-1.5"
               >
-                Accept Call
+                <Phone className="h-3.5 w-3.5" /> Accept Call
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {incomingCall && isIncomingMinimized && (
-        <div className="fixed bottom-4 right-4 z-[60] flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border border-emerald-500/30 bg-[#161B28] px-3 py-3 shadow-2xl">
-          <button
-            onClick={() => setIsIncomingMinimized(false)}
-            className="flex min-w-0 items-center gap-2 text-left"
-          >
-            <span className="flex h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
-            <span>
-              <span className="block truncate text-sm font-semibold text-white">{incomingCall.from || 'Incoming call'}</span>
-              <span className="block text-xs text-emerald-300">
-                {incomingCall.lastHandledByName
-                  ? `Last: ${incomingCall.lastHandledByName}`
-                  : 'Incoming call'}
-              </span>
-            </span>
-          </button>
-          <button
-            onClick={rejectIncomingCall}
-            className="rounded-lg bg-gray-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-600"
-          >
-            Reject
-          </button>
-          <button
-            onClick={acceptIncomingCall}
-            className="rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-green-500"
-          >
-            Accept
-          </button>
-        </div>
-      )}
- 
-      {isCalling && isMinimized && (
-        <button
-          onClick={restoreDialer}
-          className="dialer-minimized-card fixed bottom-4 right-4 z-50 flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-xl border border-emerald-500/30 bg-[#161B28] px-3 py-3 text-left shadow-2xl hover:bg-[#1C2333] transition"
-        >
-          <span className="flex h-3 w-3 rounded-full bg-emerald-400 animate-pulse" />
-          <span>
-            <span className="block truncate text-sm font-semibold text-white">{phoneNumber || 'Active call'}</span>
-            <span className="block text-xs text-emerald-300">{callStatus}</span>
-          </span>
-        </button>
-      )}
-
-      {shouldRenderDialer && (
-        <div className={`dialer-backdrop dialer-backdrop-${dialerMotion} fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-3 py-4`}>
-          <div className={`dialer-panel dialer-panel-${dialerMotion} bg-[#161B28] border border-gray-700 rounded-2xl w-full max-w-[360px] shadow-2xl`}>
-            <div className="flex justify-between items-center border-b border-gray-700 px-4 py-3">
-              <h3 className="text-base font-semibold">{isCalling ? 'Active Call' : 'New Call'}</h3>
-              <button
-                onClick={handleCloseDialer}
-                className="text-gray-400 hover:text-white text-xl"
-                title={isCalling ? 'Minimize dialer' : 'Close dialer'}
-              >
-                {isCalling ? '−' : '✕'}
-              </button>
-            </div>
-
-            <div className="p-4">
-              <div className="w-full max-w-[270px] mx-auto">
-
-        <div className={`mb-4 rounded-xl border px-3 py-2 text-center text-xs ${
-        isDeviceReady
-          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-          : 'border-amber-500/25 bg-amber-500/10 text-amber-200'
-      }`}>
-        <span className="font-medium">
-          {isDeviceReady
-            ? 'Ready to receive calls'
-            : deviceState === DEVICE_STATES.REFRESHING
-              ? 'Refreshing phone connection…'
-              : deviceState === DEVICE_STATES.REGISTERING || deviceState === DEVICE_STATES.INITIALIZING
-                ? 'Connecting phone service…'
-                : 'Not receiving calls'}
-        </span>
-        {!isDeviceReady && deviceError && (
-          <span className="mt-1 block text-[11px] text-amber-100/80">{deviceError}</span>
+          </motion.div>
         )}
-      </div>
- 
-      {/* Number Display */}
-      <div className="bg-[#161B28] border border-gray-700 rounded-2xl p-4 mb-5 text-center">
-        <p className="text-emerald-400 text-[11px] font-medium tracking-widest mb-1.5">UNITED STATES • +1</p>
-        <div className="text-2xl font-light font-mono text-white min-h-[38px] flex items-center justify-center tracking-wider break-all">
-          {phoneNumber}
-        </div>
-      </div>
 
-      {/* In-Call Screen */}
-      {isCalling ? (
-        <div className="dialer-call-card bg-gradient-to-br from-[#1A2333] to-[#121A2A] border border-gray-700 rounded-2xl p-5 text-center">
-          <p className="text-base font-medium text-white mb-1 break-all">{phoneNumber}</p>
-          <p className={`text-sm text-emerald-400 font-medium ${showKeypad ? 'mb-2' : 'mb-4'}`}>{callStatus}</p>
-
-          {startTimeRef.current && !showKeypad && (
-            <p className="text-3xl font-mono font-light text-white mb-6">
-              {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
-            </p>
-          )}
-
-          <div className="min-h-[132px]">
-            {showKeypad ? (
-              <div className="grid grid-cols-3 gap-2">
-                {['1','2','3','4','5','6','7','8','9','*','0','#'].map(d => (
-                  <button
-                    key={d}
-                    onClick={() => sendDTMF(d)}
-                    className="h-9 bg-gray-800 hover:bg-gray-700 rounded-lg text-lg transition-all hover:scale-105 active:scale-95"
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <button onClick={toggleMute} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-                  <div className="text-2xl">{isMuted ? '🔊' : '🔇'}</div>
-                  <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
-                    {isMuted ? 'Unmute' : 'Mute'}
-                  </span>
-                </button>
-
-                <button onClick={toggleSpeaker} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-                  <div className="text-2xl">{isSpeakerOn ? '🔊' : '🎧'}</div>
-                  <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
-                    Speaker
-                  </span>
-                </button>
-
-                <button onClick={toggleHold} className="group p-3 rounded-xl bg-gray-800 hover:bg-gray-700 transition-all hover:scale-105 active:scale-95 relative">
-                  <div className="text-2xl">{isOnHold ? '▶' : '⏸'}</div>
-                  <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-3 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap">
-                    {isOnHold ? 'Resume' : 'Hold'}
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className={`grid gap-2 ${showKeypad ? 'grid-cols-2 mt-3' : 'grid-cols-1'}`}>
+        {/* Minimized Incoming Call Pill */}
+        {incomingCall && isIncomingMinimized && (
+          <motion.div
+            key="incoming-call-minimized"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="pointer-events-auto absolute bottom-5 right-5 z-[85] flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-[#161B28]/95 px-3 py-2.5 shadow-2xl backdrop-blur-xl"
+          >
             <button
-              onClick={() => setShowKeypad(!showKeypad)}
-              className={`${showKeypad ? 'py-2.5 text-xs' : 'py-3 text-sm'} bg-gray-800 hover:bg-gray-700 rounded-xl font-medium transition-all`}
+              type="button"
+              onClick={() => setIsIncomingMinimized(false)}
+              className="flex items-center gap-2 text-left"
             >
-              {showKeypad ? 'Hide Keypad' : 'Show Keypad'} ⌨️
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+              </span>
+              <span className="min-w-0 pr-1">
+                <span className="block text-xs font-semibold text-white truncate max-w-[120px]">
+                  {incomingContact?.name || incomingCall.from || 'Incoming Call'}
+                </span>
+                <span className="block text-[10px] text-emerald-300">Ringing…</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={rejectIncomingCall}
+              className="rounded-lg bg-gray-800 hover:bg-red-950/40 px-2 py-1.5 text-xs font-medium text-gray-300 hover:text-red-300 transition"
+            >
+              Reject
+            </button>
+            <button
+              type="button"
+              onClick={acceptIncomingCall}
+              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1.5 text-xs font-semibold text-white transition"
+            >
+              Accept
+            </button>
+          </motion.div>
+        )}
+
+        {/* Minimized Active Call Pill */}
+        {isCalling && isMinimized && !incomingCall && (
+          <motion.div
+            key="active-call-minimized"
+            drag
+            dragListener={false}
+            dragControls={miniDragControls}
+            dragConstraints={boundaryRef}
+            dragMomentum={false}
+            dragElastic={0}
+            onPointerDown={(event) => {
+              miniPointerStartRef.current = { x: event.clientX, y: event.clientY };
+              miniDraggedRef.current = false;
+              miniDragControls.start(event);
+            }}
+            onPointerMove={(event) => {
+              const start = miniPointerStartRef.current;
+              if (start && (Math.abs(event.clientX - start.x) > 5 || Math.abs(event.clientY - start.y) > 5)) {
+                miniDraggedRef.current = true;
+              }
+            }}
+            onPointerUp={() => {
+              window.setTimeout(() => { miniPointerStartRef.current = null; }, 0);
+            }}
+            initial={{ opacity: 0, scale: 0.9, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 12 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-auto absolute bottom-5 right-5 z-[75] flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-[#161B28]/95 px-3 py-2 shadow-[0_12px_36px_rgba(0,0,0,0.5)] backdrop-blur-xl dialer-minimized-card touch-none cursor-grab active:cursor-grabbing"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                if (miniDraggedRef.current) {
+                  miniDraggedRef.current = false;
+                  return;
+                }
+                setIsMinimized(false);
+              }}
+              className="flex items-center gap-2 text-left min-w-0"
+              title="Click to expand dialer"
+            >
+              <span className="relative flex h-3 w-3 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+              </span>
+              <div className="min-w-0 pr-1">
+                <span className="block truncate text-xs font-semibold text-white max-w-[130px]">
+                  {matchedContact?.name || phoneNumber || 'Active Call'}
+                </span>
+                <span className="block text-[11px] font-mono text-emerald-400 leading-tight">
+                  {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')} • {callStatus}
+                </span>
+              </div>
             </button>
 
-            <button
-              onClick={endCall}
-              className={`${showKeypad ? 'py-2.5 text-xs' : 'py-3.5 text-sm'} bg-red-600 hover:bg-red-700 rounded-xl font-semibold transition-all`}
-            >
-              End Call
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* Normal Dialer */
-        <>
-          <div className="grid grid-cols-3 gap-2.5 mb-5">
-            {['1','2','3','4','5','6','7','8','9','*','0','#'].map((key) => (
+            {/* Quick in-pill controls */}
+            <div className="flex items-center gap-1 shrink-0 ml-1">
               <button
-                key={key}
-                onClick={() => setPhoneNumber(prev => prev + key)}
-                className="h-12 bg-[#1F2937] hover:bg-[#374151] active:bg-[#4B5563] rounded-xl text-2xl font-light text-white transition-all active:scale-95"
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={toggleMute}
+                className={`rounded-lg p-1.5 transition ${isMuted ? 'bg-amber-500/20 text-amber-300' : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white'}`}
+                title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
               >
-                {key}
+                {isMuted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
               </button>
-            ))}
-          </div>
-
-          <div className="flex justify-center gap-5">
-            <button onClick={() => setPhoneNumber('')} className="w-11 h-11 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-2xl transition">✕</button>
-
-            <button
-              onClick={makeCall}
-              disabled={!phoneNumber.trim()}
-              className="w-16 h-16 flex items-center justify-center bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-600 rounded-full text-3xl shadow-xl shadow-emerald-500/30 transition-all active:scale-95"
-            >
-              📞
-            </button>
-
-            <button
-              onClick={() => setPhoneNumber(prev => prev.slice(0, -1))}
-              disabled={!phoneNumber}
-              className="w-11 h-11 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded-full text-2xl transition disabled:opacity-40"
-            >
-              ⌫
-            </button>
-          </div>
-        </>
-      )}
-              </div>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={endCall}
+                className="rounded-lg bg-red-600 hover:bg-red-500 p-1.5 text-white transition shadow"
+                title="End call"
+              >
+                <PhoneOff className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setIsMinimized(false)}
+                className="rounded-lg bg-gray-800 hover:bg-gray-700 p-1.5 text-gray-300 hover:text-white transition"
+                title="Expand dialer"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </button>
             </div>
-          </div>
-        </div>
-      )}
-    </>
+          </motion.div>
+        )}
+
+        {/* Minimized Idle Dialer Pill */}
+        {!isCalling && isOpen && isMinimized && !incomingCall && (
+          <motion.div
+            key="idle-dialer-minimized"
+            drag
+            dragListener={false}
+            dragControls={miniDragControls}
+            dragConstraints={boundaryRef}
+            dragMomentum={false}
+            dragElastic={0}
+            onPointerDown={(event) => {
+              miniPointerStartRef.current = { x: event.clientX, y: event.clientY };
+              miniDraggedRef.current = false;
+              miniDragControls.start(event);
+            }}
+            onPointerMove={(event) => {
+              const start = miniPointerStartRef.current;
+              if (start && (Math.abs(event.clientX - start.x) > 5 || Math.abs(event.clientY - start.y) > 5)) {
+                miniDraggedRef.current = true;
+              }
+            }}
+            onPointerUp={() => {
+              window.setTimeout(() => { miniPointerStartRef.current = null; }, 0);
+            }}
+            initial={{ opacity: 0, scale: 0.9, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 12 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-auto absolute bottom-5 right-5 z-[75] flex items-center gap-2 rounded-2xl border border-gray-700/80 bg-[#161B28]/95 px-3 py-2 shadow-2xl backdrop-blur-xl dialer-minimized-card touch-none cursor-grab active:cursor-grabbing"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                if (miniDraggedRef.current) {
+                  miniDraggedRef.current = false;
+                  return;
+                }
+                setIsMinimized(false);
+              }}
+              className="flex items-center gap-2 text-left"
+              title="Click to expand dialer"
+            >
+              <span className="grid h-7 w-7 place-items-center rounded-xl bg-emerald-600 text-white shadow">
+                <Phone className="h-3.5 w-3.5" />
+              </span>
+              <div className="min-w-0 pr-1">
+                <span className="block text-xs font-semibold text-white">Dialer</span>
+                <span className="block text-[11px] text-gray-400 truncate max-w-[100px]">
+                  {phoneNumber || 'Ready'}
+                </span>
+              </div>
+            </button>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setIsMinimized(false)}
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white transition"
+                title="Expand dialer"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  setIsMinimized(false);
+                  onClose?.();
+                }}
+                className="rounded-lg p-1.5 text-gray-400 hover:bg-red-500/20 hover:text-red-300 transition"
+                title="Close dialer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Full Floating Dialer Window */}
+        {(isOpen || isCalling) && !isMinimized && !incomingCall && (
+          <motion.div
+            key="floating-dialer-panel"
+            drag
+            dragListener={false}
+            dragControls={dragControls}
+            dragConstraints={boundaryRef}
+            dragMomentum={false}
+            dragElastic={0}
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-auto absolute bottom-5 right-5 z-[75] flex w-[min(345px,calc(100vw-2rem))] max-h-[calc(100vh-2.5rem)] flex-col rounded-2xl border border-gray-700/80 bg-[#161B28]/95 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl dialer-floating-card overflow-hidden touch-none"
+          >
+            {/* Header: drag handle, status, minimize, close */}
+            <header
+              onPointerDown={(event) => dragControls.start(event)}
+              className="flex shrink-0 cursor-grab items-center justify-between border-b border-gray-700/70 bg-[#1C2333]/90 px-3.5 py-2.5 active:cursor-grabbing select-none"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <GripHorizontal className="h-4 w-4 text-gray-400 shrink-0" />
+                <span className="text-xs font-semibold text-white">
+                  {isCalling ? 'Active Call' : 'Dialer'}
+                </span>
+                <span
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    isCalling
+                      ? 'bg-emerald-500/15 text-emerald-300'
+                      : isDeviceReady
+                        ? 'bg-emerald-500/15 text-emerald-300'
+                        : 'bg-amber-500/15 text-amber-300'
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      isCalling || isDeviceReady ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                    }`}
+                  />
+                  {isCalling ? callStatus : isDeviceReady ? 'Ready' : 'Connecting'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={handleMinimize}
+                  className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-700 hover:text-white transition"
+                  title="Minimize dialer"
+                >
+                  <Minus className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={handleClose}
+                  className={`rounded-lg p-1.5 transition ${
+                    isCalling
+                      ? 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                      : 'text-gray-400 hover:bg-red-500/20 hover:text-red-300'
+                  }`}
+                  title={isCalling ? 'Minimize active call' : 'Close dialer'}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </header>
+
+            {/* Scrollable Content */}
+            <div className="min-h-0 flex-1 overflow-y-auto p-3.5 thin-scrollbar">
+              {/* Phone service status banner (if not ready) */}
+              {!isCalling && (
+                <div className="mb-3">
+                  <PhoneServiceAlert
+                    deviceState={deviceState}
+                    deviceError={deviceError}
+                    onRetry={retryDeviceRegistration}
+                  />
+                </div>
+              )}
+
+              {/* In-Call Active Screen */}
+              {isCalling ? (
+                <div className="text-center">
+                  <div className="rounded-2xl border border-gray-700/60 bg-gradient-to-b from-[#1C2436] to-[#141A28] p-4 text-center shadow-inner mb-3.5">
+                    {matchedContact?.name && (
+                      <p className="text-base font-bold text-white truncate px-2 mb-0.5">
+                        {matchedContact.name}
+                      </p>
+                    )}
+                    <p className="text-xs font-mono text-gray-300 mb-1">{phoneNumber}</p>
+                    <p className="text-xs font-semibold text-emerald-400 mb-2">{callStatus}</p>
+
+                    {startTimeRef.current && (
+                      <p className="text-3xl font-mono font-light text-white my-2 tracking-wider">
+                        {Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, '0')}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Call Controls */}
+                  <div className="grid grid-cols-4 gap-2 mb-3.5">
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl p-2.5 transition active:scale-95 ${
+                        isMuted
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                      <span className="text-[10px] font-medium">{isMuted ? 'Muted' : 'Mute'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleSpeaker}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl p-2.5 transition active:scale-95 ${
+                        isSpeakerOn
+                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                          : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      {isSpeakerOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                      <span className="text-[10px] font-medium">Speaker</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleHold}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl p-2.5 transition active:scale-95 ${
+                        isOnHold
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      {isOnHold ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                      <span className="text-[10px] font-medium">{isOnHold ? 'Resume' : 'Hold'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowKeypad(!showKeypad)}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl p-2.5 transition active:scale-95 ${
+                        showKeypad
+                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                          : 'bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      <Grid className="h-4 w-4" />
+                      <span className="text-[10px] font-medium">Keypad</span>
+                    </button>
+                  </div>
+
+                  {/* DTMF Keypad (when toggled) */}
+                  {showKeypad && (
+                    <div className="mb-3.5 grid grid-cols-3 gap-1.5 rounded-xl border border-gray-700/60 bg-[#121622] p-2">
+                      {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((digit) => (
+                        <button
+                          key={digit}
+                          type="button"
+                          onClick={() => sendDTMF(digit)}
+                          className="h-9 rounded-lg bg-gray-800 hover:bg-gray-700 text-base font-light text-white transition active:scale-95"
+                        >
+                          {digit}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* End Call Button */}
+                  <button
+                    type="button"
+                    onClick={endCall}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-500 py-3 text-sm font-semibold text-white shadow-lg transition active:scale-[0.98]"
+                  >
+                    <PhoneOff className="h-4 w-4" />
+                    End Call
+                  </button>
+                </div>
+              ) : (
+                /* Idle Dialer Keypad */
+                <div>
+                  {/* Number Display */}
+                  <div className="mb-3 rounded-2xl border border-gray-700/60 bg-[#121622] p-3 text-center">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-400 mb-1">
+                      UNITED STATES • +1
+                    </p>
+                    {matchedContact && (
+                      <div className="mb-1 flex items-center justify-center gap-1 text-xs font-semibold text-emerald-300 truncate px-2">
+                        <User className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{matchedContact.name}</span>
+                      </div>
+                    )}
+                    <div className="flex min-h-[34px] items-center justify-center font-mono text-xl font-light tracking-wider text-white break-all px-2">
+                      {phoneNumber || <span className="text-gray-500 font-sans text-sm">Enter phone number</span>}
+                    </div>
+                  </div>
+
+                  {/* Keypad Grid */}
+                  <div className="grid grid-cols-3 gap-1.5 mb-3">
+                    {KEYPAD_BUTTONS.map((btn) => (
+                      <button
+                        key={btn.key}
+                        type="button"
+                        onClick={() => setPhoneNumber((prev) => prev + btn.key)}
+                        className="flex h-11 flex-col items-center justify-center rounded-xl bg-[#1E2536] hover:bg-[#283248] active:bg-[#323E5A] text-white transition active:scale-95"
+                      >
+                        <span className="text-base font-medium leading-none">{btn.key}</span>
+                        {btn.sub && (
+                          <span className="text-[8px] font-medium tracking-widest text-gray-400 mt-0.5 leading-none">
+                            {btn.sub}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Bottom Action Row */}
+                  <div className="flex items-center justify-between px-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setPhoneNumber('')}
+                      disabled={!phoneNumber}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition disabled:opacity-30"
+                      title="Clear number"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={makeCall}
+                      disabled={!phoneNumber.trim() || !isDeviceReady}
+                      className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/40 transition active:scale-95 disabled:bg-gray-700 disabled:opacity-40"
+                      title="Place call"
+                    >
+                      <Phone className="h-6 w-6" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPhoneNumber((prev) => prev.slice(0, -1))}
+                      disabled={!phoneNumber}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white transition disabled:opacity-30"
+                      title="Backspace"
+                    >
+                      <Delete className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

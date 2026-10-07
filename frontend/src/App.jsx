@@ -29,7 +29,7 @@ import AppToaster from './components/ui/AppToaster.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import { confirmAction } from './utils/confirmDialog.js';
-import { showIncomingSmsToast, showTeamMessageToast } from './utils/toast.js';
+import { showErrorToast, showIncomingSmsToast, showTeamMessageToast } from './utils/toast.js';
 import './App.css';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
@@ -248,25 +248,40 @@ function App() {
   useEffect(() => {
     const handleCallContact = (event) => {
       const { phoneNumber } = event.detail;
+      if (deviceStatus.isCalling) {
+        showErrorToast('You are already on an active call.');
+        setShowDialerModal(true);
+        window.dispatchEvent(new Event('restoreDialer'));
+        return;
+      }
       setSelectedPhoneNumber(phoneNumber);
-      setShowDialerModal(true);        // Open Dialer as popup
+      setShowDialerModal(true);
+      window.dispatchEvent(new Event('restoreDialer'));
     };
     window.addEventListener('callContact', handleCallContact);
     return () => window.removeEventListener('callContact', handleCallContact);
-  }, []);
+  }, [deviceStatus.isCalling]);
 
   useEffect(() => {
     const handlePasteNumberOnDialer = (event) => {
       const { phoneNumber } = event.detail || {};
       if (!phoneNumber) return;
 
+      if (deviceStatus.isCalling) {
+        showErrorToast('You are already on an active call.');
+        setShowDialerModal(true);
+        window.dispatchEvent(new Event('restoreDialer'));
+        return;
+      }
+
       setSelectedPhoneNumber(phoneNumber);
       setShowDialerModal(true);
+      window.dispatchEvent(new Event('restoreDialer'));
     };
 
     window.addEventListener('pasteNumberOnDialer', handlePasteNumberOnDialer);
     return () => window.removeEventListener('pasteNumberOnDialer', handlePasteNumberOnDialer);
-  }, []);
+  }, [deviceStatus.isCalling]);
 
   useEffect(() => {
     const handleMessageContact = (event) => {
@@ -403,6 +418,32 @@ function App() {
     };
 
     fetchCurrentUser();
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    const fetchContacts = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/contacts`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setContactsList(data);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to pre-fetch contacts:', err);
+      }
+    };
+
+    fetchContacts();
+    window.addEventListener('refreshContacts', fetchContacts);
+    return () => window.removeEventListener('refreshContacts', fetchContacts);
   }, [token]);
 
   useEffect(() => {
@@ -569,8 +610,14 @@ function App() {
   }, []);
 
   const openNewCall = () => {
+    if (deviceStatus.isCalling) {
+      setShowDialerModal(true);
+      window.dispatchEvent(new Event('restoreDialer'));
+      return;
+    }
     setSelectedPhoneNumber('');
     setShowDialerModal(true);
+    window.dispatchEvent(new Event('restoreDialer'));
   };
 
   const handleLogout = async () => {
@@ -855,6 +902,7 @@ function App() {
         onClose={() => setShowDialerModal(false)}
         currentUser={currentUser}
         onDeviceStatusChange={handleDeviceStatusChange}
+        contacts={contactsList}
       />
 
       {followUpToast && (
@@ -916,7 +964,7 @@ function App() {
                       {smsWidgetPhone && <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setSmsWidgetPhone('')} className="rounded-lg p-2 text-gray-300 hover:bg-gray-700 hover:text-white" aria-label="Back to messages" title="Back"><ArrowLeft className="h-4 w-4" /></button>}
                       <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setSmsWidgetOpen(false)} className="rounded-lg p-2 text-gray-300 hover:bg-gray-700 hover:text-white" aria-label="Minimize conversation" title="Minimize"><Minus className="h-4 w-4" /></button>
                       <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSmsWidgetOpen(false); setSmsWidgetThreads([]); setSmsWidgetPhone(''); }} className="rounded-lg p-2 text-gray-300 hover:bg-red-500/20 hover:text-red-300" aria-label="Hide message widget" title="Hide"><X className="h-4 w-4" /></button>
-                      {smsWidgetPhone && <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setSelectedPhoneNumber(smsWidgetPhone); setShowDialerModal(true); }} className="rounded-lg p-2 text-emerald-300 hover:bg-emerald-500/15 hover:text-emerald-200" aria-label="Call contact" title="Call"><Phone className="h-4 w-4" /></button>}
+                      {smsWidgetPhone && <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => { if (deviceStatus.isCalling) { showErrorToast('You are already on an active call.'); setShowDialerModal(true); window.dispatchEvent(new Event('restoreDialer')); return; } setSelectedPhoneNumber(smsWidgetPhone); setShowDialerModal(true); window.dispatchEvent(new Event('restoreDialer')); }} className="rounded-lg p-2 text-emerald-300 hover:bg-emerald-500/15 hover:text-emerald-200" aria-label="Call contact" title="Call"><Phone className="h-4 w-4" /></button>}
                     </div>
                   </header>
                   {smsWidgetPhone ? (
