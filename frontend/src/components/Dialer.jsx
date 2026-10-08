@@ -500,7 +500,7 @@ function Dialer({
       }, 1000);
     }
     return () => clearInterval(timerRef.current);
-  }, [isCalling]);
+  }, [isCalling, callStatus]);
 
   // Initialize Twilio Device
   useEffect(() => {
