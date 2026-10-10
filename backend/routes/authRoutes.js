@@ -6,6 +6,7 @@ import {
   getCurrentUser,
   getUsers,
   getAdminActivityStats,
+  getTwilioBalance,
   changePassword,
   requireAdmin
 } from '../controller/authController.js';
@@ -20,6 +21,7 @@ router.post('/logout', authMiddleware, logout);
 router.get('/me', authMiddleware, getCurrentUser);
 router.get('/users', authMiddleware, requireAdmin, getUsers);
 router.get('/admin-activity-stats', authMiddleware, requireAdmin, getAdminActivityStats);
+router.get('/twilio-balance', authMiddleware, requireAdmin, getTwilioBalance);
 router.post('/change-password', authMiddleware, changePassword);
 
 

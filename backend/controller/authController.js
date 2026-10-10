@@ -3,6 +3,7 @@ import CallLog from '../model/CallLog.js';
 import MessageLog from '../model/MessageLog.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { getTwilioClient } from '../utils/twilioNumbers.js';
 
 const getClientIp = (req) => {
   const forwardedFor = req.headers['x-forwarded-for'];
@@ -19,6 +20,21 @@ export const requireAdmin = (req, res, next) => {
   }
 
   next();
+};
+
+export const getTwilioBalance = async (req, res) => {
+  try {
+    const client = getTwilioClient();
+    const balance = await client.api.v2010.accounts(process.env.TWILIO_ACCOUNT_SID).balance.fetch();
+
+    res.json({
+      balance: balance.balance,
+      currency: balance.currency
+    });
+  } catch (error) {
+    console.error('Get Twilio Balance Error:', error.message);
+    res.status(502).json({ message: 'Unable to retrieve Twilio balance' });
+  }
 };
 
 export const register = async (req, res) => {

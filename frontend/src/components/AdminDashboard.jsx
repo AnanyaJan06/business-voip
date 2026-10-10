@@ -223,6 +223,8 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
   const [statsRefreshKey, setStatsRefreshKey] = useState(0);
   const [users, setUsers] = useState([]);
   const [ownedNumbers, setOwnedNumbers] = useState([]);
+  const [twilioBalance, setTwilioBalance] = useState(null);
+  const [twilioBalanceError, setTwilioBalanceError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState(emptyForm);
@@ -249,6 +251,9 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
             headers: authHeaders
           })
         : Promise.resolve(null);
+      const balancePromise = showStats
+        ? fetch(`${BACKEND_URL}/api/auth/twilio-balance`, { headers: authHeaders })
+        : Promise.resolve(null);
       const usersPromise = showUsers
         ? fetch(`${BACKEND_URL}/api/auth/users`, { headers: authHeaders })
         : Promise.resolve(null);
@@ -256,14 +261,16 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
         ? fetch(`${BACKEND_URL}/api/phone-numbers`, { headers: authHeaders })
         : Promise.resolve(null);
 
-      const [statsRes, usersRes, numbersRes] = await Promise.all([
+      const [statsRes, balanceRes, usersRes, numbersRes] = await Promise.all([
         statsPromise,
+        balancePromise,
         usersPromise,
         numbersPromise
       ]);
 
-      const [statsData, usersData, numbersData] = await Promise.all([
+      const [statsData, balanceData, usersData, numbersData] = await Promise.all([
         statsRes ? statsRes.json() : Promise.resolve(null),
+        balanceRes ? balanceRes.json() : Promise.resolve(null),
         usersRes ? usersRes.json() : Promise.resolve(null),
         numbersRes ? numbersRes.json() : Promise.resolve(null)
       ]);
@@ -273,6 +280,13 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       if (numbersRes && !numbersRes.ok) throw new Error(numbersData.message || 'Failed to load phone numbers');
 
       if (showStats) {
+        if (balanceRes?.ok) {
+          setTwilioBalance(balanceData);
+          setTwilioBalanceError('');
+        } else {
+          setTwilioBalance(null);
+          setTwilioBalanceError(balanceData?.message || 'Could not load Twilio balance');
+        }
         setActivityStats({
           month: {
             calls: Number(statsData?.month?.calls) || 0,
@@ -513,6 +527,33 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
         }`}>
           {notice.type === 'success' ? <CheckCircle2 className="h-4 w-4 shrink-0 text-white" /> : null}
           <span>{notice.text}</span>
+        </div>
+      )}
+
+      {showStats && (
+        <div className="admin-card flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-800 bg-gray-900 p-4">
+          <div>
+            <h3 className="admin-heading text-sm font-semibold text-white">Twilio Account Balance</h3>
+            <p className="admin-subtext mt-1 text-xs text-gray-400">Current balance from your Twilio account.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-xl font-bold text-white">
+              {twilioBalance
+                ? new Intl.NumberFormat(undefined, {
+                    style: 'currency',
+                    currency: twilioBalance.currency || 'USD'
+                  }).format(Number(twilioBalance.balance))
+                : twilioBalanceError || 'Loading…'}
+            </p>
+            <button
+              type="button"
+              onClick={fetchDashboardData}
+              aria-label="Refresh Twilio balance"
+              className="rounded-lg border border-gray-700 p-2 text-gray-300 transition hover:border-emerald-500/60 hover:text-white"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
 
