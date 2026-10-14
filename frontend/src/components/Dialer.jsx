@@ -19,7 +19,8 @@ import {
   X,
   GripHorizontal,
   Delete,
-  User
+  User,
+  Clipboard
 } from 'lucide-react';
 import { BACKEND_URL } from '../config/api.js';
 
@@ -184,6 +185,7 @@ function Dialer({
   contacts = []
 }) {
   const [phoneNumber, setPhoneNumber] = useState(selectedPhoneNumber);
+  const [clipboardPasteNotice, setClipboardPasteNotice] = useState('');
   const [device, setDevice] = useState(null);
   const [connection, setConnection] = useState(null);
   const [callStatus, setCallStatus] = useState('Ready');
@@ -211,6 +213,7 @@ function Dialer({
   const deviceRef = useRef(null);
   const tokenRefreshRef = useRef(null);
   const retryDeviceRegistrationRef = useRef(async () => {});
+  const phoneNumberInputRef = useRef(null);
 
   const boundaryRef = useRef(null);
   const dragControls = useDragControls();
@@ -860,6 +863,19 @@ function Dialer({
     }
   };
 
+  const pasteNumberFromClipboard = async () => {
+    setClipboardPasteNotice('');
+    try {
+      if (!navigator.clipboard?.readText) throw new Error('Clipboard reading is unavailable.');
+      const pastedNumber = getDialableClipboardValue(await navigator.clipboard.readText());
+      if (!pastedNumber) throw new Error('No phone number found in the clipboard.');
+      setPhoneNumber(pastedNumber);
+    } catch {
+      setClipboardPasteNotice('Tap and hold the number field, then choose Paste.');
+      phoneNumberInputRef.current?.focus();
+    }
+  };
+
   const handleCallEnd = async (conn, overrides = {}) => {
     const finalDuration = startTimeRef.current
       ? Math.floor((Date.now() - startTimeRef.current) / 1000)
@@ -1468,9 +1484,31 @@ function Dialer({
                         <span className="truncate">{matchedContact.name}</span>
                       </div>
                     )}
-                    <div className="flex min-h-[34px] items-center justify-center font-mono text-xl font-light tracking-wider text-white break-all px-2">
-                      {phoneNumber || <span className="text-gray-500 font-sans text-sm">Enter phone number</span>}
+                    <div className="flex min-w-0 items-center gap-2">
+                      <input
+                        ref={phoneNumberInputRef}
+                        type="tel"
+                        inputMode="tel"
+                        value={phoneNumber}
+                        onChange={(event) => {
+                          setPhoneNumber(getDialableClipboardValue(event.target.value));
+                          setClipboardPasteNotice('');
+                        }}
+                        placeholder="Enter phone number"
+                        aria-label="Phone number to call"
+                        className="min-h-[38px] min-w-0 flex-1 bg-transparent px-1 text-center font-mono text-lg font-light tracking-wide text-white placeholder:font-sans placeholder:text-sm placeholder:tracking-normal placeholder:text-gray-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={pasteNumberFromClipboard}
+                        className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-700 px-2 py-2 text-xs font-medium text-gray-300 transition hover:border-emerald-500/50 hover:text-white"
+                        aria-label="Paste number from clipboard"
+                        title="Paste number from clipboard"
+                      >
+                        <Clipboard className="h-3.5 w-3.5" />Paste
+                      </button>
                     </div>
+                    {clipboardPasteNotice && <p className="mt-1 text-[10px] text-amber-300">{clipboardPasteNotice}</p>}
                   </div>
 
                   {/* Keypad Grid */}
