@@ -81,9 +81,9 @@ function StatCard({ label, value, tone }) {
   };
 
   return (
-    <div className={`admin-stat-card rounded-xl border p-4 transition-all duration-150 ${tones[tone]}`}>
+    <div className={`admin-stat-card rounded-xl border p-3 transition-all duration-150 sm:p-4 ${tones[tone]}`}>
       <p className="admin-stat-label text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
-      <p className="admin-stat-value mt-2 text-3xl font-bold text-white">{value}</p>
+      <p className="admin-stat-value mt-2 text-2xl font-bold text-white sm:text-3xl">{value}</p>
     </div>
   );
 }
@@ -531,13 +531,13 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       )}
 
       {showStats && (
-        <div className="admin-card flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-800 bg-gray-900 p-4">
+        <div className="admin-card flex flex-col items-stretch justify-between gap-3 rounded-2xl border border-gray-800 bg-gray-900 p-4 shadow-sm sm:flex-row sm:items-center">
           <div>
             <h3 className="admin-heading text-sm font-semibold text-white">Twilio Account Balance</h3>
             <p className="admin-subtext mt-1 text-xs text-gray-400">Current balance from your Twilio account.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <p className="text-xl font-bold text-white">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 sm:justify-start sm:border-0 sm:bg-transparent sm:p-0">
+            <p className="text-xl font-bold text-white sm:text-2xl">
               {twilioBalance
                 ? new Intl.NumberFormat(undefined, {
                     style: 'currency',
@@ -558,7 +558,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       )}
 
       {showStats && (
-        <div className="admin-card rounded-xl border border-gray-800 bg-gray-900 p-4 transition-all">
+        <div className="admin-card rounded-2xl border border-gray-800 bg-gray-900 p-3 shadow-sm transition-all sm:p-4">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="admin-heading text-sm font-semibold text-white">Monthly Activity</h3>
@@ -593,7 +593,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
             <StatCard label="Selected Month Calls" value={activityStats.month.calls} tone="total" />
             <StatCard label="Selected Month Messages" value={activityStats.month.messages} tone="messages" />
             <StatCard label="Selected Date Calls" value={activityStats.selectedDate.calls} tone="outbound" />
@@ -603,7 +603,7 @@ function AdminDashboard({ showStats = true, showCreateUser = true, showUsers = t
       )}
 
       {showCreateUser && (
-        <form onSubmit={createUser} className="admin-card rounded-xl border border-gray-800 bg-gray-900 p-4 transition-all">
+        <form onSubmit={createUser} className="admin-card rounded-2xl border border-gray-800 bg-gray-900 p-4 shadow-sm transition-all">
           <div className="mb-4">
             <h3 className="admin-heading text-base font-semibold text-white">Create User</h3>
             <p className="admin-subtext text-xs text-gray-400">Add a user or admin account.</p>

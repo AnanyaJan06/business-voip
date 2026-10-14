@@ -961,3 +961,9 @@ html[data-theme="day"] .admin-role-badge {
   border-color: #cbd5e1 !important;
   color: #334155 !important;
 }
+
+html[data-theme="day"] .mobile-settings-action {
+  background: linear-gradient(135deg, #ffffff, #f1f5f9);
+  border-color: #d7e0eb;
+  color: #172033;
+}

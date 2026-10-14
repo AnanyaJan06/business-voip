@@ -562,9 +562,18 @@ function App() {
 
   useEffect(() => {
     const handleOpenConversation = (event) => {
-      const { phoneNumber } = event.detail;
+      const phoneNumber = event.detail?.phoneNumber;
+      if (!phoneNumber) return;
+
       setConversationNumber(phoneNumber);
       setShowCallHistoryConversation(activeTabRef.current === 'history');
+
+      // The persistent conversation panel is hidden below the desktop breakpoint.
+      // Use the floating SMS box there so call history actions still show the thread.
+      if (window.matchMedia('(max-width: 1023px)').matches) {
+        setSmsWidgetPhone(phoneNumber);
+        setSmsWidgetOpen(true);
+      }
     };
 
     const handleSmsThreadRead = (event) => {
@@ -675,15 +684,15 @@ function App() {
   }
 
   return (
-    <div className="app-shell flex h-screen flex-col bg-[#0A0C14] text-white overflow-hidden md:flex-row">
+    <div className="app-shell flex h-[100dvh] flex-col bg-[#0A0C14] text-white overflow-hidden md:flex-row">
       {/* Sidebar */}
-      <div className="shrink-0 bg-[#11151F] border-b border-gray-800 flex flex-col md:w-60 md:border-b-0 md:border-r">
-        <div className="px-4 py-3 flex items-center gap-3 border-b border-gray-800 md:px-5 md:py-4">
+      <div className="order-last flex h-[68px] shrink-0 border-t border-gray-800 bg-[#11151F] pb-[env(safe-area-inset-bottom)] md:order-first md:h-full md:w-60 md:flex-col md:border-r md:border-t-0 md:pb-0">
+        <div className="hidden items-center gap-3 border-b border-gray-800 px-5 py-4 md:flex">
           <img src="/dialio-logo.png" alt="Dialio" className="h-9 w-9 rounded-xl object-contain" />
           <h1 className="text-xl font-bold tracking-tight md:text-2xl">Dialio</h1>
         </div>
 
-        <nav className="flex gap-2 overflow-x-auto p-3 no-scrollbar md:flex-1 md:flex-col md:gap-1 md:overflow-y-auto md:overflow-x-hidden md:p-3 thin-scrollbar">
+        <nav className="flex min-w-0 flex-1 flex-row items-center justify-around gap-1 px-1 md:min-h-0 md:flex-col md:items-stretch md:justify-start md:gap-1 md:overflow-y-auto md:overflow-x-hidden md:p-3 thin-scrollbar">
           {[
             ...(isAdmin ? [{ id: 'admin', label: 'Admin' }] : []),
             { id: 'history', label: 'Calls' },
@@ -696,23 +705,28 @@ function App() {
             <div
               key={item.id}
               onClick={() => openTab(item.id)}
-              className={`flex shrink-0 items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer text-sm font-medium transition-all md:px-4 md:py-3
-                ${activeTab === item.id ? 'bg-gray-800 text-white' : 'hover:bg-gray-800 text-gray-300'}`}
+              role="button"
+              aria-label={item.label}
+              title={item.label}
+              className={`${['history', 'messages', 'followups', 'settings'].includes(item.id) ? 'flex' : 'hidden md:flex'} ${item.id === 'history' ? 'order-1' : item.id === 'messages' ? 'order-2' : item.id === 'followups' ? 'order-4' : 'order-5'} min-h-11 min-w-0 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all md:order-none md:justify-start md:px-4 md:py-3
+                ${activeTab === item.id ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
             >
-              <span className="w-5 text-current"><NavIcon type={item.id} /></span>
-              <span>{item.label}</span>
+              <span className="relative flex w-5 shrink-0 items-center justify-center text-current"><NavIcon type={item.id} />
+                {((item.id === 'messages' && unreadMessages > 0) || (item.id === 'team' && unreadTeamMessages > 0) || (item.id === 'followups' && dueFollowUps > 0)) && <span className="absolute -right-2 -top-1 h-2.5 w-2.5 rounded-full border-2 border-[#11151F] bg-rose-500 md:hidden" />}
+              </span>
+              <span className="hidden md:inline">{item.label}</span>
               {item.id === 'messages' && unreadMessages > 0 && (
-                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                <span className="ml-auto hidden min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white md:inline-flex">
                   {unreadMessages > 99 ? '99+' : unreadMessages}
                 </span>
               )}
               {item.id === 'team' && unreadTeamMessages > 0 && (
-                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                <span className="ml-auto hidden min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white md:inline-flex">
                   {unreadTeamMessages > 99 ? '99+' : unreadTeamMessages}
                 </span>
               )}
               {item.id === 'followups' && dueFollowUps > 0 && (
-                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                <span className="ml-auto hidden min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white md:inline-flex">
                   {dueFollowUps > 99 ? '99+' : dueFollowUps}
                 </span>
               )}
@@ -722,10 +736,12 @@ function App() {
           {/* + New Call Button */}
           <div
             onClick={openNewCall}
-            className="flex shrink-0 items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-lg md:mt-4 md:px-4 md:py-3"
+            title="New Call"
+            aria-label="New Call"
+            className="order-3 flex min-h-11 min-w-0 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-medium text-white shadow-lg transition-all hover:bg-emerald-500 md:order-none md:mt-4 md:justify-start md:px-4 md:py-3"
           >
-            <span className="w-5"><NavIcon type="plus" /></span>
-            New Call
+            <span className="flex w-5 shrink-0 justify-center"><NavIcon type="plus" /></span>
+            <span className="hidden md:inline">New Call</span>
           </div>
 
           {/* Phone Service Status Notice (Moved below New Call button) */}
@@ -741,16 +757,6 @@ function App() {
         </nav>
 
         {/* Mobile Phone Service Status Notice */}
-        {!deviceStatus.isCalling && !deviceStatus.incomingCall && deviceStatus.deviceState && deviceStatus.deviceState !== DEVICE_STATES.READY && (
-          <div className="px-3 pb-3 md:hidden">
-            <PhoneServiceAlert
-              deviceState={deviceStatus.deviceState}
-              deviceError={deviceStatus.deviceError}
-              onRetry={deviceStatus.retryDeviceRegistration}
-            />
-          </div>
-        )}
-
         <div className="hidden p-3 border-t border-gray-800 md:block">
           <div className="hidden md:block">
             <button
@@ -785,14 +791,6 @@ function App() {
             {activeTab === 'settings' && 'Settings'}
           </h2>
           <button
-            type="button"
-            onClick={toggleTheme}
-            className="rounded-lg px-2 py-1.5 text-gray-300 hover:bg-gray-800 md:hidden"
-            title={theme === 'night' ? 'Switch to day mode' : 'Switch to night mode'}
-          >
-            <span className="block w-5"><NavIcon type={theme === 'night' ? 'sun' : 'moon'} /></span>
-          </button>
-          <button
             onClick={confirmLogout}
             className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-300 hover:bg-red-950/30 md:hidden"
           >
@@ -811,7 +809,9 @@ function App() {
               className="min-h-full"
             >
               {activeTab === 'admin' && isAdmin && (
-                <AdminDashboard showStats={false} showCreateUser={false} showUsers />
+                <div className="lg:hidden">
+                  <AdminDashboard showStats showCreateUser showUsers />
+                </div>
               )}
               {activeTab === 'history' && (
                 <CallHistory
@@ -843,7 +843,14 @@ function App() {
               {activeTab === 'followups' && (
                 <FollowUps onDueCountChange={setDueFollowUps} />
               )}
-              {activeTab === 'settings' && <Settings />}
+              {activeTab === 'settings' && (
+                <Settings
+                  onNavigate={openTab}
+                  theme={theme}
+                  onToggleTheme={toggleTheme}
+                  isAdmin={isAdmin}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -926,7 +933,7 @@ function App() {
 
       <div ref={smsWidgetBoundaryRef} className="pointer-events-none fixed inset-0 z-[80]">
         <AnimatePresence>
-          {smsWidgetThreads.length > 0 && (
+          {(smsWidgetThreads.length > 0 || smsWidgetOpen) && (
             <motion.div
               key="incoming-sms-widget"
               drag
@@ -952,7 +959,7 @@ function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.96 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: 'easeOut' }}
-              className={`pointer-events-auto absolute bottom-5 right-5 touch-none ${smsWidgetOpen ? 'h-[min(620px,calc(100vh-2.5rem))] w-[min(390px,calc(100vw-2.5rem))]' : ''}`}
+              className={`pointer-events-auto absolute bottom-20 right-3 touch-none md:bottom-5 md:right-5 ${smsWidgetOpen ? 'h-[min(620px,calc(100dvh-7rem))] w-[min(390px,calc(100vw-1.5rem))] md:h-[min(620px,calc(100vh-2.5rem))] md:w-[min(390px,calc(100vw-2.5rem))]' : ''}`}
             >
               {smsWidgetOpen ? (
                 <section className="sms-widget-panel flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-gray-700 bg-[#0F1322] shadow-2xl">
