@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import toast from 'react-hot-toast';
+import { X } from 'lucide-react';
 
 const toastOptions = {
   duration: 3000,
@@ -26,33 +27,44 @@ const toastOptions = {
 
 const showSuccessToast = (message) => toast.success(message, toastOptions);
 const showErrorToast = (message) => toast.error(message, toastOptions);
-const showCopiedNumberToast = ({ phoneNumber, onPaste }) => toast.custom((t) => createElement(
+const showCopiedNumberToast = ({ phoneNumber }) => toast.custom((t) => createElement(
   'div',
   {
-    className: `copied-number-toast pointer-events-auto flex w-[min(360px,calc(100vw-2rem))] rounded-xl border border-emerald-500/25 bg-[#101827] text-white shadow-2xl transition-all duration-200 ${
+    className: `copied-number-toast pointer-events-auto flex w-[min(320px,calc(100vw-2rem))] touch-pan-y items-center rounded-xl border border-white/10 bg-slate-900/80 text-white shadow-xl backdrop-blur-md transition-all duration-200 ${
       t.visible ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
-    }`
+    }`,
+    onPointerDown: (event) => {
+      if (event.pointerType === 'touch') event.currentTarget.dataset.swipeStartX = String(event.clientX);
+    },
+    onPointerUp: (event) => {
+      if (event.pointerType !== 'touch' || !window.matchMedia('(max-width: 767px)').matches) return;
+      const startX = Number(event.currentTarget.dataset.swipeStartX);
+      if (Number.isFinite(startX) && Math.abs(event.clientX - startX) > 60) {
+        event.preventDefault();
+        toast.dismiss(t.id);
+      }
+      delete event.currentTarget.dataset.swipeStartX;
+    }
   },
   createElement(
     'div',
-    { className: 'min-w-0 flex-1 p-4' },
-    createElement('p', { className: 'copied-number-title text-sm font-semibold text-white' }, 'Number copied'),
-    createElement('p', { className: 'copied-number-subtitle mt-1 truncate text-sm text-gray-400' }, phoneNumber || 'Phone number')
+    { className: 'min-w-0 flex-1 px-3 py-2.5' },
+    createElement('p', { className: 'copied-number-title text-xs font-semibold text-white' }, 'Number copied'),
+    createElement('p', { className: 'copied-number-subtitle mt-0.5 truncate text-xs text-gray-300' }, phoneNumber || 'Phone number')
   ),
   createElement(
     'div',
-    { className: 'copied-number-divider flex border-l border-white/10' },
+    { className: 'flex shrink-0 pr-1' },
     createElement(
       'button',
       {
         type: 'button',
-        onClick: () => {
-          toast.dismiss(t.id);
-          onPaste?.();
-        },
-        className: 'copied-number-btn flex w-full items-center justify-center rounded-r-xl border border-transparent p-4 text-sm font-semibold text-emerald-300 hover:text-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500'
+        onClick: () => toast.dismiss(t.id),
+        className: 'flex items-center justify-center rounded-r-xl px-2 text-gray-400 transition hover:bg-white/5 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500',
+        'aria-label': 'Dismiss copied number notification',
+        title: 'Dismiss'
       },
-      'Paste on dialer'
+      createElement(X, { className: 'h-4 w-4', 'aria-hidden': true })
     )
   )
 ), {

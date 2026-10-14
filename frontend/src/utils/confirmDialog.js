@@ -12,7 +12,7 @@ async function confirmAction({
   const result = await Swal.fire({
     title,
     text,
-    icon,
+    ...(icon ? { icon } : {}),
     width: '22rem',
     padding: '1rem',
     background: '#111827',

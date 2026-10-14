@@ -215,12 +215,7 @@ function FollowUps({ onDueCountChange }) {
 
     try {
       await navigator.clipboard.writeText(phone);
-      showCopiedNumberToast({
-        phoneNumber: phone,
-        onPaste: () => window.dispatchEvent(new CustomEvent('pasteNumberOnDialer', {
-          detail: { phoneNumber: phone }
-        }))
-      });
+      showCopiedNumberToast({ phoneNumber: phone });
     } catch {
       showErrorToast('Failed to copy phone number');
     }

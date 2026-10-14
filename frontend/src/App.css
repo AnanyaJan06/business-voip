@@ -738,10 +738,11 @@ html[data-theme="day"] .react-loading-skeleton {
 
 /* Copied number toast Day mode styling */
 html[data-theme="day"] .copied-number-toast {
-  background-color: #ffffff !important;
-  border-color: #a7f3d0 !important;
+  background-color: rgba(255, 255, 255, 0.82) !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
   color: #172033 !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12) !important;
+  backdrop-filter: blur(12px);
 }
 html[data-theme="day"] .copied-number-title {
   color: #172033 !important;
@@ -749,17 +750,6 @@ html[data-theme="day"] .copied-number-title {
 html[data-theme="day"] .copied-number-subtitle {
   color: #475569 !important;
 }
-html[data-theme="day"] .copied-number-divider {
-  border-left-color: #e2e8f0 !important;
-}
-html[data-theme="day"] .copied-number-btn {
-  color: #059669 !important;
-}
-html[data-theme="day"] .copied-number-btn:hover {
-  color: #047857 !important;
-  background-color: #ecfdf5 !important;
-}
-
 /* General hot-toast popup overrides in Day mode */
 html[data-theme="day"] div[style*="background: rgb(17, 24, 39)"],
 html[data-theme="day"] div[style*="background: #111827"] {

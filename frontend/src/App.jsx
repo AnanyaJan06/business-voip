@@ -121,6 +121,8 @@ function App() {
   const currentUserRef = useRef(currentUser);
   const selectedTeamUserRef = useRef(selectedTeamUser);
   const followUpToastTimerRef = useRef(null);
+  const followUpToastSwipeStartRef = useRef(null);
+  const followUpToastSwipedRef = useRef(false);
   const audioContextRef = useRef(null);
   const pendingFollowUpSoundRef = useRef(false);
   const pendingIncomingSmsSoundRef = useRef(false);
@@ -261,27 +263,6 @@ function App() {
     };
     window.addEventListener('callContact', handleCallContact);
     return () => window.removeEventListener('callContact', handleCallContact);
-  }, [deviceStatus.isCalling]);
-
-  useEffect(() => {
-    const handlePasteNumberOnDialer = (event) => {
-      const { phoneNumber } = event.detail || {};
-      if (!phoneNumber) return;
-
-      if (deviceStatus.isCalling) {
-        showErrorToast('You are already on an active call.');
-        setShowDialerModal(true);
-        window.dispatchEvent(new Event('restoreDialer'));
-        return;
-      }
-
-      setSelectedPhoneNumber(phoneNumber);
-      setShowDialerModal(true);
-      window.dispatchEvent(new Event('restoreDialer'));
-    };
-
-    window.addEventListener('pasteNumberOnDialer', handlePasteNumberOnDialer);
-    return () => window.removeEventListener('pasteNumberOnDialer', handlePasteNumberOnDialer);
   }, [deviceStatus.isCalling]);
 
   useEffect(() => {
@@ -664,10 +645,10 @@ function App() {
 
   const confirmLogout = () => {
     confirmAction({
-      title: 'Logout?',
+      title: '',
       text: 'Are you sure you want to logout?',
       confirmButtonText: 'Logout',
-      icon: 'warning',
+      icon: null,
       confirmButtonColor: '#DC2626',
       onConfirm: handleLogout
     });
@@ -918,22 +899,60 @@ function App() {
       />
 
       {followUpToast && (
-        <button
-          type="button"
-          onClick={() => {
-            openTab('followups');
-            setFollowUpToast(null);
+        <div
+          onPointerDown={(event) => {
+            followUpToastSwipeStartRef.current = event.pointerType === 'touch' ? event.clientX : null;
           }}
-          className="fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-amber-500/25 bg-[#151B28] p-4 text-left shadow-2xl transition hover:border-amber-400"
-          aria-label={`Open due follow-up for ${followUpToast.name}`}
+          onPointerUp={(event) => {
+            const startX = followUpToastSwipeStartRef.current;
+            followUpToastSwipeStartRef.current = null;
+            if (event.pointerType !== 'touch' || !window.matchMedia('(max-width: 767px)').matches || startX == null) return;
+            if (Math.abs(event.clientX - startX) > 60) {
+              followUpToastSwipedRef.current = true;
+              window.clearTimeout(followUpToastTimerRef.current);
+              setFollowUpToast(null);
+              window.setTimeout(() => { followUpToastSwipedRef.current = false; }, 0);
+            }
+          }}
+          className="fixed right-4 top-4 z-[70] w-[min(360px,calc(100vw-2rem))] touch-pan-y rounded-2xl border border-amber-500/25 bg-[#151B28] p-4 text-left shadow-2xl transition hover:border-amber-400"
         >
           <span className="mb-1 flex items-center justify-between gap-2">
             <span className="text-sm font-semibold text-white">Follow-up due</span>
-            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">Due now</span>
+            <span className="flex items-center gap-2">
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">Due now</span>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  window.clearTimeout(followUpToastTimerRef.current);
+                  setFollowUpToast(null);
+                }}
+                className="rounded-lg p-1 text-gray-400 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                aria-label="Dismiss follow-up notification"
+                title="Dismiss"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </span>
           </span>
-          <span className="block truncate text-xs text-gray-400">{followUpToast.name}</span>
-          <span className="mt-2 line-clamp-2 block text-sm text-gray-300">{followUpToast.note}</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (followUpToastSwipedRef.current) {
+                followUpToastSwipedRef.current = false;
+                return;
+              }
+              openTab('followups');
+              window.clearTimeout(followUpToastTimerRef.current);
+              setFollowUpToast(null);
+            }}
+            className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            aria-label={`Open due follow-up for ${followUpToast.name}`}
+          >
+            <span className="block truncate text-xs text-gray-400">{followUpToast.name}</span>
+            <span className="mt-2 line-clamp-2 block text-sm text-gray-300">{followUpToast.note}</span>
+          </button>
+        </div>
       )}
 
       <div ref={smsWidgetBoundaryRef} className="pointer-events-none fixed inset-0 z-[80]">

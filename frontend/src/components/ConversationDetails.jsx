@@ -266,12 +266,7 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
 
     try {
       await navigator.clipboard.writeText(phoneNumber);
-      showCopiedNumberToast({
-        phoneNumber,
-        onPaste: () => window.dispatchEvent(new CustomEvent('pasteNumberOnDialer', {
-          detail: { phoneNumber }
-        }))
-      });
+      showCopiedNumberToast({ phoneNumber });
     } catch {
       showErrorToast('Failed to copy phone number');
     }
@@ -352,7 +347,7 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#0F1322]">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#0F1322]">
       {!hideHeader && <div className="border-b border-gray-800 bg-[#161B28] px-3 py-3 sm:px-5 sm:py-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -392,7 +387,7 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
         </div>
       </div>}
 
-      <div ref={scrollRef} className="thin-scrollbar min-h-0 flex-1 overflow-auto px-3 py-3 sm:px-5 sm:py-4">
+      <div ref={scrollRef} className="thin-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-5 sm:py-4">
         {loading && <ConversationDetailsSkeleton />}
 
         {!loading && hasMore && (
@@ -437,7 +432,7 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
                     key={`${item.type}-${item.id}`}
                     className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`max-w-[74%] rounded-2xl px-4 py-3 shadow-lg ${
+                    <div className={`min-w-0 max-w-[88%] rounded-2xl px-3 py-3 shadow-lg sm:max-w-[74%] sm:px-4 ${
                       isCall
                         ? 'conversation-call-bubble bg-[#1C2333] text-white'
                         : isOutbound
@@ -465,18 +460,18 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
                                   key={url}
                                   src={url}
                                   alt="Message attachment"
-                                  className="max-h-56 rounded-xl border border-gray-700 object-cover"
+                                  className="max-h-56 max-w-full rounded-xl border border-gray-700 object-cover"
                                 />
                               ))}
                             </div>
                           )}
-                          {item.body && <p className="whitespace-pre-wrap text-sm leading-6">{item.body}</p>}
+                          {item.body && <p className="whitespace-pre-wrap break-words text-sm leading-6 [overflow-wrap:anywhere]">{item.body}</p>}
                         </>
                       )}
 
-                      <div className="mt-3 flex items-center justify-between gap-4 text-[11px] text-gray-400">
-                        <span>{formatTime(item.date)}</span>
-                        <div className="text-right">
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-gray-400">
+                        <span className="shrink-0">{formatTime(item.date)}</span>
+                        <div className="min-w-0 text-right [overflow-wrap:anywhere]">
                           {!isCall && (
                             <span className={`capitalize ${messageStatusStyles[item.status] || 'text-gray-300'}`}>
                               {formatMessageStatus(item.status)}
