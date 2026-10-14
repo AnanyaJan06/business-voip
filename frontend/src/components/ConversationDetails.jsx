@@ -353,7 +353,7 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#0F1322]">
-      {!hideHeader && <div className="border-b border-gray-800 bg-[#161B28] px-5 py-4">
+      {!hideHeader && <div className="border-b border-gray-800 bg-[#161B28] px-3 py-3 sm:px-5 sm:py-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <button
@@ -392,7 +392,7 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
         </div>
       </div>}
 
-      <div ref={scrollRef} className="thin-scrollbar min-h-0 flex-1 overflow-auto px-5 py-4">
+      <div ref={scrollRef} className="thin-scrollbar min-h-0 flex-1 overflow-auto px-3 py-3 sm:px-5 sm:py-4">
         {loading && <ConversationDetailsSkeleton />}
 
         {!loading && hasMore && (
@@ -497,7 +497,7 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
         <div ref={timelineEndRef} />
       </div>
 
-      <form onSubmit={sendMessage} className="border-t border-gray-800 bg-[#161B28] px-5 py-4">
+      <form onSubmit={sendMessage} className="border-t border-gray-800 bg-[#161B28] px-3 py-3 sm:px-5 sm:py-4">
         {notice && <p className="mb-3 text-sm text-red-400">{notice}</p>}
 
         <div className="flex flex-col gap-3">

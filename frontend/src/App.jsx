@@ -76,6 +76,7 @@ function App() {
   const [selectedMessageNumber, setSelectedMessageNumber] = useState('');
   const [selectedTeamUser, setSelectedTeamUser] = useState(null);
   const [conversationNumber, setConversationNumber] = useState('');
+  const [mobileSmsConversation, setMobileSmsConversation] = useState('');
   const [selectedCallLog, setSelectedCallLog] = useState(null);
   const [showCallHistoryConversation, setShowCallHistoryConversation] = useState(false);
   const [callHistoryLogs, setCallHistoryLogs] = useState([]);
@@ -569,10 +570,12 @@ function App() {
       setShowCallHistoryConversation(activeTabRef.current === 'history');
 
       // The persistent conversation panel is hidden below the desktop breakpoint.
-      // Use the floating SMS box there so call history actions still show the thread.
+      // Show the regular Messages conversation view there instead.
       if (window.matchMedia('(max-width: 1023px)').matches) {
-        setSmsWidgetPhone(phoneNumber);
-        setSmsWidgetOpen(true);
+        setShowCallHistoryConversation(false);
+        openTab('messages');
+        setMobileSmsConversation(phoneNumber);
+        setSmsWidgetOpen(false);
       }
     };
 
@@ -798,7 +801,7 @@ function App() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto thin-scrollbar p-2 md:p-3">
+        <div className={`min-h-0 flex-1 thin-scrollbar p-2 md:p-3 ${activeTab === 'messages' && mobileSmsConversation ? 'overflow-hidden' : 'overflow-auto'}`}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeTab}
@@ -806,7 +809,7 @@ function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -5 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: 'easeOut' }}
-              className="min-h-full"
+              className={activeTab === 'messages' && mobileSmsConversation ? 'h-full min-h-0' : 'min-h-full'}
             >
               {activeTab === 'admin' && isAdmin && (
                 <div className="lg:hidden">
@@ -830,6 +833,8 @@ function App() {
                   selectedPhoneNumber={selectedMessageNumber}
                   onRecipientUsed={clearSelectedMessageNumber}
                   currentUser={currentUser}
+                  conversationPhoneNumber={mobileSmsConversation}
+                  onCloseConversation={() => setMobileSmsConversation('')}
                 />
               )}
               {activeTab === 'team' && (

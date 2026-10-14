@@ -3,6 +3,7 @@ import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
 import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
 import { showErrorToast, showSuccessToast } from '../utils/toast.js';
+import ConversationDetails from './ConversationDetails.jsx';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
 
@@ -63,7 +64,7 @@ function MessagesSkeleton() {
   );
 }
 
-function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
+function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser, conversationPhoneNumber = '', onCloseConversation }) {
   const [messageThreads, setMessageThreads] = useState([]);
   const [hasMore, setHasMore] = useState(false);
   const [nextBefore, setNextBefore] = useState(null);
@@ -291,6 +292,17 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
     }));
   };
 
+  if (conversationPhoneNumber) {
+    return (
+      <div className="h-full min-h-0 w-full overflow-hidden rounded-2xl border border-gray-800">
+        <ConversationDetails
+          phoneNumber={conversationPhoneNumber}
+          onClose={onCloseConversation}
+        />
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -300,7 +312,7 @@ function Messages({ selectedPhoneNumber = '', onRecipientUsed, currentUser }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="mx-auto w-full max-w-3xl">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-white">Messages</h2>
