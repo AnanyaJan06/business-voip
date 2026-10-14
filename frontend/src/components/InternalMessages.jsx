@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { BACKEND_URL } from '../config/api.js';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
@@ -116,7 +117,7 @@ function InternalMessages({
     <div className="mx-auto max-w-3xl">
       <div className="mb-4">
         <h2 className="text-base font-semibold text-white">Team Chat</h2>
-        <p className="mt-0.5 text-xs text-gray-400">Select a teammate to open the conversation on the right.</p>
+        <p className="mt-0.5 text-xs text-gray-400"><span className="lg:hidden">Select a teammate to open the conversation.</span><span className="hidden lg:inline">Select a teammate to open the conversation on the right.</span></p>
       </div>
 
       {loadingUsers ? (
@@ -176,7 +177,8 @@ function InternalMessages({
 function InternalMessageDetails({
   currentUser,
   selectedUser,
-  onReadMessages
+  onReadMessages,
+  onBack
 }) {
   const selectedUserId = getUserId(selectedUser);
   const [messages, setMessages] = useState([]);
@@ -292,12 +294,15 @@ function InternalMessageDetails({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#0F1322]">
-      <div className="border-b border-gray-800 bg-[#161B28] px-5 py-4">
-        <p className="truncate text-sm font-semibold text-white">{selectedUser.name}</p>
-        <p className="truncate text-xs text-gray-400">{selectedUser.email || 'Team conversation'}</p>
+      <div className="flex shrink-0 items-center gap-3 border-b border-gray-800 bg-[#161B28] px-3 py-3 sm:px-5 sm:py-4">
+        {onBack && <button type="button" onClick={onBack} className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-2 text-sm text-gray-300 transition hover:bg-gray-800 hover:text-white lg:hidden" aria-label="Back to teammates"><ArrowLeft className="h-4 w-4" /><span>Back</span></button>}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-white">{selectedUser.name}</p>
+          <p className="truncate text-xs text-gray-400">{selectedUser.email || 'Team conversation'}</p>
+        </div>
       </div>
 
-      <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-auto p-5 thin-scrollbar">
+      <div ref={listRef} className="min-h-0 flex-1 space-y-3 overflow-auto p-3 sm:p-5 thin-scrollbar">
         {loadingMessages ? (
           <TeamConversationSkeleton />
         ) : messages.length === 0 ? (
@@ -307,13 +312,13 @@ function InternalMessageDetails({
             const mine = getUserId(message.sender) === getUserId(currentUser);
 
             return (
-              <div key={message._id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[78%] rounded-xl px-3 py-2 ${
+              <div key={message._id} className={`flex min-w-0 ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div className={`min-w-0 max-w-[88%] rounded-xl px-3 py-2 sm:max-w-[78%] ${
                   mine
                     ? 'internal-message-outbound bg-[#059669] text-white'
                     : 'internal-message-inbound bg-gray-800 text-white'
                 }`}>
-                  <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>
+                  <p className="whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]">{message.body}</p>
                   <p className={`internal-message-time mt-1 text-[10px] ${mine ? 'text-emerald-50/80' : 'text-gray-500'}`}>
                     {formatTime(message.createdAt)}
                   </p>
@@ -324,14 +329,14 @@ function InternalMessageDetails({
         )}
       </div>
 
-      <form onSubmit={sendMessage} className="border-t border-gray-800 bg-[#161B28] p-4">
+      <form onSubmit={sendMessage} className="shrink-0 border-t border-gray-800 bg-[#161B28] p-3 sm:p-4">
         <textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
-          rows={3}
+          rows={2}
           maxLength={2000}
           placeholder="Write a team message..."
-          className="w-full resize-none rounded-xl border border-gray-700 bg-[#0F1322] px-4 py-3 text-sm text-white focus:border-[#059669]"
+          className="w-full resize-none rounded-xl border border-gray-700 bg-[#0F1322] px-3 py-3 text-sm text-white focus:border-[#059669] sm:px-4"
         />
         <div className="mt-2 flex items-center justify-between gap-3">
           <span className="text-[11px] text-gray-500">{body.length}/2000</span>

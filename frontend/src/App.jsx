@@ -236,7 +236,8 @@ function App() {
       window.history.pushState({
         dialioNavigation: true,
         tab: tabId,
-        mobileSmsConversation: ''
+        mobileSmsConversation: '',
+        selectedTeamUser: tabId === 'team' ? selectedTeamUserRef.current : null
       }, '', window.location.href);
     }
     activeTabRef.current = tabId;
@@ -257,6 +258,18 @@ function App() {
       setUnreadTeamMessages(0);
       window.dispatchEvent(new Event('refreshInternalMessages'));
     }
+  }, []);
+
+  const handleSelectTeamUser = useCallback((user) => {
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      window.history.pushState({
+        dialioNavigation: true,
+        tab: 'team',
+        mobileSmsConversation: '',
+        selectedTeamUser: user
+      }, '', window.location.href);
+    }
+    setSelectedTeamUser(user);
   }, []);
 
   // Click-to-Call from Contacts
@@ -306,13 +319,15 @@ function App() {
         dialioNavigation: true,
         dialioNavigationRoot: true,
         tab: activeTabRef.current,
-        mobileSmsConversation: ''
+        mobileSmsConversation: '',
+        selectedTeamUser: null
       };
       window.history.replaceState(rootState, '', window.location.href);
       window.history.pushState({
         dialioNavigation: true,
         tab: activeTabRef.current,
-        mobileSmsConversation: ''
+        mobileSmsConversation: '',
+        selectedTeamUser: null
       }, '', window.location.href);
       navigationHistoryInitializedRef.current = true;
     }
@@ -327,12 +342,13 @@ function App() {
         setActiveTab(tab);
         setMobileSmsConversation(mobileConversation);
         setShowCallHistoryConversation(false);
-        if (tab !== 'team') setSelectedTeamUser(null);
+        setSelectedTeamUser(tab === 'team' ? state?.selectedTeamUser || null : null);
         if (tab !== 'history') setSelectedCallLog(null);
         window.history.pushState({
           dialioNavigation: true,
           tab,
-          mobileSmsConversation: mobileConversation
+          mobileSmsConversation: mobileConversation,
+          selectedTeamUser: tab === 'team' ? state?.selectedTeamUser || null : null
         }, '', window.location.href);
         return;
       }
@@ -344,7 +360,7 @@ function App() {
       setActiveTab(tab);
       setMobileSmsConversation(mobileConversation);
       setShowCallHistoryConversation(false);
-      if (tab !== 'team') setSelectedTeamUser(null);
+      setSelectedTeamUser(tab === 'team' ? state.selectedTeamUser || null : null);
       if (tab !== 'history') setSelectedCallLog(null);
     };
 
@@ -860,7 +876,7 @@ function App() {
           </button>
         </div>
 
-        <div className={`min-h-0 flex-1 thin-scrollbar p-2 md:p-3 ${activeTab === 'messages' && mobileSmsConversation ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <div className={`min-h-0 flex-1 thin-scrollbar p-2 md:p-3 ${((activeTab === 'messages' && mobileSmsConversation) || (activeTab === 'team' && selectedTeamUser)) ? 'overflow-hidden' : 'overflow-auto'}`}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeTab}
@@ -868,7 +884,7 @@ function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -5 }}
               transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: 'easeOut' }}
-              className={activeTab === 'messages' && mobileSmsConversation ? 'h-full min-h-0' : 'min-h-full'}
+              className={((activeTab === 'messages' && mobileSmsConversation) || (activeTab === 'team' && selectedTeamUser)) ? 'h-full min-h-0' : 'min-h-full'}
             >
               {activeTab === 'admin' && isAdmin && (
                 <div className="lg:hidden">
@@ -903,12 +919,26 @@ function App() {
                 />
               )}
               {activeTab === 'team' && (
-                <InternalMessages
-                  currentUser={currentUser}
-                  selectedUserId={getUserId(selectedTeamUser)}
-                  onSelectUser={setSelectedTeamUser}
-                  onReadMessages={refreshUnreadTeamMessages}
-                />
+                <>
+                  <div className={selectedTeamUser ? 'hidden lg:block' : ''}>
+                    <InternalMessages
+                      currentUser={currentUser}
+                      selectedUserId={getUserId(selectedTeamUser)}
+                      onSelectUser={handleSelectTeamUser}
+                      onReadMessages={refreshUnreadTeamMessages}
+                    />
+                  </div>
+                  {selectedTeamUser && (
+                    <div className="h-full min-h-0 lg:hidden">
+                      <InternalMessageDetails
+                        currentUser={currentUser}
+                        selectedUser={selectedTeamUser}
+                        onReadMessages={refreshUnreadTeamMessages}
+                        onBack={() => window.history.back()}
+                      />
+                    </div>
+                  )}
+                </>
               )}
               {activeTab === 'followups' && (
                 <FollowUps onDueCountChange={setDueFollowUps} />
