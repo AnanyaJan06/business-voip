@@ -118,6 +118,8 @@ function App() {
     });
   }, []);
   const activeTabRef = useRef(activeTab);
+  const mobileSmsConversationRef = useRef(mobileSmsConversation);
+  const navigationHistoryInitializedRef = useRef(false);
   const currentUserRef = useRef(currentUser);
   const selectedTeamUserRef = useRef(selectedTeamUser);
   const followUpToastTimerRef = useRef(null);
@@ -230,6 +232,16 @@ function App() {
   }, [unlockAlertAudio]);
 
   const openTab = useCallback((tabId) => {
+    if (tabId !== activeTabRef.current || mobileSmsConversationRef.current) {
+      window.history.pushState({
+        dialioNavigation: true,
+        tab: tabId,
+        mobileSmsConversation: ''
+      }, '', window.location.href);
+    }
+    activeTabRef.current = tabId;
+    mobileSmsConversationRef.current = '';
+    setMobileSmsConversation('');
     setActiveTab(tabId);
     setShowCallHistoryConversation(false);
     if (tabId !== 'team') {
@@ -280,6 +292,65 @@ function App() {
   useEffect(() => {
     activeTabRef.current = activeTab;
   }, [activeTab]);
+
+  useEffect(() => {
+    mobileSmsConversationRef.current = mobileSmsConversation;
+  }, [mobileSmsConversation]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    if (!navigationHistoryInitializedRef.current) {
+      const rootState = {
+        ...(window.history.state || {}),
+        dialioNavigation: true,
+        dialioNavigationRoot: true,
+        tab: activeTabRef.current,
+        mobileSmsConversation: ''
+      };
+      window.history.replaceState(rootState, '', window.location.href);
+      window.history.pushState({
+        dialioNavigation: true,
+        tab: activeTabRef.current,
+        mobileSmsConversation: ''
+      }, '', window.location.href);
+      navigationHistoryInitializedRef.current = true;
+    }
+
+    const restoreNavigation = (event) => {
+      const state = event.state;
+      if (!state?.dialioNavigation || state.dialioNavigationRoot) {
+        const tab = state?.tab || 'history';
+        const mobileConversation = state?.mobileSmsConversation || '';
+        activeTabRef.current = tab;
+        mobileSmsConversationRef.current = mobileConversation;
+        setActiveTab(tab);
+        setMobileSmsConversation(mobileConversation);
+        setShowCallHistoryConversation(false);
+        if (tab !== 'team') setSelectedTeamUser(null);
+        if (tab !== 'history') setSelectedCallLog(null);
+        window.history.pushState({
+          dialioNavigation: true,
+          tab,
+          mobileSmsConversation: mobileConversation
+        }, '', window.location.href);
+        return;
+      }
+
+      const tab = state.tab || 'history';
+      const mobileConversation = state.mobileSmsConversation || '';
+      activeTabRef.current = tab;
+      mobileSmsConversationRef.current = mobileConversation;
+      setActiveTab(tab);
+      setMobileSmsConversation(mobileConversation);
+      setShowCallHistoryConversation(false);
+      if (tab !== 'team') setSelectedTeamUser(null);
+      if (tab !== 'history') setSelectedCallLog(null);
+    };
+
+    window.addEventListener('popstate', restoreNavigation);
+    return () => window.removeEventListener('popstate', restoreNavigation);
+  }, [token]);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -555,6 +626,12 @@ function App() {
       if (window.matchMedia('(max-width: 1023px)').matches) {
         setShowCallHistoryConversation(false);
         openTab('messages');
+        window.history.pushState({
+          dialioNavigation: true,
+          tab: 'messages',
+          mobileSmsConversation: phoneNumber
+        }, '', window.location.href);
+        mobileSmsConversationRef.current = phoneNumber;
         setMobileSmsConversation(phoneNumber);
         setSmsWidgetOpen(false);
       }
@@ -641,6 +718,7 @@ function App() {
     setDueFollowUps(0);
     setFollowUpToast(null);
     setCurrentUser(null);
+    navigationHistoryInitializedRef.current = false;
   };
 
   const confirmLogout = () => {
@@ -815,7 +893,13 @@ function App() {
                   onRecipientUsed={clearSelectedMessageNumber}
                   currentUser={currentUser}
                   conversationPhoneNumber={mobileSmsConversation}
-                  onCloseConversation={() => setMobileSmsConversation('')}
+                  onCloseConversation={() => {
+                    if (mobileSmsConversationRef.current) {
+                      window.history.back();
+                    } else {
+                      setMobileSmsConversation('');
+                    }
+                  }}
                 />
               )}
               {activeTab === 'team' && (
