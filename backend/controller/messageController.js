@@ -14,6 +14,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsRoot = path.resolve(__dirname, '..', 'uploads');
 const messageUploadsDir = path.join(uploadsRoot, 'messages');
+const messageMediaBaseUrl = 'https://business-voip.onrender.com';
 const allowedImageTypes = new Map([
   ['image/jpeg', 'jpg'],
   ['image/png', 'png'],
@@ -62,14 +63,8 @@ export const uploadMessageImage = async (req, res) => {
   try {
     const contentType = String(req.headers['content-type'] || '').split(';')[0].toLowerCase();
     const extension = allowedImageTypes.get(contentType);
-    const baseUrl = getPublicBaseUrl();
-
     if (!extension) {
       return res.status(400).json({ message: 'Upload a JPG, PNG, GIF, or WebP image.' });
-    }
-
-    if (!baseUrl) {
-      return res.status(500).json({ message: 'BASE_URL is required before image messages can be sent.' });
     }
 
     if (!req.body?.length) {
@@ -87,7 +82,7 @@ export const uploadMessageImage = async (req, res) => {
     await fs.writeFile(filePath, req.body);
 
     res.status(201).json({
-      mediaUrl: `${baseUrl}/uploads/messages/${fileName}`
+      mediaUrl: `${messageMediaBaseUrl}/uploads/messages/${fileName}`
     });
   } catch (error) {
     console.error('Upload Message Image Error:', error);
