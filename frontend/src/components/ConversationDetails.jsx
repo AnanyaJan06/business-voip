@@ -111,6 +111,8 @@ function ConversationDetailsSkeleton() {
 function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
   const [timeline, setTimeline] = useState([]);
   const [mediaSources, setMediaSources] = useState({});
+  const [mediaLoading, setMediaLoading] = useState({});
+  const [mediaErrors, setMediaErrors] = useState({});
   const [hasMore, setHasMore] = useState(false);
   const [nextBefore, setNextBefore] = useState(null);
   const [messageBody, setMessageBody] = useState('');
@@ -130,23 +132,37 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
 
     if (!twilioUrls.length) {
       setMediaSources({});
+      setMediaLoading({});
+      setMediaErrors({});
       return undefined;
     }
 
     setMediaSources({});
+    setMediaLoading(Object.fromEntries(twilioUrls.map((url) => [url, true])));
+    setMediaErrors({});
     Promise.all(twilioUrls.map(async (mediaUrl) => {
       const query = new URLSearchParams({ url: mediaUrl });
-      const response = await fetch(`${BACKEND_URL}/api/messages/media?${query}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      if (!response.ok) throw new Error('Could not load image');
-      const objectUrl = URL.createObjectURL(await response.blob());
-      objectUrls.push(objectUrl);
-      return [mediaUrl, objectUrl];
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/messages/media?${query}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (!response.ok) throw new Error('Could not load image');
+        const objectUrl = URL.createObjectURL(await response.blob());
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        objectUrls.push(objectUrl);
+        setMediaSources((current) => ({ ...current, [mediaUrl]: objectUrl }));
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Load message media error:', error);
+          setMediaErrors((current) => ({ ...current, [mediaUrl]: true }));
+        }
+      } finally {
+        if (!cancelled) setMediaLoading((current) => ({ ...current, [mediaUrl]: false }));
+      }
     }))
-      .then((entries) => {
-        if (!cancelled) setMediaSources(Object.fromEntries(entries));
-      })
       .catch((error) => console.error('Load message media error:', error));
 
     return () => {
@@ -497,7 +513,20 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
                           {item.mediaUrls?.length > 0 && (
                             <div className="mb-2 space-y-2">
                               {item.mediaUrls.map((url) => (
-                                (isTwilioMediaUrl(url) ? mediaSources[url] : url) ? (
+                                (isTwilioMediaUrl(url) && !mediaSources[url] && mediaLoading[url]) ? (
+                                  <div
+                                    key={url}
+                                    role="status"
+                                    aria-label="Loading image"
+                                    className="flex h-40 w-56 max-w-full items-center justify-center rounded-xl border border-gray-700 bg-gray-800/70"
+                                  >
+                                    <span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-500 border-t-sky-400" />
+                                  </div>
+                                ) : (isTwilioMediaUrl(url) && mediaErrors[url]) ? (
+                                  <div key={url} className="rounded-xl border border-gray-700 bg-gray-800/70 px-4 py-3 text-xs text-gray-300">
+                                    Image could not be loaded.
+                                  </div>
+                                ) : (isTwilioMediaUrl(url) ? mediaSources[url] : url) ? (
                                   <img
                                     key={url}
                                     src={isTwilioMediaUrl(url) ? mediaSources[url] : url}
