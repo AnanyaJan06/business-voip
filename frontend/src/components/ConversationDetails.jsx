@@ -5,6 +5,14 @@ import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/paginatio
 import { showCopiedNumberToast, showErrorToast } from '../utils/toast.js';
 
 const BACKEND_URL = 'https://business-voip.onrender.com';
+const isTwilioMediaUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'api.twilio.com';
+  } catch {
+    return false;
+  }
+};
 
 const normalizePhone = (phone) => {
   const digits = String(phone || '').replace(/\D/g, '');
@@ -102,6 +110,7 @@ function ConversationDetailsSkeleton() {
 
 function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
   const [timeline, setTimeline] = useState([]);
+  const [mediaSources, setMediaSources] = useState({});
   const [hasMore, setHasMore] = useState(false);
   const [nextBefore, setNextBefore] = useState(null);
   const [messageBody, setMessageBody] = useState('');
@@ -113,6 +122,38 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
   const timelineEndRef = useRef(null);
   const scrollRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
+
+  useEffect(() => {
+    const twilioUrls = [...new Set(timeline.flatMap((item) => item.mediaUrls || []).filter(isTwilioMediaUrl))];
+    const objectUrls = [];
+    let cancelled = false;
+
+    if (!twilioUrls.length) {
+      setMediaSources({});
+      return undefined;
+    }
+
+    setMediaSources({});
+    Promise.all(twilioUrls.map(async (mediaUrl) => {
+      const query = new URLSearchParams({ url: mediaUrl });
+      const response = await fetch(`${BACKEND_URL}/api/messages/media?${query}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      if (!response.ok) throw new Error('Could not load image');
+      const objectUrl = URL.createObjectURL(await response.blob());
+      objectUrls.push(objectUrl);
+      return [mediaUrl, objectUrl];
+    }))
+      .then((entries) => {
+        if (!cancelled) setMediaSources(Object.fromEntries(entries));
+      })
+      .catch((error) => console.error('Load message media error:', error));
+
+    return () => {
+      cancelled = true;
+      objectUrls.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+    };
+  }, [timeline]);
 
   const selectedDigits = normalizePhone(phoneNumber);
 
@@ -456,12 +497,14 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
                           {item.mediaUrls?.length > 0 && (
                             <div className="mb-2 space-y-2">
                               {item.mediaUrls.map((url) => (
-                                <img
-                                  key={url}
-                                  src={url}
-                                  alt="Message attachment"
-                                  className="max-h-56 max-w-full rounded-xl border border-gray-700 object-cover"
-                                />
+                                (isTwilioMediaUrl(url) ? mediaSources[url] : url) ? (
+                                  <img
+                                    key={url}
+                                    src={isTwilioMediaUrl(url) ? mediaSources[url] : url}
+                                    alt="Message attachment"
+                                    className="max-h-56 max-w-full rounded-xl border border-gray-700 object-cover"
+                                  />
+                                ) : null
                               ))}
                             </div>
                           )}

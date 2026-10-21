@@ -90,6 +90,58 @@ export const uploadMessageImage = async (req, res) => {
   }
 };
 
+export const getMessageMedia = async (req, res) => {
+  try {
+    const mediaUrl = new URL(String(req.query.url || ''));
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const expectedPath = accountSid
+      ? new RegExp(`^/2010-04-01/Accounts/${accountSid}/Messages/[^/]+/Media/[^/]+$`)
+      : null;
+
+    if (
+      mediaUrl.protocol !== 'https:' ||
+      mediaUrl.hostname !== 'api.twilio.com' ||
+      !expectedPath?.test(mediaUrl.pathname)
+    ) {
+      return res.status(400).json({ message: 'Invalid Twilio media URL.' });
+    }
+
+    const accessQuery = await buildMessageAccessQuery(req.user);
+    const messageQuery = Object.keys(accessQuery).length
+      ? { $and: [{ mediaUrls: mediaUrl.toString() }, accessQuery] }
+      : { mediaUrls: mediaUrl.toString() };
+    if (!await MessageLog.exists(messageQuery)) {
+      return res.status(404).json({ message: 'Message media not found.' });
+    }
+
+    if (!authToken) {
+      return res.status(500).json({ message: 'Twilio credentials are not configured.' });
+    }
+
+    const credentials = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+    const twilioResponse = await fetch(mediaUrl, {
+      headers: { Authorization: `Basic ${credentials}` }
+    });
+
+    if (!twilioResponse.ok) {
+      return res.status(twilioResponse.status).json({ message: 'Twilio could not return this media.' });
+    }
+
+    const contentType = twilioResponse.headers.get('content-type') || 'application/octet-stream';
+    if (!contentType.startsWith('image/')) {
+      return res.status(415).json({ message: 'This message attachment is not an image.' });
+    }
+
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'private, max-age=300');
+    res.send(Buffer.from(await twilioResponse.arrayBuffer()));
+  } catch (error) {
+    console.error('Get Message Media Error:', error);
+    res.status(400).json({ message: 'Unable to load message media.' });
+  }
+};
+
 export const sendMessage = async (req, res) => {
   try {
     const { to, body } = req.body;
