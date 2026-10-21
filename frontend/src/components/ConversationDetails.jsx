@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Eye, X } from 'lucide-react';
 import { AppSkeletonTheme, Skeleton } from './ui/AppSkeleton.jsx';
 import InlineLoader from './ui/InlineLoader.jsx';
 import { buildPagedUrl, PAGE_SIZE, parsePagedResponse } from '../utils/pagination.js';
@@ -113,6 +114,8 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
   const [mediaSources, setMediaSources] = useState({});
   const [mediaLoading, setMediaLoading] = useState({});
   const [mediaErrors, setMediaErrors] = useState({});
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [downloadingImages, setDownloadingImages] = useState({});
   const [hasMore, setHasMore] = useState(false);
   const [nextBefore, setNextBefore] = useState(null);
   const [messageBody, setMessageBody] = useState('');
@@ -172,6 +175,34 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
   }, [timeline]);
 
   const selectedDigits = normalizePhone(phoneNumber);
+
+  const downloadImage = async (src, filename) => {
+    setDownloadingImages((current) => ({ ...current, [src]: true }));
+    try {
+      const response = await fetch(src);
+      if (!response.ok) throw new Error('Could not download image');
+      const blob = await response.blob();
+      const extensionByType = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/gif': 'gif',
+        'image/webp': 'webp'
+      };
+      const extension = extensionByType[blob.type] || 'jpg';
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `${filename}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (error) {
+      showErrorToast(error.message || 'Failed to download image');
+    } finally {
+      setDownloadingImages((current) => ({ ...current, [src]: false }));
+    }
+  };
 
   const fetchConversation = useCallback(async ({ reset = false, before = null, silent = false } = {}) => {
     if (!phoneNumber) return;
@@ -512,7 +543,7 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
                         <>
                           {item.mediaUrls?.length > 0 && (
                             <div className="mb-2 space-y-2">
-                              {item.mediaUrls.map((url) => (
+                              {item.mediaUrls.map((url, imageIndex) => (
                                 (isTwilioMediaUrl(url) && !mediaSources[url] && mediaLoading[url]) ? (
                                   <div
                                     key={url}
@@ -527,12 +558,38 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
                                     Image could not be loaded.
                                   </div>
                                 ) : (isTwilioMediaUrl(url) ? mediaSources[url] : url) ? (
-                                  <img
-                                    key={url}
-                                    src={isTwilioMediaUrl(url) ? mediaSources[url] : url}
-                                    alt="Message attachment"
-                                    className="max-h-56 max-w-full rounded-xl border border-gray-700 object-cover"
-                                  />
+                                  <div key={url} className="w-fit max-w-full">
+                                    <img
+                                      src={isTwilioMediaUrl(url) ? mediaSources[url] : url}
+                                      alt="Message attachment"
+                                      className="max-h-56 max-w-full rounded-xl border border-gray-700 object-cover"
+                                    />
+                                    <div className="mt-2 flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedImage({
+                                          src: isTwilioMediaUrl(url) ? mediaSources[url] : url,
+                                          filename: `message-image-${item.id}-${imageIndex + 1}`
+                                        })}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-600 px-2.5 py-1.5 text-xs font-medium text-gray-200 transition hover:bg-gray-700"
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                        View
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => downloadImage(
+                                          isTwilioMediaUrl(url) ? mediaSources[url] : url,
+                                          `message-image-${item.id}-${imageIndex + 1}`
+                                        )}
+                                        disabled={downloadingImages[isTwilioMediaUrl(url) ? mediaSources[url] : url]}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-600 px-2.5 py-1.5 text-xs font-medium text-gray-200 transition hover:bg-gray-700 disabled:cursor-wait disabled:opacity-60"
+                                      >
+                                        <Download className="h-3.5 w-3.5" />
+                                        {downloadingImages[isTwilioMediaUrl(url) ? mediaSources[url] : url] ? 'Downloading...' : 'Download'}
+                                      </button>
+                                    </div>
+                                  </div>
                                 ) : null
                               ))}
                             </div>
@@ -598,6 +655,44 @@ function ConversationDetails({ phoneNumber, onClose, hideHeader = false }) {
           </div>
         </div>
       </form>
+
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image viewer"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="absolute right-4 top-4 flex gap-2">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                downloadImage(selectedImage.src, selectedImage.filename);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/20"
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              aria-label="Close image viewer"
+              className="rounded-lg bg-white/10 p-2 text-white hover:bg-white/20"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <img
+            src={selectedImage.src}
+            alt="Message attachment full size"
+            onClick={(event) => event.stopPropagation()}
+            className="max-h-full max-w-full object-contain"
+          />
+        </div>
+      )}
     </div>
   );
 }
